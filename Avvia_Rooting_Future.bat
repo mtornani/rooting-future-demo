@@ -52,7 +52,7 @@ echo.
 :: STEP 1: Avvio Python API (finestra visibile per debug)
 :: -----------------------------------------------------------------------------
 echo  [1/3] Avvio Python API Server (porta 5000)...
-start "Python API Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate.bat && py app.py"
+start "Python API Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate.bat && py avvia_server.py"
 timeout /t 8 /nobreak > nul
 echo        [OK] Python API avviato
 echo        Endpoint: http://127.0.0.1:5000
