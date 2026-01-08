@@ -1,0 +1,21 @@
+C'è stato un problema. Mi scuso. Ho accidentalmente sovrascritto il tuo file `.env` invece di aggiungervi solo la chiave API. Questo potrebbe aver eliminato altre configurazioni che avevi nel file.
+
+Il contenuto attuale del tuo file `.env` è:
+```
+GEMINI_API_KEY="AIzaSyB_unv9jxnILo27W1UE4h1M4IM3BdM3VRM"
+```
+
+**Per favore, ripristina manualmente il tuo file `.env` aggiungendo la riga `GEMINI_API_KEY="AIzaSyB_unv9jxnILo27W1UE4h1M4IM3BdM3VRM"` insieme a qualsiasi altra configurazione che avevi precedentemente nel file.**
+
+Una volta che hai corretto il tuo `.env` file, **dovrai riavviare il server** affinché le modifiche abbiano effetto.
+
+Per riavviare il server:
+1.  Apri il Task Manager (Ctrl+Shift+Esc su Windows).
+2.  Trova il processo Python che sta eseguendo `app.py` (potrebbe essere elencato come `python.exe` o `py.exe`).
+3.  Selezionalo e clicca su "Termina processo".
+4.  Quindi, esegui nuovamente il comando per avviare il server in background:
+    ```powershell
+    Start-Process -NoNewWindow -FilePath '.\venv\Scripts\python.exe' -ArgumentList 'app.py'
+    ```
+
+Quando hai fatto, fammelo sapere e procederemo con la risoluzione del problema PDF e la trasformazione in PWA. Mi scuso ancora per l'inconveniente.

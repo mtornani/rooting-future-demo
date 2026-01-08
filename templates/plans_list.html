@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista Piani - Rooting Future</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">🌱</span>
+            <span class="brand-text">Rooting Future</span>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}" class="active">Piani</a>
+            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}">Review Queue</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="page-header">
+            <h1>Piani Strategici</h1>
+            <a href="{{ url_for('new_plan') }}" class="btn btn-primary">+ Nuovo Piano</a>
+        </header>
+
+        <!-- Filters -->
+        <section class="filters">
+            <form method="GET" class="filter-form">
+                <div class="filter-group">
+                    <label for="status">Status:</label>
+                    <select name="status" id="status" onchange="this.form.submit()">
+                        <option value="">Tutti</option>
+                        <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Bozza</option>
+                        <option value="in_review" {% if status_filter == 'in_review' %}selected{% endif %}>In Review</option>
+                        <option value="ready" {% if status_filter == 'ready' %}selected{% endif %}>Pronto</option>
+                        <option value="exported" {% if status_filter == 'exported' %}selected{% endif %}>Esportato</option>
+                        <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>Archiviato</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="category">Categoria:</label>
+                    <select name="category" id="category" onchange="this.form.submit()">
+                        <option value="">Tutte</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if status_filter or category_filter %}
+                <a href="{{ url_for('plans_list') }}" class="btn btn-sm">Reset Filtri</a>
+                {% endif %}
+            </form>
+        </section>
+
+        <!-- Plans Table -->
+        <section class="section">
+            {% if plans %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Club</th>
+                        <th>Categoria</th>
+                        <th>Regione</th>
+                        <th>Status</th>
+                        <th>Credibilità</th>
+                        <th>Data</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plan in plans %}
+                    <tr>
+                        <td>
+                            <strong>{{ plan.club_name }}</strong>
+                        </td>
+                        <td>{{ plan.category }}</td>
+                        <td>{{ plan.region }}</td>
+                        <td>
+                            <span class="status-badge status-{{ plan.status }}">
+                                {{ plan.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="credibility-indicator {% if plan.credibility_score >= 70 %}high{% elif plan.credibility_score >= 50 %}medium{% else %}low{% endif %}">
+                                {{ plan.credibility_score|round(1) }}%
+                            </span>
+                        </td>
+                        <td>{{ plan.created_at[:10] if plan.created_at else 'N/A' }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{{ url_for('plan_detail', plan_id=plan.id) }}" class="btn btn-sm">
+                                    Apri
+                                </a>
+                                {% if plan.status == 'ready' or plan.status == 'exported' %}
+                                <button onclick="viewExecutive('{{ plan.id }}')" class="btn btn-sm btn-success" title="Executive Report A4">
+                                    📋
+                                </button>
+                                <button onclick="quickExport('{{ plan.id }}')" class="btn btn-sm btn-secondary" title="Scarica ZIP">
+                                    📥
+                                </button>
+                                {% endif %}
+                                <button onclick="archivePlan('{{ plan.id }}')" class="btn btn-sm btn-danger" title="Archivia">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            {% if total > per_page %}
+            <div class="pagination">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}&status={{ status_filter }}&category={{ category_filter }}" class="btn btn-sm">
+                    ← Precedente
+                </a>
+                {% endif %}
+
+                <span class="pagination-info">
+                    Pagina {{ page }} di {{ (total / per_page)|round(0, 'ceil')|int }}
+                    ({{ total }} piani)
+                </span>
+
+                {% if page * per_page < total %}
+                <a href="?page={{ page + 1 }}&status={{ status_filter }}&category={{ category_filter }}" class="btn btn-sm">
+                    Successiva →
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div class="empty-state">
+                <p>Nessun piano trovato{% if status_filter or category_filter %} con i filtri selezionati{% endif %}.</p>
+                <a href="{{ url_for('new_plan') }}" class="btn btn-primary">Crea il primo piano</a>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        // Apre Executive Report A4 nel browser
+        function viewExecutive(planId) {
+            window.open(`/view/${planId}/executive`, '_blank');
+        }
+
+        async function quickExport(planId) {
+            try {
+                const resp = await fetch(`/api/export/${planId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({formats: ['docx', 'html']})
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    for (const [format, filename] of Object.entries(data.files)) {
+                        window.open('/download/' + filename, '_blank');
+                    }
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+
+        async function archivePlan(planId) {
+            if (!confirm('Archiviare questo piano?')) return;
+
+            try {
+                const resp = await fetch(`/api/plan/${planId}/archive`, {
+                    method: 'POST'
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    location.reload();
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

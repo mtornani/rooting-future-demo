@@ -1,0 +1,25 @@
+Grazie per aver fornito i log! Questo è molto utile.
+
+Ho notato un errore ricorrente nei log: `Search error: 403 Client Error: Forbidden for url: https://google.serper.dev/search`
+
+Questo errore `403 Forbidden` indica che il sistema non è autorizzato a utilizzare il servizio di ricerca web di Serper. Molto probabilmente, la `SERPER_API_KEY` non è configurata correttamente o manca.
+
+Per risolvere questo problema, devi aggiungere la tua chiave API di Serper al file `.env`, esattamente come hai fatto con la chiave API di Gemini.
+
+**Passaggi da seguire:**
+
+1.  **Trova la tua `SERPER_API_KEY`.** Se non ne hai una, dovrai ottenerla dal sito web di Serper.
+2.  **Modifica il tuo file `.env`** (il file che stavi ricostruendo). Aggiungi questa riga, sostituendo `YOUR_SERPER_API_KEY_HERE` con la tua chiave effettiva:
+    ```
+    SERPER_API_KEY="YOUR_SERPER_API_KEY_HERE"
+    ```
+    Assicurati che sia nella stessa riga di `GEMINI_API_KEY`.
+3.  **Ferma il server attuale:** Come abbiamo fatto in precedenza. Apri il Task Manager, trova il processo `python.exe` o `py.exe` che esegue `app.py` e terminalo.
+4.  **Avvia il server di nuovo:** Esegui il comando:
+    ```powershell
+    Start-Process -NoNewWindow -FilePath '.\venv\Scripts\python.exe' -ArgumentList 'app.py'
+    ```
+
+**Fammelo sapere quando hai fatto e se l'errore `403 Forbidden` scompare dai log quando provi a fare una ricerca web con l'applicazione.**
+
+Dopo aver risolto questo, passeremo alla verifica dell'export PDF e alla discussione sulle opzioni di avvio rapido.

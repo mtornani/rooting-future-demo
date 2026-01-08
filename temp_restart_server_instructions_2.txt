@@ -1,0 +1,14 @@
+Per riavviare il server, segui questi passaggi:
+
+1.  **Ferma il server attuale:**
+    *   Apri il **Task Manager** (puoi farlo premendo `Ctrl + Shift + Esc`).
+    *   Cerca un processo `python.exe` o `py.exe`. Potrebbero essercene più di uno; quello giusto è quello che sta eseguendo `app.py`. Se hai dubbi, puoi provare a terminarli tutti e poi avviare solo quello corretto.
+    *   Seleziona il processo e clicca su "Termina processo" (o "End task").
+
+2.  **Avvia il server di nuovo:**
+    *   Una volta terminato il processo precedente, esegui nuovamente questo comando nel tuo terminale PowerShell:
+        ```powershell
+        Start-Process -NoNewWindow -FilePath '.\venv\Scripts\python.exe' -ArgumentList 'app.py'
+        ```
+
+Fammelo sapere quando hai eseguito questi passaggi e se l'applicazione è di nuovo raggiungibile all'indirizzo [http://127.0.0.1:5000](http://127.0.0.1:5000).

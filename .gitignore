@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+output/
+knowledge_base/
+*.log
+*.tmp
+file_search_store_id.txt
+
+# Test files
+test_*.py
+diagnose.py
+boot_test.py
+start_simple.py
+
+# Secrets
+*.pem
+*.key
+credentials.json

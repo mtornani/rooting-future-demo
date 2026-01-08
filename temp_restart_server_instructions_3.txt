@@ -1,0 +1,19 @@
+Ho aggiornato il tuo file `.env` con entrambe le chiavi API (Gemini e Serper).
+
+Ora è **fondamentale che tu riavvii il server** affinché l'applicazione carichi e utilizzi queste nuove chiavi.
+
+**Per favore, segui nuovamente questi passaggi per riavviare il server:**
+
+1.  **Ferma il server attuale:**
+    *   Apri il **Task Manager** (`Ctrl + Shift + Esc`).
+    *   Cerca il processo `python.exe` o `py.exe` che sta eseguendo `app.py` e terminalo.
+
+2.  **Avvia il server di nuovo:**
+    *   Una volta terminato il processo precedente, esegui questo comando nel tuo terminale PowerShell:
+        ```powershell
+        Start-Process -NoNewWindow -FilePath '.\venv\Scripts\python.exe' -ArgumentList 'app.py'
+        ```
+
+**Fammelo sapere quando hai eseguito questi passaggi e se l'applicazione è di nuovo raggiungibile all'indirizzo [http://127.0.0.1:5000](http://127.0.0.1:5000).**
+
+Dopo il riavvio, potremo procedere a verificare l'export PDF e a discutere le opzioni di avvio rapido.

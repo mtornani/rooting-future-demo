@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future - Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .logo { font-size: 1.25rem; font-weight: 700; color: #10b981; }
+        .nav a { color: #94a3b8; text-decoration: none; margin-left: 1.5rem; }
+        .nav a:hover { color: #fff; }
+
+        .main { display: flex; height: calc(100vh - 60px); }
+
+        /* Left Panel */
+        .left-panel {
+            width: 50%;
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-right: 1px solid #334155;
+        }
+
+        /* Right Panel - Console */
+        .right-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: #0a0f1a;
+        }
+        .console-header {
+            padding: 1rem;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .console-title { color: #10b981; font-weight: 600; }
+        .console-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+        }
+        .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; }
+        .log-time { color: #64748b; margin-right: 0.5rem; }
+        .log-level { padding: 0.1rem 0.4rem; border-radius: 3px; margin-right: 0.5rem; font-size: 0.75rem; }
+        .log-level.INFO { background: #3b82f6; }
+        .log-level.WARNING { background: #f59e0b; }
+        .log-level.ERROR { background: #ef4444; }
+        .connection-status {
+            padding: 0.5rem 1rem;
+            background: #1e293b;
+            font-size: 0.8rem;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .connected .status-dot { background: #22c55e; }
+        .disconnected .status-dot { background: #ef4444; }
+
+        /* Cards */
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .card h3 { color: #10b981; margin-bottom: 1rem; }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #1e293b;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
+        .stat-label { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
+
+        /* Upload */
+        .upload-zone {
+            border: 2px dashed #334155;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-zone:hover { border-color: #10b981; background: #1e293b; }
+        .upload-zone.dragover { border-color: #10b981; background: #1e293b; }
+        .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+        .file-list { margin-top: 1rem; }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: #334155;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        .file-remove {
+            background: #ef4444;
+            border: none;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #94a3b8; }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #f1f5f9;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #10b981; color: white; }
+        .btn-primary:hover { background: #059669; }
+        .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+        .btn-secondary { background: #334155; color: #f1f5f9; }
+
+        /* Recent Plans */
+        .plan-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: #334155;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+        .plan-name { font-weight: 600; }
+        .plan-date { color: #64748b; font-size: 0.85rem; }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+        .alert-warning { background: #78350f; border-left: 4px solid #f59e0b; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">Rooting Future v5.4</div>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}">Review</a>
+            <a href="/legacy">Legacy</a>
+        </nav>
+    </header>
+
+    <div class="main">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.total_plans }}</div>
+                    <div class="stat-label">Piani Totali</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div>
+                    <div class="stat-label">In Bozza</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.sections_needing_review }}</div>
+                    <div class="stat-label">Da Revisionare</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.average_credibility }}%</div>
+                    <div class="stat-label">Credibilita</div>
+                </div>
+            </div>
+
+            <!-- Upload Card -->
+            <div class="card">
+                <h3>Upload DOCX Stakeholder</h3>
+                {% if docx_available %}
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-zone" id="dropZone">
+                        <div class="upload-icon">📁</div>
+                        <div>Trascina i file DOCX qui</div>
+                        <div style="color:#64748b;font-size:0.85rem;margin-top:0.5rem;">o clicca per selezionare</div>
+                        <input type="file" id="fileInput" accept=".docx" multiple hidden>
+                    </div>
+                    <div class="file-list" id="fileList"></div>
+
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label>Nome Club</label>
+                        <input type="text" id="clubName" placeholder="Es: AC Rimini 1912">
+                    </div>
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <select id="category">
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                        Genera Piano
+                    </button>
+                </form>
+                {% else %}
+                <p style="color:#f59e0b;">python-docx non installato. Esegui: pip install python-docx</p>
+                {% endif %}
+            </div>
+
+            <!-- Recent Plans -->
+            <div class="card">
+                <h3>Piani Recenti</h3>
+                {% if stats.recent_plans %}
+                    {% for plan in stats.recent_plans[:5] %}
+                    <div class="plan-item">
+                        <div>
+                            <div class="plan-name">{{ plan.club_name }}</div>
+                            <div class="plan-date">{{ plan.last_modified[:10] if plan.last_modified else 'N/A' }}</div>
+                        </div>
+                        <a href="{{ url_for('plan_detail', plan_id=plan.plan_id) }}" class="btn btn-secondary">Apri</a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color:#64748b;">Nessun piano generato.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right Panel: Console -->
+        <div class="right-panel">
+            <div class="console-header">
+                <div class="console-title">Live Console</div>
+                <div>
+                    <button class="btn btn-secondary" onclick="clearLogs()" style="padding:0.4rem 0.8rem;">Clear</button>
+                </div>
+            </div>
+            <div class="console-body" id="logConsole">
+                <div class="log-entry">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-level INFO">INFO</span>
+                    <span>Connessione in corso...</span>
+                </div>
+            </div>
+            <div class="connection-status disconnected" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span id="connectionText">Disconnesso</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const logConsole = document.getElementById('logConsole');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        let selectedFiles = [];
+        let eventSource = null;
+
+        // SSE Connection
+        function connectSSE() {
+            if (eventSource) eventSource.close();
+
+            eventSource = new EventSource('/api/stream/logs');
+
+            eventSource.onopen = () => {
+                document.getElementById('connectionStatus').className = 'connection-status connected';
+                document.getElementById('connectionText').textContent = 'Connesso';
+                addLog('INFO', 'Connesso al server');
+            };
+
+            eventSource.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    addLog(data.level, data.message);
+                } catch (err) {}
+            };
+
+            eventSource.onerror = () => {
+                document.getElementById('connectionStatus').className = 'connection-status disconnected';
+                document.getElementById('connectionText').textContent = 'Disconnesso';
+                setTimeout(connectSSE, 3000);
+            };
+        }
+
+        function addLog(level, message) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<span class="log-time">${time}</span><span class="log-level ${level}">${level}</span><span>${escapeHtml(message)}</span>`;
+            logConsole.appendChild(div);
+            while (logConsole.children.length > 100) logConsole.removeChild(logConsole.firstChild);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        function clearLogs() {
+            logConsole.innerHTML = '';
+            addLog('INFO', 'Console svuotata');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // File Upload
+        if (dropZone) {
+            dropZone.onclick = () => fileInput.click();
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            };
+            fileInput.onchange = (e) => handleFiles(e.target.files);
+        }
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file.name.endsWith('.docx') && !selectedFiles.some(f => f.name === file.name)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFiles();
+        }
+
+        function renderFiles() {
+            fileList.innerHTML = selectedFiles.map((f, i) => `
+                <div class="file-item">
+                    <span>${f.name}</span>
+                    <button class="file-remove" onclick="removeFile(${i})">X</button>
+                </div>
+            `).join('');
+            submitBtn.disabled = selectedFiles.length === 0;
+        }
+
+        function removeFile(idx) {
+            selectedFiles.splice(idx, 1);
+            renderFiles();
+        }
+
+        // Form Submit
+        if (uploadForm) {
+            uploadForm.onsubmit = async (e) => {
+                e.preventDefault();
+                if (selectedFiles.length === 0) return;
+
+                const clubName = document.getElementById('clubName').value || 'Club Sconosciuto';
+                const category = document.getElementById('category').value;
+
+                addLog('INFO', `Avvio generazione piano per ${clubName}...`);
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Generazione in corso...';
+
+                const formData = new FormData();
+                selectedFiles.forEach(f => formData.append('files', f));
+                formData.append('club_name', clubName);
+                formData.append('category', category);
+
+                try {
+                    const resp = await fetch('/api/generate-from-docx', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await resp.json();
+
+                    if (data.success) {
+                        addLog('INFO', `Piano generato: ${data.plan_id}`);
+                        if (data.redirect_url) {
+                            setTimeout(() => window.location.href = data.redirect_url, 2000);
+                        }
+                    } else {
+                        addLog('ERROR', data.error || 'Errore generazione');
+                    }
+                } catch (err) {
+                    addLog('ERROR', err.message);
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Genera Piano';
+                }
+            };
+        }
+
+        // Start
+        connectSSE();
+    </script>
+</body>
+</html>
