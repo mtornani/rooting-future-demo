@@ -56,6 +56,7 @@ from export_pdf import create_pdf_from_html
 # Nuovo export Print-First con Paged.js
 from export_paged import create_paged_html
 from export_pdf_server import PdfServerExporter
+from export_onepager import create_onepager
 from club_identity import get_club_colors, get_club_identity
 from post_production_editor import (
     PostProductionEditor,
@@ -1760,6 +1761,89 @@ def api_export_executive_report(plan_id: str):
         logger.exception(f"Executive report export error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+
+@app.route("/api/export/<plan_id>/onepager", methods=["GET"])
+def api_export_onepager(plan_id: str):
+    """
+    Esporta One-Pager infografica A4 - documento singola pagina per condivisione rapida.
+    Perfetto per WhatsApp, email, presentazioni veloci.
+    Include: Dashboard KPI, Progress STW, Top 5 Priorita, Roadmap.
+    """
+    try:
+        review = editor.reviews.get(plan_id)
+        if not review:
+            return jsonify({"success": False, "error": "Plan not found"}), 404
+
+        plan_data = editor.export_plan_for_final(plan_id)
+        if not plan_data:
+            return jsonify({"success": False, "error": "No content to export"}), 400
+
+        club_identity = get_club_identity(review.club_name)
+        credibility = (
+            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
+            if review.sections else 70
+        )
+
+        metadata = {
+            "category": review.category or "Serie D",
+            "primary_color": club_identity.get("primary", "#1a365d"),
+            "secondary_color": club_identity.get("secondary", "#c9a227"),
+            "credibility_score": int(credibility),
+            "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+        }
+
+        stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+
+        html_path = create_onepager(
+            plan_data=plan_data,
+            club_name=review.club_name,
+            metadata=metadata,
+            stw_progress=stw_progress,
+        )
+
+        return send_file(html_path, mimetype="text/html", as_attachment=True, download_name=html_path.name)
+
+    except Exception as e:
+        logger.exception(f"One-Pager export error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/view/<plan_id>/onepager")
+def view_onepager(plan_id: str):
+    """Visualizza One-Pager infografica nel browser."""
+    try:
+        review = editor.reviews.get(plan_id)
+        if not review:
+            return "Piano non trovato", 404
+
+        plan_data = editor.export_plan_for_final(plan_id)
+        if not plan_data:
+            return "Nessun contenuto disponibile", 400
+
+        club_identity = get_club_identity(review.club_name)
+        credibility = (
+            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
+            if review.sections else 70
+        )
+
+        metadata = {
+            "category": review.category or "Serie D",
+            "primary_color": club_identity.get("primary", "#1a365d"),
+            "secondary_color": club_identity.get("secondary", "#c9a227"),
+            "credibility_score": int(credibility),
+            "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+        }
+
+        stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+        html_path = create_onepager(plan_data, review.club_name, metadata, stw_progress)
+
+        with open(html_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    except Exception as e:
+        logger.exception(f"View One-Pager error: {e}")
+        return f"Errore: {str(e)}", 500
 
 @app.route("/view/<plan_id>/executive")
 def view_executive_report(plan_id: str):
