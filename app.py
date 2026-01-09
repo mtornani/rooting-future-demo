@@ -1201,6 +1201,8 @@ def api_generate_from_docx():
 
         # 8. Genera PDF automaticamente (se production mode)
         pdf_url = None
+        onepager_url = None
+        executive_url = None
         if request_mode == "production":
             try:
                 pdf_exporter = PdfServerExporter()
@@ -1213,6 +1215,49 @@ def api_generate_from_docx():
                 pdf_url = f"/download/{pdf_path.name}"
             except Exception as pdf_error:
                 logger.warning(f"[DOCX Generate] PDF failed: {pdf_error}")
+
+            # 8b. Genera anche One-Pager e Executive Report
+            try:
+                safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                # Prepara metadata per export
+                export_metadata = {
+                    "category": generation_params.get("category", "Eccellenza"),
+                    "primary_color": club_identity.get("primary", "#1a365d"),
+                    "secondary_color": club_identity.get("secondary", "#c9a227"),
+                    "credibility_score": int(metadata.get("credibility_score", 70)),
+                    "sources_count": len(sources),
+                }
+
+                # One-Pager
+                stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+                onepager_path = create_onepager(
+                    plan_data=plan,
+                    club_name=generation_params["club_name"],
+                    metadata=export_metadata,
+                    stw_progress=stw_progress,
+                )
+                onepager_url = f"/download/{onepager_path.name}"
+                logger.info(f"[DOCX Generate] One-Pager generato: {onepager_path}")
+
+                # Executive Report
+                exec_html = generate_executive_report_html(
+                    plan_data=plan,
+                    club_name=generation_params["club_name"],
+                    category=generation_params.get("category", "Eccellenza"),
+                    metadata=export_metadata,
+                    sources=sources,
+                )
+                exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+                exec_path = OUTPUT_DIR / exec_filename
+                with open(exec_path, "w", encoding="utf-8") as f:
+                    f.write(exec_html)
+                executive_url = f"/download/{exec_filename}"
+                logger.info(f"[DOCX Generate] Executive Report generato: {exec_path}")
+
+            except Exception as extra_error:
+                logger.warning(f"[DOCX Generate] One-Pager/Executive fallito: {extra_error}")
 
         # Response
         return jsonify(
@@ -1251,6 +1296,8 @@ def api_generate_from_docx():
                 "sources_count": len(sources),
                 # URLs
                 "pdf_url": pdf_url,
+                "onepager_url": onepager_url,
+                "executive_url": executive_url,
                 "edit_url": f"/plan/{review.plan_id}",
                 "view_url": f"/view/{review.plan_id}",
                 # Next steps
