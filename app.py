@@ -2788,6 +2788,64 @@ def api_export_pdf_only(plan_id: str):
         final_pdf_path = OUTPUT_DIR / f"{pdf_filename}.pdf"
         shutil.copy2(pdf_temp_path, final_pdf_path)
 
+        # ===== GENERA ANCHE ONE-PAGER E EXECUTIVE REPORT =====
+        try:
+            # Prepara metadata comuni
+            club_identity = get_club_identity(review.club_name)
+            credibility = (
+                sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
+                if review.sections else 70
+            )
+
+            common_metadata = {
+                "category": review.category or "Eccellenza",
+                "primary_color": club_identity.get("primary", "#1a365d"),
+                "secondary_color": club_identity.get("secondary", "#c9a227"),
+                "credibility_score": int(credibility),
+                "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+            }
+
+            # 1. Genera One-Pager
+            stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+            onepager_path = create_onepager(
+                plan_data=plan_data,
+                club_name=review.club_name,
+                metadata=common_metadata,
+                stw_progress=stw_progress,
+            )
+            logger.info(f"One-Pager generato: {onepager_path}")
+
+            # 2. Genera Executive Report
+            exec_metadata = {
+                "category": review.category or "Eccellenza",
+                "primary_color": common_metadata.get("primary_color", "#1a365d"),
+                "secondary_color": common_metadata.get("secondary_color", "#ffffff"),
+                "dimensione_rosa": getattr(review, "squad_size", 22),
+                "capienza_stadio": getattr(review, "stadium_capacity", 0),
+                "known_financials": {},
+                "estimated_fields": {
+                    "fatturato": "tier3_estimated",
+                    "monte_ingaggi": "tier2_deduced",
+                    "valore_rosa": "tier2_deduced",
+                },
+            }
+            exec_html = generate_executive_report_html(
+                plan_data=plan_data,
+                club_name=review.club_name,
+                category=review.category or "Eccellenza",
+                metadata=exec_metadata,
+                sources=[],
+            )
+            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+            exec_path = OUTPUT_DIR / exec_filename
+            with open(exec_path, "w", encoding="utf-8") as f:
+                f.write(exec_html)
+            logger.info(f"Executive Report generato: {exec_path}")
+
+        except Exception as e:
+            logger.warning(f"Generazione One-Pager/Executive fallita (non bloccante): {e}")
+        # ===== FINE GENERAZIONE EXTRA =====
+
         # Pulisci temp
         if temp_dir and os.path.exists(temp_dir):
             try:
