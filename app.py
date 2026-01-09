@@ -3288,9 +3288,9 @@ if __name__ == "__main__":
 
     # Inizializza SSE handler ORA che tutti gli import sono completati
     # Questo evita deadlock durante il caricamento dei moduli
-    # DISABILITAZIONE TEMPORANEA SSE PER TEST
-    print("[!] SSE TEMPORANEAMENTE DISABILITATO - ATTESA COMPLETAMENTO GENERAZIONE")
-    log_stream_handler = None
+    log_stream_handler = LogStreamHandler()
+    logging.getLogger().addHandler(log_stream_handler)
+    print("[OK] SSE Log Streaming attivo")
 
     print(f"""
     ===============================================================
