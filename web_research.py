@@ -30,9 +30,11 @@ logger = logging.getLogger(__name__)
 # DATA STRUCTURES
 # =============================================================================
 
+
 @dataclass
 class SearchResult:
     """Singolo risultato di ricerca"""
+
     title: str
     url: str
     snippet: str
@@ -56,6 +58,7 @@ class SearchResult:
 @dataclass
 class ResearchResult:
     """Risultato completo di una ricerca"""
+
     query: str
     timestamp: str
     results: List[SearchResult] = field(default_factory=list)
@@ -77,6 +80,7 @@ class ResearchResult:
 # =============================================================================
 # CACHE SYSTEM
 # =============================================================================
+
 
 class SearchCache:
     """Cache per risultati ricerca"""
@@ -112,9 +116,7 @@ class SearchCache:
                 return None
 
             # Ricostruisci oggetto
-            results = [
-                SearchResult(**r) for r in data.get("results", [])
-            ]
+            results = [SearchResult(**r) for r in data.get("results", [])]
             return ResearchResult(
                 query=data["query"],
                 timestamp=data["timestamp"],
@@ -145,6 +147,7 @@ class SearchCache:
 # WEB RESEARCHER
 # =============================================================================
 
+
 class WebResearcher:
     """
     Ricerca web via Serper.dev API.
@@ -157,10 +160,9 @@ class WebResearcher:
         self.api_key = SERPER_API_KEY
         self.cache = SearchCache()
         self.session = requests.Session()
-        self.session.headers.update({
-            "X-API-KEY": self.api_key,
-            "Content-Type": "application/json"
-        })
+        self.session.headers.update(
+            {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
+        )
 
     def search(
         self,
@@ -168,7 +170,7 @@ class WebResearcher:
         num_results: int = 10,
         country: str = "it",
         language: str = "it",
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> ResearchResult:
         """
         Esegue ricerca web.
@@ -202,7 +204,7 @@ class WebResearcher:
             response = self.session.post(
                 self.SERPER_URL,
                 json=payload,
-                timeout=SOURCE_CONFIG.search_timeout_seconds
+                timeout=SOURCE_CONFIG.search_timeout_seconds,
             )
             response.raise_for_status()
             data = response.json()
@@ -244,14 +246,12 @@ class WebResearcher:
             return ResearchResult(
                 query=query,
                 timestamp=datetime.now().isoformat(),
-                error="Timeout nella ricerca"
+                error="Timeout nella ricerca",
             )
         except requests.exceptions.RequestException as e:
             logger.error(f"Search error: {e}")
             return ResearchResult(
-                query=query,
-                timestamp=datetime.now().isoformat(),
-                error=str(e)
+                query=query, timestamp=datetime.now().isoformat(), error=str(e)
             )
 
     def _evaluate_source(self, url: str) -> tuple[bool, float]:
@@ -265,10 +265,12 @@ class WebResearcher:
 
         for trusted_domain in TRUSTED_SOURCES:
             if trusted_domain in url_lower:
-                weight = SOURCE_WEIGHTS.get(trusted_domain, SOURCE_WEIGHTS["default"])
+                weight = SOURCE_WEIGHTS.get(
+                    trusted_domain, SOURCE_WEIGHTS.get("unknown", 0.8)
+                )
                 return True, weight
 
-        return False, SOURCE_WEIGHTS["default"]
+        return False, SOURCE_WEIGHTS.get("unknown", 0.8)
 
     def _extract_date(self, text: str) -> Optional[str]:
         """Estrae data dal testo se presente"""
@@ -294,10 +296,7 @@ class WebResearcher:
     # =========================================================================
 
     def research_club(
-        self,
-        club_name: str,
-        city: str = "",
-        category: str = ""
+        self, club_name: str, city: str = "", category: str = ""
     ) -> Dict[str, ResearchResult]:
         """
         Ricerca completa su un club calcistico.
@@ -330,9 +329,7 @@ class WebResearcher:
         return results
 
     def research_competitors(
-        self,
-        competitors: List[str],
-        region: str = ""
+        self, competitors: List[str], region: str = ""
     ) -> Dict[str, ResearchResult]:
         """
         Ricerca su club competitor.
@@ -350,11 +347,7 @@ class WebResearcher:
 
         return results
 
-    def research_benchmark(
-        self,
-        metric: str,
-        category: str
-    ) -> ResearchResult:
+    def research_benchmark(self, metric: str, category: str) -> ResearchResult:
         """
         Cerca benchmark di settore.
 
@@ -365,11 +358,7 @@ class WebResearcher:
         query = f"{metric} {category} calcio italiano statistiche ufficiali"
         return self.search(query)
 
-    def research_regulations(
-        self,
-        topic: str,
-        category: str = ""
-    ) -> ResearchResult:
+    def research_regulations(self, topic: str, category: str = "") -> ResearchResult:
         """
         Cerca regolamenti e normative.
 
@@ -390,11 +379,7 @@ class WebResearcher:
     # VERIFICA DATI SPECIFICI
     # =========================================================================
 
-    def verify_statistic(
-        self,
-        claim: str,
-        context: str = ""
-    ) -> ResearchResult:
+    def verify_statistic(self, claim: str, context: str = "") -> ResearchResult:
         """
         Verifica una statistica specifica.
 
@@ -406,9 +391,7 @@ class WebResearcher:
         return self.search(query, num_results=5)
 
     def find_official_source(
-        self,
-        data_type: str,
-        entity: str
+        self, data_type: str, entity: str
     ) -> Optional[SearchResult]:
         """
         Cerca fonte ufficiale per un dato.
@@ -434,6 +417,7 @@ class WebResearcher:
 # AGGREGATORE RICERCHE
 # =============================================================================
 
+
 class ResearchAggregator:
     """
     Aggrega e sintetizza risultati di multiple ricerche.
@@ -448,7 +432,7 @@ class ResearchAggregator:
         city: str,
         category: str,
         competitors: List[str] = None,
-        region: str = ""
+        region: str = "",
     ) -> Dict[str, Any]:
         """
         Ricerca comprensiva per piano strategico.
@@ -465,7 +449,7 @@ class ResearchAggregator:
                 "timestamp": datetime.now().isoformat(),
                 "club_name": club_name,
                 "category": category,
-            }
+            },
         }
 
         # 1. Ricerca club principale
@@ -480,7 +464,9 @@ class ResearchAggregator:
             logger.info(f"Researching competitors: {competitors}")
             results["competitors"] = {
                 k: v.to_dict()
-                for k, v in self.researcher.research_competitors(competitors, region).items()
+                for k, v in self.researcher.research_competitors(
+                    competitors, region
+                ).items()
             }
 
         # 3. Benchmark di categoria
@@ -502,10 +488,10 @@ class ResearchAggregator:
 
         # 5. Statistiche aggregate
         results["metadata"]["total_searches"] = (
-            len(results["club"]) +
-            len(results["competitors"]) +
-            len(results["benchmarks"]) +
-            len(results["regulations"])
+            len(results["club"])
+            + len(results["competitors"])
+            + len(results["benchmarks"])
+            + len(results["regulations"])
         )
 
         all_results = []
@@ -522,9 +508,7 @@ class ResearchAggregator:
         return results
 
     def export_research_report(
-        self,
-        research_data: Dict,
-        output_path: Path = None
+        self, research_data: Dict, output_path: Path = None
     ) -> Path:
         """
         Esporta ricerca in JSON per audit trail.
