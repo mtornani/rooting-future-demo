@@ -654,8 +654,12 @@ Il piano deve essere concreto, con KPI misurabili e timeline realistiche.
         """
         Converte dati sintetizzati in parametri per /api/generate.
         """
-        # Estrai categoria dai hard_data
-        category = self.hard_data.get('current_league', 'Serie D')
+        # Estrai categoria dai hard_data (supporta sia 'category' che 'current_league')
+        category = (
+            self.hard_data.get('category') or
+            self.hard_data.get('current_league') or
+            'Eccellenza'  # Default piu realistico per club italiani dilettanti
+        )
 
         # Prepara additional_data con SWOT
         additional_data = {

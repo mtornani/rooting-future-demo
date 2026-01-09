@@ -664,7 +664,7 @@ class MultiAgentOrchestrator:
         all_sources.extend(coord_output.get('sources', []))
 
         # Calcola stime finanziarie con sistema Tier 1/2/3
-        category = club_data.get('category', 'Serie D')
+        category = club_data.get('category', 'Eccellenza')
         financial_estimates = estimate_missing_financials(club_data, category)
 
         # Converti EstimatedValue in dict serializzabili
@@ -742,7 +742,7 @@ class MultiAgentOrchestrator:
         all_sources.extend(coord_output.get('sources', []))
 
         # Calcola stime finanziarie con sistema Tier 1/2/3
-        category = club_data.get('category', 'Serie D')
+        category = club_data.get('category', 'Eccellenza')
         financial_estimates = estimate_missing_financials(club_data, category)
 
         # Converti EstimatedValue in dict serializzabili
