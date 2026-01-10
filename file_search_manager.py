@@ -35,8 +35,16 @@ class FileSearchManager:
 
         # Crea il client Gemini
         try:
-            self.client = genai.Client()
+            api_key = GEMINI_API_KEY or os.environ.get("GOOGLE_API_KEY")
+            if not api_key:
+                logger.warning("API key non trovata. FileSearchManager disabilitato.")
+                self.client = None
+                self.store_name = None
+                return
+
+            self.client = genai.Client(api_key=api_key)
             self.store_name = self._get_or_create_store()
+            logger.info("FileSearchManager inizializzato correttamente con RAG abilitato")
         except Exception as e:
             logger.error(f"Errore creazione client Gemini: {e}")
             self.client = None

@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Any
 
 from config import OUTPUT_DIR
 from stw_matrix import STW_FRAMEWORK, STWCategory, get_category_color, get_category_icon
+from stw_analyzer import calculate_stw_progress
 
 logger = logging.getLogger(__name__)
 
@@ -58,18 +59,16 @@ class OnePagerExporter:
         category = metadata.get('category', 'Serie D')
         credibility_score = metadata.get('credibility_score', 72)
         sources_count = metadata.get('sources_count', 15)
+        total_questionnaires = metadata.get('total_questionnaires', 0)
 
         # Estrai highlights dal piano
         highlights = self._extract_highlights(plan_data)
 
-        # Progress STW di default se non fornito
+        # Calcola progress STW dinamicamente se non fornito
         if stw_progress is None:
-            stw_progress = {
-                'sportivi': 75,
-                'strutturali': 60,
-                'marketing': 70,
-                'sociali': 55
-            }
+            logger.info("Calculating STW progress from plan content...")
+            stw_progress = calculate_stw_progress(plan_data)
+            logger.info(f"STW Progress calculated: {stw_progress}")
 
         # Genera HTML
         html = self._generate_html(
@@ -80,7 +79,9 @@ class OnePagerExporter:
             credibility_score=credibility_score,
             sources_count=sources_count,
             stw_progress=stw_progress,
-            highlights=highlights
+            highlights=highlights,
+            total_questionnaires=total_questionnaires,
+            metadata=metadata
         )
 
         # Salva
@@ -126,6 +127,18 @@ class OnePagerExporter:
 
         return highlights
 
+    def _generate_questionnaire_badge(self, total_questionnaires: int) -> str:
+        """Genera badge per i questionari compilati"""
+        if total_questionnaires == 0:
+            return ""
+
+        return f'''
+            <div class="credibility-badge" style="background: linear-gradient(135deg, #7B1FA2 0%, #9C27B0 100%);">
+                <span>📋 Doc. Board:</span>
+                <span class="credibility-score">{total_questionnaires}</span>
+            </div>
+        '''
+
     def _generate_html(
         self,
         club_name: str,
@@ -135,9 +148,12 @@ class OnePagerExporter:
         credibility_score: int,
         sources_count: int,
         stw_progress: Dict[str, int],
-        highlights: Dict[str, Any]
+        highlights: Dict[str, Any],
+        total_questionnaires: int = 0,
+        metadata: Dict = None
     ) -> str:
         """Genera l'HTML completo del One-Pager"""
+        metadata = metadata or {}
 
         current_year = datetime.now().year
         generation_date = datetime.now().strftime("%d/%m/%Y")
@@ -629,6 +645,7 @@ class OnePagerExporter:
                 <span>Credibilità:</span>
                 <span class="credibility-score">{credibility_score}%</span>
             </div>
+            {self._generate_questionnaire_badge(total_questionnaires)}
         </div>
     </header>
 
@@ -728,6 +745,10 @@ class OnePagerExporter:
                 <span class="footer-label">Engine</span>
                 <span class="footer-value">Rooting Future v5.4</span>
             </div>
+            {f'''<div class="footer-item">
+                <span class="footer-label">⏱️ Tempo Gen.</span>
+                <span class="footer-value">{int(metadata.get("total_generation_time", 0) // 60)}m {int(metadata.get("total_generation_time", 0) % 60)}s</span>
+            </div>''' if metadata and metadata.get("total_generation_time") else ''}
         </div>
         <div class="footer-qr">
             QR

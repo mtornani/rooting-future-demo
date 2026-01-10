@@ -11,7 +11,9 @@ waitress>=2.1.0
 # =============================================================================
 # AI - Google Gemini
 # =============================================================================
-# IMPORTANTE: Usare google-generativeai (NON google-genai)
+# Nuova libreria ufficiale (google-genai)
+google-genai>=1.57.0
+# Vecchia libreria (deprecata ma ancora usata da agents.py)
 google-generativeai>=0.8.0
 
 # =============================================================================

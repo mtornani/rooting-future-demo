@@ -461,6 +461,21 @@ class StructuredHTMLRenderer:
         .confidence-caution { background: #fed7e2; color: #702459; }
         .confidence-danger { background: #fed7d7; color: #742a2a; }
 
+        /* Questionnaire Badge */
+        .badge-questionnaire {
+            background: linear-gradient(135deg, #7B1FA2, #9C27B0);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
         /* Recommendations */
         .recommendations {
             margin-top: 30px;
@@ -749,6 +764,11 @@ class StructuredHTMLRenderer:
         # Badge confidenza
         conf_badge = dp.get_confidence_badge()
 
+        # Badge Questionario
+        q_badge = ""
+        if dp.source and dp.source.type == SourceType.QUESTIONNAIRE:
+            q_badge = '<span class="badge-questionnaire">📋 Da Questionario</span>'
+
         # Valore
         if dp.value is None:
             value_html = f'<span class="data-value missing">(dato da acquisire)</span>'
@@ -788,7 +808,7 @@ class StructuredHTMLRenderer:
         return f'''
         <div class="data-card">
             <div class="data-card-header">
-                <span class="label">{dp.label}</span>
+                <span class="label">{dp.label}{q_badge}</span>
                 <div style="display: flex; gap: 8px;">
                     {type_badge}
                     {conf_badge}

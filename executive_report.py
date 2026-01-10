@@ -27,6 +27,8 @@ from chart_generator import (
 )
 from methodology_section import generate_methodology_section_html, get_default_sources_for_report
 from data_models import BenchmarkDatabase
+from stw_analyzer import calculate_stw_progress
+from stw_matrix import get_category_color, get_category_icon, STWCategory
 
 
 def _clean_text(text: str) -> str:
@@ -133,6 +135,168 @@ def _format_estimated_fields(estimated_fields: Dict[str, str]) -> str:
     return ''.join(result)
 
 
+def _format_timing_badge(metadata: Dict) -> str:
+    """Genera badge con timing di generazione per Executive Report"""
+    if not metadata:
+        return ""
+
+    total_time = metadata.get('total_generation_time')
+    if not total_time:
+        return ""
+
+    # Format total time
+    minutes = int(total_time // 60)
+    seconds = int(total_time % 60)
+    time_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+
+    return f'<div class="timing-badge">⏱️ Generato in {time_str}</div>'
+
+
+def _generate_stw_dashboard_html(stw_progress: Dict[str, int]) -> str:
+    """Genera widget dashboard copertura STW per Executive Report"""
+
+    # Calcola overall
+    overall = sum(stw_progress.values()) // len(stw_progress)
+
+    # Progress bars per categoria
+    bars_html = ''
+    categories = [
+        ('sportivi', 'SPORTIVI', STWCategory.SPORTIVI),
+        ('strutturali', 'STRUTTURALI', STWCategory.STRUTTURALI),
+        ('marketing', 'MARKETING', STWCategory.MARKETING),
+        ('sociali', 'SOCIALI', STWCategory.SOCIALI)
+    ]
+
+    for key, label, cat_enum in categories:
+        prog = stw_progress.get(key, 0)
+        color = get_category_color(cat_enum)
+        icon = get_category_icon(cat_enum)
+
+        bars_html += f'''
+        <div class="stw-row">
+            <span class="stw-icon">{icon}</span>
+            <span class="stw-label">{label}</span>
+            <div class="stw-bar">
+                <div class="stw-fill" style="width: {prog}%; background: {color};"></div>
+            </div>
+            <span class="stw-percent">{prog}%</span>
+        </div>
+        '''
+
+    return f'''
+    <div class="stw-dashboard">
+        <div class="stw-header">
+            <span>📊 Copertura Matrice STW</span>
+            <span class="stw-overall">{overall}%</span>
+        </div>
+        {bars_html}
+        <p class="stw-note">La copertura STW indica la percentuale di obiettivi MACRO e MICRO presenti nel piano.</p>
+    </div>
+    '''
+
+
+def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) -> str:
+    """Genera tabella confronto Club vs Benchmark per Executive Report"""
+    benchmarks = BenchmarkDatabase.FINANCIAL_BENCHMARKS.get(category, {})
+    if not benchmarks:
+        return ""
+
+    metrics = [
+        ('fatturato', 'Fatturato Annuo', '€'),
+        ('monte_ingaggi', 'Monte Ingaggi', '€'),
+        ('costo_rosa', 'Costo Rosa', '€'),
+    ]
+
+    rows_html = ""
+    for key, label, unit in metrics:
+        est = estimates.get(key)
+        if not est:
+            continue
+
+        val = est.value
+        bench_key = 'fatturato_medio' if key == 'fatturato' else 'monte_ingaggi_medio' if key == 'monte_ingaggi' else 'costo_rosa_medio'
+        bench_val = benchmarks.get(bench_key, 0)
+        
+        # Badge questionario se tier è FATTO (dato certo)
+        q_badge = '<span class="badge-questionnaire">📋</span>' if est.tier == DataTier.FATTO else ""
+        
+        # Formattazione
+        val_str = f"{unit}{val/1000000:.1f}M" if val >= 1000000 else f"{unit}{val/1000:.0f}K"
+        bench_str = f"{unit}{bench_val/1000000:.1f}M" if bench_val >= 1000000 else f"{unit}{bench_val/1000:.0f}K"
+        
+        # Calcolo Gap
+        gap = 0
+        if bench_val > 0:
+            gap = ((val - bench_val) / bench_val) * 100
+        
+        gap_class = "pos" if gap >= -10 else "neg"
+        gap_str = f"{gap:+.1f}%"
+
+        rows_html += f'''
+        <tr>
+            <td>{label} {q_badge}</td>
+            <td style="font-weight:700;">{val_str}</td>
+            <td style="color:#666;">{bench_str}</td>
+            <td class="gap-{gap_class}">{gap_str}</td>
+        </tr>
+        '''
+
+    return f'''
+    <div class="comparison-container">
+        <h4 style="margin-bottom:10px; color:#1a365d;">📊 Confronto vs Benchmark {category}</h4>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Metrica</th>
+                    <th>Club</th>
+                    <th>Benchmark</th>
+                    <th>Gap</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+    </div>
+    '''
+
+
+def _generate_questionnaire_box(metadata: Dict[str, Any], club_name: str) -> str:
+    """Genera box evidenziato per i questionari compilati"""
+    total_q = metadata.get('total_questionnaires', 0)
+    verified = metadata.get('verified_data_count', 0)
+    completion = metadata.get('questionnaire_completion', 0)
+
+    # Se non ci sono dati, non mostrare il box
+    if total_q == 0:
+        return ""
+
+    completion_pct = int(completion * 100)
+
+    return f'''
+    <div style="background: linear-gradient(135deg, #7B1FA2 0%, #9C27B0 100%);
+                padding: 12px; border-radius: 6px; margin-bottom: 15px; color: white;">
+        <h4 style="margin: 0 0 8px 0; font-size: 11pt; color: white;">
+            ✅ Questionari Compilati dai Membri del Board di {club_name}
+        </h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+            <div>
+                <div style="font-size: 20pt; font-weight: 700;">{total_q}</div>
+                <div style="font-size: 8pt; opacity: 0.9;">Documenti Word</div>
+            </div>
+            <div>
+                <div style="font-size: 20pt; font-weight: 700;">{verified}+</div>
+                <div style="font-size: 8pt; opacity: 0.9;">Dati Forniti</div>
+            </div>
+            <div>
+                <div style="font-size: 20pt; font-weight: 700;">{completion_pct}%</div>
+                <div style="font-size: 8pt; opacity: 0.9;">Completezza</div>
+            </div>
+        </div>
+    </div>
+    '''
+
+
 def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
     """Estrae obiettivi MACRO e MICRO in forma sintetica."""
     result = {'macro': [], 'micro': []}
@@ -186,6 +350,10 @@ def generate_executive_report_html(
     # Genera varianti colore
     primary_dark = _darken_color(primary_color, 0.2)
     text_on_primary = _get_contrast_color(primary_color)
+
+    # === CALCOLO COPERTURA STW ===
+    stw_progress = calculate_stw_progress(plan_data)
+    stw_dashboard_html = _generate_stw_dashboard_html(stw_progress)
 
     # === STIME FINANZIARIE ===
     club_data = {
@@ -427,6 +595,19 @@ def generate_executive_report_html(
             bottom: 30px;
             font-size: 9pt;
             opacity: 0.7;
+        }}
+
+        .timing-badge {{
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            font-size: 9pt;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
         }}
 
         /* === PAGE SECTIONS === */
@@ -853,6 +1034,196 @@ def generate_executive_report_html(
             border-top: 1px solid #e0e0e0;
         }}
 
+        /* === STW DASHBOARD === */
+        .stw-dashboard {{
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }}
+
+        .stw-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            font-weight: 600;
+            font-size: 10pt;
+        }}
+
+        .stw-overall {{
+            font-size: 18pt;
+            font-weight: 700;
+            color: #38a169;
+        }}
+
+        .stw-row {{
+            display: grid;
+            grid-template-columns: 20px 100px 1fr 50px;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }}
+
+        .stw-icon {{
+            font-size: 12pt;
+            text-align: center;
+        }}
+
+        .stw-label {{
+            font-size: 8pt;
+            font-weight: 600;
+            color: #333;
+        }}
+
+        .stw-bar {{
+            height: 16px;
+            background: #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }}
+
+        .stw-fill {{
+            height: 100%;
+            transition: width 0.6s ease;
+        }}
+
+        .stw-percent {{
+            font-size: 8pt;
+            font-weight: 700;
+            text-align: right;
+        }}
+
+        .stw-note {{
+            font-size: 7pt;
+            color: #666;
+            margin-top: 10px;
+            font-style: italic;
+        }}
+
+        /* === QUESTIONNAIRE BADGE === */
+        .badge-questionnaire {{
+            background: linear-gradient(135deg, #7B1FA2, #9C27B0);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 7pt;
+            font-weight: 700;
+            margin-left: 5px;
+            display: inline-flex;
+            align-items: center;
+        }}
+
+        /* === COMPARISON TABLE === */
+        .comparison-container {{
+            margin-top: 15px;
+        }}
+
+        .comparison-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+        }}
+
+        .comparison-table th {{
+            background: #f1f3f5;
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+        }}
+
+        .comparison-table td {{
+            padding: 8px 10px;
+            border-bottom: 1px solid #dee2e6;
+        }}
+
+        .gap-pos {{ color: #38a169; font-weight: 700; }}
+        .gap-neg {{ color: #e53e3e; font-weight: 700; }}
+
+        /* ================================================================
+           RESPONSIVE STYLES - Mobile & Tablet
+           ================================================================ */
+
+        /* Tablet */
+        @media (max-width: 1024px) {{
+            .kpi-grid {{
+                grid-template-columns: repeat(2, 1fr);
+            }}
+            .stw-row {{
+                grid-template-columns: 18px 90px 1fr 45px;
+                gap: 8px;
+            }}
+        }}
+
+        /* Mobile */
+        @media (max-width: 768px) {{
+            body {{
+                font-size: 9pt;
+            }}
+            .cover h1 {{
+                font-size: 22pt;
+            }}
+            .cover .period {{
+                font-size: 14pt;
+            }}
+            .page-title {{
+                font-size: 12pt;
+                padding: 10px 15px;
+            }}
+            .kpi-grid {{
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }}
+            .kpi-card {{
+                padding: 12px;
+            }}
+            .charts-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .areas-grid {{
+                grid-template-columns: 1fr;
+            }}
+            .stw-dashboard {{
+                padding: 12px;
+            }}
+            .stw-row {{
+                grid-template-columns: 16px 75px 1fr 40px;
+                gap: 6px;
+                margin-bottom: 6px;
+            }}
+            .stw-icon {{
+                font-size: 10pt;
+            }}
+            .stw-label {{
+                font-size: 7pt;
+            }}
+            .stw-percent {{
+                font-size: 7pt;
+            }}
+            .stw-overall {{
+                font-size: 14pt;
+            }}
+        }}
+
+        /* Mobile Small */
+        @media (max-width: 480px) {{
+            .cover h1 {{
+                font-size: 18pt;
+            }}
+            .cover .subtitle {{
+                font-size: 11pt;
+            }}
+            .stw-row {{
+                grid-template-columns: 14px 60px 1fr 35px;
+                gap: 4px;
+            }}
+            .stw-label {{
+                font-size: 6pt;
+            }}
+        }}
+
         /* ================================================================
            PRINT STYLES - Executive Report A4 Ottimizzato
            ================================================================ */
@@ -901,6 +1272,7 @@ def generate_executive_report_html(
             .exec-box,
             .method-box,
             .timeline,
+            .stw-dashboard,
             .disclaimer {{
                 break-inside: avoid !important;
                 page-break-inside: avoid !important;
@@ -965,6 +1337,7 @@ def generate_executive_report_html(
     <div class="subtitle">Piano Strategico Triennale</div>
     <div class="period">{current_year} - {current_year + 3}</div>
     <div class="category">{category}</div>
+    {_format_timing_badge(metadata)}
     <div class="generated">
         Executive Report generato da Rooting Future Strategy Engine v5.4<br>
         {datetime.now().strftime('%d/%m/%Y')}
@@ -1002,6 +1375,8 @@ def generate_executive_report_html(
         </div>
     </div>
 
+    {_generate_comparison_table_html(estimates, category)}
+
     <div class="charts-grid">
         <div class="chart-box">
             <h4>Composizione Ricavi</h4>
@@ -1012,6 +1387,8 @@ def generate_executive_report_html(
             {gap_img}
         </div>
     </div>
+
+    {stw_dashboard_html}
 </div>
 
 <!-- PAGINA 3: AREE STRATEGICHE + ROADMAP -->
@@ -1028,6 +1405,9 @@ def generate_executive_report_html(
 <!-- PAGINA 4: METODOLOGIA (ultima, senza page-break) -->
 <div class="page">
     <div class="page-title"><span class="icon">📊</span> Metodologia e Fonti</div>
+
+    {_generate_questionnaire_box(metadata, club_name)}
+
     <div class="method-grid">
         <div class="method-box">
             <h4>Fonti Dati</h4>

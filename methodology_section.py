@@ -23,6 +23,12 @@ class DataSourceInfo:
 
 # Fonti standard del sistema
 SYSTEM_SOURCES = {
+    'questionnaire': DataSourceInfo(
+        name='Questionari Club',
+        type='tier1_fact',
+        description='Dati forniti direttamente dal club tramite questionari compilati',
+        confidence=1.0
+    ),
     'transfermarkt': DataSourceInfo(
         name='Transfermarkt',
         type='tier1_fact',
@@ -62,6 +68,340 @@ SYSTEM_SOURCES = {
         confidence=0.55
     )
 }
+
+
+def generate_rooting_future_methodology_html(
+    metadata: Dict = None,
+    primary_color: str = '#1a365d'
+) -> str:
+    """
+    Genera sezione "Metodologia Rooting Future" con brand identity.
+
+    Args:
+        metadata: Metadata che può contenere info sui questionari
+        primary_color: Colore primario
+
+    Returns:
+        HTML string della sezione metodologia RF
+    """
+
+    # Estrai info questionari se disponibili
+    questionnaire_data = metadata.get('questionnaire_data', {}) if metadata else {}
+    questionnaires_completed = questionnaire_data.get('completed', 0)
+    data_points_verified = questionnaire_data.get('data_points', 0)
+
+    return f'''
+    <div class="rf-methodology-section">
+        <div class="rf-brand-header">
+            <div class="rf-logo-text">
+                <span class="rf-logo">RF</span>
+                <div class="rf-tagline">
+                    <h3>Rooting Future Methodology</h3>
+                    <p>Strategic Planning Framework per il Calcio Italiano</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rf-intro">
+            <p>Questo piano strategico è stato generato utilizzando la <strong>Metodologia Rooting Future</strong>,
+            un framework proprietario che combina analisi quantitativa, ricerca qualitativa e intelligenza artificiale
+            per produrre piani strategici basati su dati reali e verificabili.</p>
+        </div>
+
+        <div class="methodology-steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>📋 Analisi Questionari Club</h4>
+                    <div class="step-details">
+                        {f'<p><strong>Questionari Compilati:</strong> {questionnaires_completed}</p>' if questionnaires_completed > 0 else '<p><strong>Input del Club:</strong> Dati forniti tramite form e questionari</p>'}
+                        {f'<p><strong>Dati Verificati:</strong> {data_points_verified} punti dati</p>' if data_points_verified > 0 else ''}
+                        <p class="step-desc">Raccolta sistematica di informazioni su organigramma, budget, strutture,
+                        obiettivi e contesto competitivo direttamente dal club.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>🔍 Web Research & Benchmark</h4>
+                    <div class="step-details">
+                        <p class="step-desc">Ricerca automatizzata su fonti pubbliche (FIGC, Transfermarkt,
+                        Visura Camerale, news) per integrare e validare i dati forniti dal club con benchmark di categoria.</p>
+                        <ul class="source-list">
+                            <li>✓ Report Calcio FIGC (benchmark ufficiali)</li>
+                            <li>✓ Transfermarkt (valori di mercato)</li>
+                            <li>✓ Google Search (news e comunicati)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>🤖 AI Multi-Agente STW-Aligned</h4>
+                    <div class="step-details">
+                        <p class="step-desc">Sistema di 6 agenti AI specializzati (Gemini 2.0) che generano
+                        obiettivi strategici allineati alla matrice STW (Sport To Win) con 21 macro-obiettivi.</p>
+                        <div class="agents-grid">
+                            <span class="agent-badge">⚽ Sportivi</span>
+                            <span class="agent-badge">🏗️ Strutturali</span>
+                            <span class="agent-badge">📢 Marketing</span>
+                            <span class="agent-badge">🤝 Sociali</span>
+                            <span class="agent-badge">💰 Finanziari</span>
+                            <span class="agent-badge">🎯 Coordinator</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>✅ Validazione e Output Strutturato</h4>
+                    <div class="step-details">
+                        <p class="step-desc">Post-processing con validazione scientifica: ogni dato è classificato
+                        come VERIFICATO, DEDOTTO o STIMATO, con indicatori di confidenza e riferimenti alle fonti.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="rf-value-prop">
+            <h4>🎯 Il Vantaggio Rooting Future</h4>
+            <div class="value-grid">
+                <div class="value-card">
+                    <div class="value-icon">🎯</div>
+                    <div class="value-title">Data-Driven</div>
+                    <div class="value-desc">Ogni raccomandazione è supportata da dati verificabili</div>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">⚡</div>
+                    <div class="value-title">Velocità</div>
+                    <div class="value-desc">Piano strategico completo generato in minuti, non settimane</div>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">📊</div>
+                    <div class="value-title">STW-Aligned</div>
+                    <div class="value-desc">Allineato al framework consulenziale Sport To Win</div>
+                </div>
+                <div class="value-card">
+                    <div class="value-icon">🔄</div>
+                    <div class="value-title">Apprendimento Continuo</div>
+                    <div class="value-desc">Sistema RAG che migliora ad ogni piano generato</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .rf-methodology-section {{
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+            padding: 40px;
+            border-radius: 12px;
+            margin: 30px 0;
+        }}
+
+        .rf-brand-header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid {primary_color};
+        }}
+
+        .rf-logo-text {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }}
+
+        .rf-logo {{
+            font-size: 48px;
+            font-weight: 900;
+            color: {primary_color};
+            background: linear-gradient(135deg, {primary_color}, #2E7D32);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+
+        .rf-tagline h3 {{
+            margin: 0;
+            font-size: 24px;
+            color: {primary_color};
+        }}
+
+        .rf-tagline p {{
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            color: #718096;
+            font-style: italic;
+        }}
+
+        .rf-intro {{
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #2E7D32;
+        }}
+
+        .methodology-steps {{
+            display: grid;
+            gap: 20px;
+            margin-bottom: 30px;
+        }}
+
+        .step {{
+            display: flex;
+            gap: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+
+        .step-number {{
+            flex-shrink: 0;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, {primary_color}, #2E7D32);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+        }}
+
+        .step-content {{
+            flex: 1;
+        }}
+
+        .step-content h4 {{
+            margin: 0 0 10px 0;
+            color: {primary_color};
+            font-size: 18px;
+        }}
+
+        .step-details {{
+            color: #4a5568;
+            font-size: 14px;
+            line-height: 1.6;
+        }}
+
+        .step-details p {{
+            margin: 8px 0;
+        }}
+
+        .step-desc {{
+            font-style: italic;
+            color: #718096;
+        }}
+
+        .source-list {{
+            margin: 10px 0;
+            padding-left: 0;
+            list-style: none;
+        }}
+
+        .source-list li {{
+            padding: 5px 0;
+            color: #2d3748;
+        }}
+
+        .agents-grid {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }}
+
+        .agent-badge {{
+            display: inline-block;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, {primary_color}, #2d3748);
+            color: white;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+        }}
+
+        .rf-value-prop {{
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }}
+
+        .rf-value-prop h4 {{
+            text-align: center;
+            color: {primary_color};
+            margin-bottom: 20px;
+            font-size: 20px;
+        }}
+
+        .value-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }}
+
+        .value-card {{
+            text-align: center;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }}
+
+        .value-icon {{
+            font-size: 32px;
+            margin-bottom: 10px;
+        }}
+
+        .value-title {{
+            font-weight: 700;
+            color: {primary_color};
+            margin-bottom: 8px;
+        }}
+
+        .value-desc {{
+            font-size: 12px;
+            color: #718096;
+            line-height: 1.4;
+        }}
+
+        /* Responsive */
+        @media (max-width: 768px) {{
+            .rf-methodology-section {{
+                padding: 20px;
+            }}
+
+            .rf-logo-text {{
+                flex-direction: column;
+                gap: 10px;
+            }}
+
+            .step {{
+                flex-direction: column;
+            }}
+
+            .step-number {{
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }}
+
+            .value-grid {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+    </style>
+    '''
 
 
 def generate_methodology_section_html(

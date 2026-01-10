@@ -227,15 +227,23 @@ class StructuredAgent:
         if dp_id in club_mappings:
             key = club_mappings[dp_id]
             if key in club_data and club_data[key]:
+                # Determina tipo fonte (default CLUB, ma QUESTIONNAIRE se flagged)
+                s_type = SourceType.CLUB
+                s_name = "Dati forniti dal club"
+                
+                if club_data.get(f"{key}_source") == "questionnaire" or club_data.get("source") == "docx_upload":
+                    s_type = SourceType.QUESTIONNAIRE
+                    s_name = "Questionario Club"
+
                 return (
                     club_data[key],
                     Source(
-                        type=SourceType.CLUB,
-                        name="Dati forniti dal club",
+                        type=s_type,
+                        name=s_name,
                         reference=f"Campo: {key}"
                     ),
-                    70.0,  # Confidenza media per dati club non verificati
-                    DataType.VERIFIED if club_data.get(f'{key}_verified') else DataType.ESTIMATE
+                    90.0 if s_type == SourceType.QUESTIONNAIRE else 70.0,  # Confidenza più alta se da questionario ufficiale
+                    DataType.VERIFIED if club_data.get(f'{key}_verified') or s_type == SourceType.QUESTIONNAIRE else DataType.ESTIMATE
                 )
 
         # Cerca nei dati di ricerca web

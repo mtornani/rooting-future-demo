@@ -129,6 +129,7 @@ class StakeholderInput:
     swot_opportunities: List[str] = field(default_factory=list)
     swot_threats: List[str] = field(default_factory=list)
     priorities: List[str] = field(default_factory=list)
+    answers: Dict[str, Any] = field(default_factory=dict)
     budget_opinion: Optional[str] = None
     timeline_preference: Optional[str] = None
     additional_notes: str = ""
@@ -151,6 +152,7 @@ class StakeholderInput:
             swot_opportunities=data.get('swot_opportunities', []),
             swot_threats=data.get('swot_threats', []),
             priorities=data.get('priorities', []),
+            answers=data.get('answers', {}),
             budget_opinion=data.get('budget_opinion'),
             timeline_preference=data.get('timeline_preference'),
             additional_notes=data.get('additional_notes', '')
@@ -678,6 +680,15 @@ Il piano deve essere concreto, con KPI misurabili e timeline realistiche.
             ]
         }
 
+        # Aggrega risposte dai questionari
+        for s in self.stakeholders:
+            if hasattr(s, 'answers') and s.answers:
+                for key, value in s.answers.items():
+                    # Sovrascrivi solo se non presente o se il valore attuale è nullo
+                    if key not in additional_data or additional_data[key] is None:
+                        additional_data[key] = value
+                        additional_data[f"{key}_source"] = "questionnaire"
+
         # Merge hard_data
         additional_data.update(self.hard_data)
 
@@ -782,6 +793,7 @@ class ExtractedDocxData:
 
     # Generic data
     priorities: List[str] = field(default_factory=list)
+    answers: Dict[str, Any] = field(default_factory=dict)
     notes: str = ""
     raw_tables: List[Dict[str, Any]] = field(default_factory=list)
     raw_paragraphs: List[str] = field(default_factory=list)
@@ -849,6 +861,28 @@ class DocxIngestor:
         'tecnologici': 'technological',
         't': 'technological',
         'technological': 'technological',
+    }
+
+    # Mapping keywords in tabelle a field IDs del sistema
+    DATA_FIELD_KEYWORDS = {
+        'fatturato': 'revenue',
+        'ricavi': 'revenue',
+        'budget': 'revenue',
+        'monte ingaggi': 'wage_bill',
+        'stipendi': 'wage_bill',
+        'costo rosa': 'squad_cost',
+        'patrimonio': 'net_assets',
+        'debiti': 'debts',
+        'tesserati': 'youth_players',
+        'giocatori giovanili': 'youth_players',
+        'squadre giovanili': 'youth_teams',
+        'capienza': 'stadium_capacity',
+        'posti stadio': 'stadium_capacity',
+        'campi': 'training_fields',
+        'abbonati': 'season_tickets',
+        'follower': 'social_followers',
+        'dipendenti': 'employees',
+        'allenatori': 'coaches',
     }
 
     def __init__(self):
@@ -1082,6 +1116,36 @@ class DocxIngestor:
 
         return result
 
+    def parse_data_table(self, table_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Tenta di estrarre coppie Chiave-Valore da una tabella generica.
+        Usa DATA_FIELD_KEYWORDS per mappare i nomi dei campi.
+        """
+        answers = {}
+        rows = table_data.get('rows', [])
+
+        for row in rows:
+            if len(row) >= 2:
+                key_text = row[0].lower().strip()
+                val_text = row[1].strip()
+
+                if not val_text:
+                    continue
+
+                for kw, field_id in self.DATA_FIELD_KEYWORDS.items():
+                    if kw in key_text:
+                        # Tenta di convertire in numero se possibile
+                        clean_val = val_text.replace('€', '').replace('EUR', '').replace(' ', '').replace('.', '').replace(',', '.')
+                        try:
+                            if '.' in clean_val:
+                                answers[field_id] = float(clean_val)
+                            else:
+                                answers[field_id] = int(clean_val)
+                        except ValueError:
+                            answers[field_id] = val_text
+                        break
+        return answers
+
     def _split_cell_items(self, cell_text: str) -> List[str]:
         """
         Divide il contenuto di una cella in items individuali.
@@ -1258,6 +1322,9 @@ class DocxIngestor:
                     result.swot_weaknesses.extend(swot_data['weaknesses'])
                     result.swot_opportunities.extend(swot_data['opportunities'])
                     result.swot_threats.extend(swot_data['threats'])
+                else:
+                    # Tenta di estrarre dati anche da tabelle non-matrice
+                    result.answers.update(self.parse_data_table(table))
 
         elif doc_type == 'PEST':
             for table in tables:
@@ -1267,12 +1334,13 @@ class DocxIngestor:
                     result.pest_economic.extend(pest_data['economic'])
                     result.pest_social.extend(pest_data['social'])
                     result.pest_technological.extend(pest_data['technological'])
-
-        elif doc_type == 'VISION':
-            vision, mission, values = self.extract_vision_mission(doc)
-            result.vision_statement = vision
-            result.mission_statement = mission
-            result.values = values
+                else:
+                    result.answers.update(self.parse_data_table(table))
+        
+        else:
+            # Per altri tipi, tenta estrazione dati da tutte le tabelle
+            for table in tables:
+                result.answers.update(self.parse_data_table(table))
 
         # Always try to extract priorities
         result.priorities = self.extract_priorities(doc)
@@ -1358,6 +1426,7 @@ class DocxIngestor:
                 swot_opportunities=data.swot_opportunities[:10],
                 swot_threats=data.swot_threats[:10],
                 priorities=data.priorities[:5],
+                answers=data.answers,
                 additional_notes=f"Documento: {data.filename}\nTipo: {data.document_type}"
             )
 
@@ -1423,6 +1492,7 @@ def process_docx_files_to_payload(
                 'swot_opportunities': s.swot_opportunities,
                 'swot_threats': s.swot_threats,
                 'priorities': s.priorities,
+                'answers': s.answers,
                 'additional_notes': s.additional_notes
             }
             for s in stakeholder_inputs

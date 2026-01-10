@@ -37,6 +37,7 @@ class SourceType(str, Enum):
     LEGA = "lega"                   # Dati Lega (Serie A, B, C, LND)
     ISTAT = "istat"                 # Dati demografici ISTAT
     CLUB = "club"                   # Dichiarazioni/dati club
+    QUESTIONNAIRE = "questionnaire" # Questionario compilato dal club
     MEDIA = "media"                 # Fonti giornalistiche
     INTERNAL = "internal"           # Stima interna consulente
     RESEARCH = "research"           # Ricerca web automatica

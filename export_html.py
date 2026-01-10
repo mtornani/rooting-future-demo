@@ -16,6 +16,9 @@ from pathlib import Path
 import logging
 
 from config import OUTPUT_DIR, EXPORT_CONFIG
+from stw_analyzer import get_stw_coverage_summary
+from stw_matrix import get_category_color, get_category_icon, STWCategory
+from methodology_section import generate_rooting_future_methodology_html
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +75,9 @@ class ChunkedHTMLExporter:
         base_filename = f"{safe_name}_{timestamp}"
 
         self.sections = []
+
+        # Calcola copertura STW
+        self.stw_coverage = get_stw_coverage_summary(plan_data)
 
         # 1. Genera sezioni
         section_configs = [
@@ -461,6 +467,101 @@ class ChunkedHTMLExporter:
     # DOCUMENT ASSEMBLY
     # =========================================================================
 
+    def _format_timing_badge(self, metadata: Dict) -> str:
+        """Genera badge con timing di generazione"""
+        if not metadata:
+            return ""
+
+        total_time = metadata.get('total_generation_time')
+        if not total_time:
+            return ""
+
+        # Format total time
+        minutes = int(total_time // 60)
+        seconds = int(total_time % 60)
+        time_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+
+        # Get detailed timings
+        phase_timings = metadata.get('phase_timings', {})
+        agent_timings = metadata.get('agent_timings', {})
+
+        timing_html = f'''
+        <div class="timing-badge" title="Clicca per dettagli">
+            ⏱️ Generato in {time_str}
+        </div>'''
+
+        # Add breakdown if available
+        if phase_timings or agent_timings:
+            breakdown_lines = []
+
+            if phase_timings.get('web_research'):
+                breakdown_lines.append(f"🔍 Ricerca Web: {phase_timings['web_research']}s")
+
+            if agent_timings:
+                breakdown_lines.append(f"🤖 AI Multi-Agente: {metadata.get('total_generation_time', 0) - phase_timings.get('web_research', 0):.1f}s")
+                for agent_name, agent_time in list(agent_timings.items())[:5]:  # Top 5 agents
+                    breakdown_lines.append(f"   ├─ {agent_name}: {agent_time}s")
+
+            if breakdown_lines:
+                timing_html += f'''
+        <div class="timing-details">
+            Breakdown:<br>
+            {" • ".join(breakdown_lines)}
+        </div>'''
+
+        return timing_html
+
+    def _generate_stw_dashboard_html(self) -> str:
+        """Genera widget dashboard copertura STW"""
+        if not hasattr(self, 'stw_coverage') or not self.stw_coverage:
+            return ""
+
+        progress = self.stw_coverage.get('progress', {})
+        overall_progress = self.stw_coverage.get('overall_progress', 0)
+
+        # Progress bars per categoria
+        bars_html = ''
+        categories = [
+            ('sportivi', 'SPORTIVI', STWCategory.SPORTIVI),
+            ('strutturali', 'STRUTTURALI', STWCategory.STRUTTURALI),
+            ('marketing', 'MARKETING', STWCategory.MARKETING),
+            ('sociali', 'SOCIALI', STWCategory.SOCIALI)
+        ]
+
+        for key, label, cat_enum in categories:
+            prog = progress.get(key, 0)
+            color = get_category_color(cat_enum)
+            icon = get_category_icon(cat_enum)
+
+            bars_html += f'''
+            <div class="stw-progress-row">
+                <span class="stw-icon">{icon}</span>
+                <span class="stw-label">{label}</span>
+                <div class="stw-progress-bar">
+                    <div class="stw-progress-fill" style="width: {prog}%; background: {color};"></div>
+                </div>
+                <span class="stw-percentage">{prog}%</span>
+            </div>
+            '''
+
+        return f'''
+        <div class="stw-coverage-dashboard">
+            <div class="stw-header">
+                <h3>📊 Copertura Matrice STW</h3>
+                <div class="stw-overall">
+                    <span class="stw-overall-label">Completamento Complessivo</span>
+                    <span class="stw-overall-value">{overall_progress}%</span>
+                </div>
+            </div>
+            <div class="stw-progress-container">
+                {bars_html}
+            </div>
+            <p class="stw-note">
+                <em>La copertura STW indica la percentuale di obiettivi MACRO e MICRO presenti nel piano rispetto al framework completo Sport To Win.</em>
+            </p>
+        </div>
+        '''
+
     def _assemble_document(self, club_name: str, metadata: Dict = None) -> str:
         """Assembla documento HTML finale"""
 
@@ -472,6 +573,13 @@ class ChunkedHTMLExporter:
             f'<a href="#{s.id}" class="nav-item">{s.title}</a>'
             for s in self.sections
         ])
+
+        # STW Dashboard
+        stw_dashboard_html = self._generate_stw_dashboard_html()
+
+        # RF Methodology Section
+        primary_color = metadata.get('primary_color', '#1a365d') if metadata else '#1a365d'
+        rf_methodology_html = generate_rooting_future_methodology_html(metadata, primary_color)
 
         # Sezioni HTML
         sections_html = ''
@@ -565,6 +673,48 @@ class ChunkedHTMLExporter:
             margin-top: 15px;
             font-size: 0.9rem;
             opacity: 0.8;
+        }}
+
+        .timing-badge {{
+            display: inline-block;
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            backdrop-filter: blur(10px);
+            cursor: help;
+        }}
+
+        .timing-badge:hover {{
+            background: rgba(255, 255, 255, 0.25);
+        }}
+
+        .timing-details {{
+            margin-top: 8px;
+            font-size: 0.75rem;
+            opacity: 0.7;
+            display: none;
+        }}
+
+        .timing-badge:hover + .timing-details {{
+            display: block;
+        }}
+
+        /* Questionnaire Badge */
+        .badge-questionnaire {{
+            background: linear-gradient(135deg, #7B1FA2, #9C27B0);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
         }}
 
         /* Navigation */
@@ -1061,7 +1211,18 @@ class ChunkedHTMLExporter:
             }}
         }}
 
-        /* Mobile responsive */
+        /* Tablet (portrait and landscape) */
+        @media (max-width: 1024px) {{
+            .stw-progress-row {{
+                grid-template-columns: 25px 120px 1fr 55px;
+                gap: 12px;
+            }}
+            .stw-overall-value {{
+                font-size: 1.8rem;
+            }}
+        }}
+
+        /* Tablet (portrait) and Mobile (landscape) */
         @media (max-width: 768px) {{
             .header {{
                 padding: 40px 20px;
@@ -1077,9 +1238,173 @@ class ChunkedHTMLExporter:
             }}
             table {{
                 font-size: 0.85rem;
+                display: block;
+                overflow-x: auto;
             }}
             th, td {{
-                padding: 10px 12px;
+                padding: 8px 10px;
+            }}
+            .stw-coverage-dashboard {{
+                padding: 20px 15px;
+            }}
+            .stw-progress-row {{
+                grid-template-columns: 25px 100px 1fr 50px;
+                gap: 8px;
+            }}
+            .stw-overall-value {{
+                font-size: 1.5rem;
+            }}
+        }}
+
+        /* Mobile (portrait) */
+        @media (max-width: 480px) {{
+            .header h1 {{
+                font-size: 1.5rem;
+            }}
+            .header .subtitle {{
+                font-size: 1rem;
+            }}
+            .section {{
+                padding: 20px 15px;
+            }}
+            .stw-coverage-dashboard {{
+                padding: 15px 10px;
+            }}
+            .stw-progress-row {{
+                grid-template-columns: 20px 80px 1fr 45px;
+                gap: 6px;
+            }}
+            .stw-label {{
+                font-size: 0.75rem;
+            }}
+            .stw-percentage {{
+                font-size: 0.8rem;
+            }}
+            .stw-overall-value {{
+                font-size: 1.3rem;
+            }}
+            table {{
+                font-size: 0.75rem;
+            }}
+            th, td {{
+                padding: 6px 8px;
+            }}
+        }}
+
+        /* ============================================
+           STW COVERAGE DASHBOARD
+           ============================================ */
+        .stw-coverage-dashboard {{
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 25px 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }}
+
+        .stw-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border);
+        }}
+
+        .stw-header h3 {{
+            margin: 0;
+            font-size: 1.4rem;
+            color: var(--primary);
+        }}
+
+        .stw-overall {{
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }}
+
+        .stw-overall-label {{
+            font-size: 0.9rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+
+        .stw-overall-value {{
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--success);
+        }}
+
+        .stw-progress-container {{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }}
+
+        .stw-progress-row {{
+            display: grid;
+            grid-template-columns: 30px 150px 1fr 60px;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }}
+
+        .stw-icon {{
+            font-size: 1.5rem;
+            text-align: center;
+        }}
+
+        .stw-label {{
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text);
+        }}
+
+        .stw-progress-bar {{
+            height: 24px;
+            background: #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }}
+
+        .stw-progress-fill {{
+            height: 100%;
+            transition: width 0.6s ease;
+            border-radius: 12px;
+            position: relative;
+            background: linear-gradient(90deg, currentColor 0%, currentColor 80%, rgba(255,255,255,0.2) 100%);
+        }}
+
+        .stw-percentage {{
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text);
+            text-align: right;
+        }}
+
+        .stw-note {{
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-left: 4px solid var(--accent);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: var(--text-light);
+            line-height: 1.5;
+        }}
+
+        @media print {{
+            .stw-coverage-dashboard {{
+                page-break-inside: avoid;
+                background: #f8f9fa !important;
+                box-shadow: none !important;
             }}
         }}
     </style>
@@ -1090,11 +1415,16 @@ class ChunkedHTMLExporter:
         <p class="subtitle">{current_year} — {current_year + 3}</p>
         <p class="meta">{category}{" | " + region if region else ""}</p>
         {f'<span class="credibility-badge credibility-{"high" if credibility >= 70 else "medium" if credibility >= 50 else "low"}">Credibilità dati: {credibility}%</span>' if credibility else ''}
+        {self._format_timing_badge(metadata)}
     </header>
 
     <nav class="nav">
         {nav_items}
     </nav>
+
+    {stw_dashboard_html}
+
+    {rf_methodology_html}
 
     <main class="container">
         {sections_html}
