@@ -189,8 +189,9 @@ def add_to_log_history(entry: Dict):
             log_history.pop(0)
 
 
-# SSE handler - inizializzato più avanti o in __main__
-log_stream_handler = None
+# Initialize SSE handler globally so it works with WSGI servers too
+log_stream_handler = LogStreamHandler()
+logging.getLogger().addHandler(log_stream_handler)
 
 
 def broadcast_log(level: str, message: str, source: str = "system"):
@@ -3431,10 +3432,7 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
 
-    # Inizializza SSE handler
-    log_stream_handler = LogStreamHandler()
-    logging.getLogger().addHandler(log_stream_handler)
-    print("[OK] SSE Log Streaming attivo")
+    print("[OK] SSE Log Streaming attivo (Global)")
 
     print(f"""
     ===============================================================
