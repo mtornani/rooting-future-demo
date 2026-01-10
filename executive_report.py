@@ -221,10 +221,10 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
         source_label = "Stima AI"
         source_class = "source-est"
         
-        if est.tier == DataTier.FATTO:
+        if est.tier == DataTier.TIER_1_FACT:
             source_label = "Questionario Board"
             source_class = "source-ver"
-        elif est.tier == DataTier.DEDOTTO:
+        elif est.tier == DataTier.TIER_2_DEDUCED:
             source_label = "Dedotto da Parametri"
             source_class = "source-ded"
         
