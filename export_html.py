@@ -17,7 +17,7 @@ import logging
 
 from config import OUTPUT_DIR, EXPORT_CONFIG
 from stw_analyzer import get_stw_coverage_summary
-from stw_matrix import get_category_color, get_category_icon, STWCategory
+from stw_matrix import get_category_color, get_category_icon, STWCategory, generate_stw_matrix_html
 from methodology_section import generate_rooting_future_methodology_html
 
 logger = logging.getLogger(__name__)
@@ -562,8 +562,41 @@ class ChunkedHTMLExporter:
         </div>
         '''
 
+    def _generate_input_sources_html(self, metadata: Dict) -> str:
+        """Genera sezione visuale per i file di input (Questionari)"""
+        files = metadata.get('files_processed', [])
+        if not files:
+            return ""
+
+        files_html = ""
+        for f in files:
+            files_html += f'''
+            <div class="input-file-card">
+                <div class="file-icon">📄</div>
+                <div class="file-info">
+                    <div class="file-name">{f}</div>
+                    <div class="file-meta">Questionario Board</div>
+                </div>
+                <div class="file-status">✓</div>
+            </div>'''
+
+        return f'''
+        <div class="input-sources-dashboard">
+            <div class="input-header">
+                <h3>📂 Fonti di Input (Board del Club)</h3>
+                <span class="input-count">{len(files)} documenti processati</span>
+            </div>
+            <div class="input-files-grid">
+                {files_html}
+            </div>
+            <p class="input-note">
+                <em>Il presente piano strategico è stato elaborato analizzando i questionari compilati direttamente dal board del club.</em>
+            </p>
+        </div>
+        '''
+
     def _assemble_document(self, club_name: str, metadata: Dict = None) -> str:
-        """Assembla documento HTML finale"""
+        """Assembla documento HTML finale con design premium"""
 
         # Ordina sezioni
         self.sections.sort(key=lambda s: s.order)
@@ -574,19 +607,24 @@ class ChunkedHTMLExporter:
             for s in self.sections
         ])
 
-        # STW Dashboard
-        stw_dashboard_html = self._generate_stw_dashboard_html()
+        # STW Dashboard (Matrice STW completa)
+        stw_matrix_html = generate_stw_matrix_html(metadata.get('primary_color', '#1a365d') if metadata else '#1a365d')
 
         # RF Methodology Section
         primary_color = metadata.get('primary_color', '#1a365d') if metadata else '#1a365d'
         rf_methodology_html = generate_rooting_future_methodology_html(metadata, primary_color)
 
+        # Input Sources Section (NEW)
+        input_sources_html = self._generate_input_sources_html(metadata) if metadata else ""
+
         # Sezioni HTML
         sections_html = ''
         for section in self.sections:
             sections_html += f'''
-            <section class="section" id="{section.id}">
-                <h2>{section.title}</h2>
+            <section class="section chapter" id="{section.id}">
+                <div class="section-header">
+                    <h2>{section.title}</h2>
+                </div>
                 <div class="content">
                     {section.content}
                 </div>
@@ -597,7 +635,6 @@ class ChunkedHTMLExporter:
         category = metadata.get('category', '') if metadata else ''
         region = metadata.get('region', '') if metadata else ''
         credibility = metadata.get('credibility_score', 0) if metadata else 0
-
         current_year = datetime.now().year
 
         return f'''<!DOCTYPE html>
@@ -606,10 +643,9 @@ class ChunkedHTMLExporter:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Piano Strategico {club_name} {current_year}-{current_year + 3}</title>
-    <meta name="description" content="Piano Strategico {club_name} - Rooting Future Strategy Engine">
     <style>
         :root {{
-            --primary: #1a365d;
+            --primary: {primary_color};
             --secondary: #2c5282;
             --accent: #3182ce;
             --text: #2d3748;
@@ -621,106 +657,82 @@ class ChunkedHTMLExporter:
             --border: #e2e8f0;
         }}
 
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        @page {{
+            size: A4;
+            margin: 20mm;
+            @bottom-center {{
+                content: "Pagina " counter(page);
+                font-size: 9pt;
+                color: #718096;
+            }}
         }}
 
-        html {{
-            scroll-behavior: smooth;
+        @page :first {{
+            margin: 0;
+            @bottom-center {{ content: none; }}
         }}
+
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 
         body {{
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            line-height: 1.7;
+            line-height: 1.6;
             color: var(--text);
             background: var(--bg);
         }}
 
-        /* Header */
-        .header {{
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: var(--white);
-            padding: 60px 40px;
-            text-align: center;
-            position: relative;
-        }}
-
-        .header::after {{
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: var(--accent);
-        }}
-
-        .header h1 {{
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-            letter-spacing: -0.5px;
-        }}
-
-        .header .subtitle {{
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }}
-
-        .header .meta {{
-            margin-top: 15px;
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }}
-
-        .timing-badge {{
-            display: inline-block;
-            margin-top: 15px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            backdrop-filter: blur(10px);
-            cursor: help;
-        }}
-
-        .timing-badge:hover {{
-            background: rgba(255, 255, 255, 0.25);
-        }}
-
-        .timing-details {{
-            margin-top: 8px;
-            font-size: 0.75rem;
-            opacity: 0.7;
-            display: none;
-        }}
-
-        .timing-badge:hover + .timing-details {{
-            display: block;
-        }}
-
-        /* Questionnaire Badge */
-        .badge-questionnaire {{
-            background: linear-gradient(135deg, #7B1FA2, #9C27B0);
+        /* COVER PAGE */
+        .cover {{
+            height: 100vh;
+            background: linear-gradient(135deg, var(--primary) 0%, #1a202c 100%);
             color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            display: inline-flex;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             align-items: center;
-            gap: 4px;
-            margin-left: 8px;
-            vertical-align: middle;
+            text-align: center;
+            page-break-after: always;
+            position: relative;
+            overflow: hidden;
         }}
 
-        /* Navigation */
+        .cover::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.1;
+        }}
+
+        .cover h1 {{
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 1;
+        }}
+
+        .cover .subtitle {{
+            font-size: 1.5rem;
+            opacity: 0.9;
+            font-weight: 300;
+            z-index: 1;
+        }}
+
+        .cover .meta-box {{
+            margin-top: 3rem;
+            padding: 1rem 2rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+            z-index: 1;
+        }}
+
+        /* NAVIGATION (Screen only) */
         .nav {{
-            background: var(--white);
-            padding: 15px 20px;
+            background: white;
+            padding: 1rem;
             position: sticky;
             top: 0;
             z-index: 100;
@@ -731,761 +743,171 @@ class ChunkedHTMLExporter:
 
         .nav-item {{
             display: inline-block;
-            padding: 8px 16px;
-            margin-right: 8px;
-            color: var(--secondary);
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+            color: var(--text);
             text-decoration: none;
             border-radius: 6px;
             font-size: 0.9rem;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
         }}
 
-        .nav-item:hover {{
-            background: var(--bg);
-            color: var(--primary);
-        }}
+        .nav-item:hover {{ background: var(--bg); color: var(--primary); }}
 
-        .nav-item.active {{
-            background: var(--accent);
-            color: var(--white);
-        }}
-
-        /* Container */
+        /* MAIN LAYOUT */
         .container {{
             max-width: 1000px;
             margin: 0 auto;
             padding: 40px 20px;
         }}
 
-        /* Sections */
+        /* SECTIONS */
         .section {{
-            background: var(--white);
+            background: white;
             border-radius: 12px;
             padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            page-break-inside: avoid;
+        }}
+
+        .section.chapter {{
+            page-break-before: always;
+        }}
+
+        .section-header {{
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 15px;
             margin-bottom: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            border: 1px solid var(--border);
         }}
 
         .section h2 {{
             color: var(--primary);
-            font-size: 1.8rem;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid var(--accent);
+            font-size: 2rem;
+            font-weight: 700;
         }}
 
-        .section h3 {{
+        /* TYPOGRAPHY */
+        h3 {{
             color: var(--secondary);
-            font-size: 1.3rem;
-            margin: 30px 0 15px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border);
+            font-size: 1.4rem;
+            margin: 2rem 0 1rem;
+            border-left: 4px solid var(--accent);
+            padding-left: 1rem;
         }}
 
-        .section h3:first-of-type {{
-            border-top: none;
-            padding-top: 0;
-        }}
-
-        .section h4 {{
-            color: var(--secondary);
+        h4 {{
+            color: var(--text);
             font-size: 1.1rem;
-            margin: 25px 0 12px;
-        }}
-
-        .section p {{
-            margin-bottom: 16px;
-            text-align: justify;
-        }}
-
-        .section ul, .section ol {{
-            margin: 16px 0 16px 30px;
-        }}
-
-        .section li {{
-            margin-bottom: 10px;
-        }}
-
-        /* Tables */
-        .table-wrapper {{
-            overflow-x: auto;
-            margin: 20px 0;
-        }}
-
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95rem;
-        }}
-
-        th, td {{
-            padding: 14px 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }}
-
-        th {{
-            background: var(--primary);
-            color: var(--white);
             font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-            letter-spacing: 0.5px;
+            margin: 1.5rem 0 0.8rem;
         }}
 
-        tr:nth-child(even) {{
-            background: #f8fafc;
-        }}
+        p {{ margin-bottom: 1rem; text-align: justify; }}
 
-        tr:hover {{
-            background: #edf2f7;
-        }}
+        ul, ol {{ margin: 1rem 0 1rem 2rem; }}
+        li {{ margin-bottom: 0.5rem; }}
 
-        /* KPI Box */
+        /* CARDS & BOXES */
         .kpi-box {{
-            background: linear-gradient(135deg, #ebf8ff, #e6fffa);
-            border-left: 4px solid var(--accent);
-            padding: 20px 25px;
-            margin: 25px 0;
-            border-radius: 0 8px 8px 0;
-        }}
-
-        .kpi-box strong {{
-            color: var(--primary);
-        }}
-
-        /* Info boxes per vari tipi di contenuto */
-        .info-box {{
             background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin: 16px 0;
-        }}
-
-        .warning-box {{
-            background: #fffbeb;
-            border: 1px solid #fcd34d;
-            border-left: 4px solid var(--warning);
-            border-radius: 0 8px 8px 0;
-            padding: 16px 20px;
-            margin: 16px 0;
-        }}
-
-        .success-box {{
-            background: #f0fdf4;
-            border: 1px solid #86efac;
-            border-left: 4px solid var(--success);
-            border-radius: 0 8px 8px 0;
-            padding: 16px 20px;
-            margin: 16px 0;
-        }}
-
-        /* Dato da acquisire styling */
-        .section p {{
-            margin-bottom: 16px;
-            text-align: justify;
-            line-height: 1.8;
-        }}
-
-        /* Stile per (dato da acquisire) */
-        .content em {{
-            color: var(--text-light);
-            font-style: italic;
-        }}
-
-        /* Enfasi su keyword importanti */
-        .content strong {{
-            color: var(--primary);
-            font-weight: 600;
-        }}
-
-        /* Sub-sections più chiare */
-        .section h4 {{
-            color: var(--secondary);
-            font-size: 1.1rem;
-            margin: 25px 0 12px;
-            padding-left: 12px;
-            border-left: 3px solid var(--accent);
-        }}
-
-        /* Liste migliorate */
-        .section ul {{
-            list-style: none;
-            margin: 16px 0;
-            padding: 0;
-        }}
-
-        .section ul li {{
-            padding: 8px 0 8px 28px;
-            position: relative;
-            border-bottom: 1px solid #f1f5f9;
-        }}
-
-        .section ul li:last-child {{
-            border-bottom: none;
-        }}
-
-        .section ul li::before {{
-            content: '→';
-            position: absolute;
-            left: 0;
-            color: var(--accent);
-            font-weight: bold;
-        }}
-
-        .section ol {{
-            margin: 16px 0 16px 24px;
-            padding: 0;
-        }}
-
-        .section ol li {{
-            padding: 8px 0;
-            padding-left: 8px;
-        }}
-
-        /* Data pending e source refs */
-        .data-pending {{
-            background: #fef3c7;
-            color: #92400e;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            font-style: italic;
-        }}
-
-        .source-ref {{
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.85em;
-        }}
-
-        /* Blockquote */
-        blockquote {{
             border-left: 4px solid var(--accent);
-            padding: 15px 20px;
-            margin: 20px 0;
-            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1.5rem 0;
+        }}
+
+        blockquote {{
             font-style: italic;
-            color: var(--secondary);
-        }}
-
-        /* Sources */
-        .sources-section {{
-            background: #f8fafc;
-            padding: 25px;
-            border-radius: 8px;
-        }}
-
-        .sources-intro {{
-            margin-bottom: 20px;
             color: var(--text-light);
+            border-left: 3px solid #cbd5e0;
+            padding-left: 1rem;
+            margin: 1.5rem 0;
         }}
 
-        .sources-list {{
-            margin: 15px 0 15px 25px;
-        }}
-
-        .sources-list li {{
-            margin-bottom: 8px;
-        }}
-
-        .sources-list a {{
-            color: var(--accent);
-            word-break: break-all;
-            text-decoration: none;
-        }}
-
-        .sources-list a:hover {{
-            text-decoration: underline;
-        }}
-
-        .sources-list.trusted li::marker {{
-            color: var(--success);
-        }}
-
-        .disclaimer {{
-            font-size: 0.85rem;
-            color: var(--text-light);
-            font-style: italic;
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border);
-        }}
-
-        /* Footer */
-        .footer {{
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-light);
-            font-size: 0.9rem;
-            border-top: 1px solid var(--border);
-            margin-top: 40px;
-            background: var(--white);
-        }}
-
-        .footer .brand {{
-            color: var(--accent);
-            font-weight: 600;
-        }}
-
-        /* Credibility Badge */
-        .credibility-badge {{
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-top: 15px;
-        }}
-
-        .credibility-high {{
-            background: #c6f6d5;
-            color: #22543d;
-        }}
-
-        .credibility-medium {{
-            background: #fefcbf;
-            color: #744210;
-        }}
-
-        .credibility-low {{
-            background: #fed7d7;
-            color: #742a2a;
-        }}
-
-        /* Print styles */
-        /* ================================================================
-           PRINT STYLES - Ottimizzato per stampa professionale
-           ================================================================ */
-        @media print {{
-            /* === NASCONDI ELEMENTI UI INTERATTIVI === */
-            .print-bar, 
-            .nav,
-            .modal,
-            .expand-hint,
-            .click-hint,
-            .card-click-hint,
-            .card-expand-icon,
-            button,
-            .btn {{
-                display: none !important;
-            }}
-
-            /* === IMPOSTAZIONI GLOBALI === */
-            * {{
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }}
-
-            body {{
-                background: white !important;
-                color: #000 !important;
-                font-size: 11pt !important;
-                line-height: 1.5 !important;
-                orphans: 4;
-                widows: 4;
-            }}
-
-            /* === HEADER CLUB === */
-            .header {{
-                margin-top: 0 !important;
-                padding: 30px 20px !important;
-                break-after: avoid;
-                page-break-after: avoid;
-            }}
-
-            /* === SEZIONI === */
-            .section {{
-                box-shadow: none !important;
-                border: 1px solid #ccc !important;
-                border-radius: 4px !important;
-                margin-bottom: 20px !important;
-            }}
-
-            /* Header sezione NON deve restare solo a fine pagina */
-            .section-header {{
-                break-after: avoid !important;
-                page-break-after: avoid !important;
-            }}
-
-            /* Ogni sezione principale inizia su nuova pagina (opzionale) */
-            .section.page-break-before {{
-                break-before: page;
-                page-break-before: always;
-            }}
-
-            /* === TITOLI - Mai soli a fine pagina === */
-            h1, h2, h3, h4, h5, h6 {{
-                break-after: avoid !important;
-                page-break-after: avoid !important;
-                orphans: 3;
-                widows: 3;
-            }}
-
-            /* === PARAGRAFI === */
-            p {{
-                orphans: 3;
-                widows: 3;
-            }}
-
-            /* === LISTE === */
-            ul, ol {{
-                orphans: 2;
-                widows: 2;
-            }}
-
-            li {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }}
-
-            /* === TABELLE - Mai tagliate === */
-            table {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-                border-collapse: collapse !important;
-            }}
-
-            th {{
-                background-color: var(--primary) !important;
-                color: white !important;
-            }}
-
-            tr {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }}
-
-            /* === BOX E CARD - Mai tagliate === */
-            .kpi-box, 
-            .alert, 
-            .highlight-box,
-            .area-card,
-            .area-box,
-            .chart-box,
-            .method-box {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-                box-shadow: none !important;
-            }}
-
-            /* === IMMAGINI E GRAFICI === */
-            img, 
-            svg,
-            .chart-container {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-                max-width: 100% !important;
-            }}
-
-            /* === CONTAINER === */
-            .container {{
-                padding: 15px !important;
-                max-width: none !important;
-            }}
-
-            /* === FOOTER === */
-            .footer {{
-                margin-top: 30px !important;
-                padding-top: 15px !important;
-                border-top: 1px solid #ccc !important;
-            }}
-
-            /* === LINK - Mostra URL === */
-            a[href]:after {{
-                content: none !important; /* Disabilita per evitare clutter */
-            }}
-
-            /* === REGOLA @PAGE === */
-            @page {{
-                size: A4;
-                margin: 1.5cm;
-            }}
-
-            @page :first {{
-                margin-top: 0;
-            }}
-        }}
-
-        /* Tablet (portrait and landscape) */
-        @media (max-width: 1024px) {{
-            .stw-progress-row {{
-                grid-template-columns: 25px 120px 1fr 55px;
-                gap: 12px;
-            }}
-            .stw-overall-value {{
-                font-size: 1.8rem;
-            }}
-        }}
-
-        /* Tablet (portrait) and Mobile (landscape) */
-        @media (max-width: 768px) {{
-            .header {{
-                padding: 40px 20px;
-            }}
-            .header h1 {{
-                font-size: 1.8rem;
-            }}
-            .section {{
-                padding: 25px 20px;
-            }}
-            .container {{
-                padding: 20px 15px;
-            }}
-            table {{
-                font-size: 0.85rem;
-                display: block;
-                overflow-x: auto;
-            }}
-            th, td {{
-                padding: 8px 10px;
-            }}
-            .stw-coverage-dashboard {{
-                padding: 20px 15px;
-            }}
-            .stw-progress-row {{
-                grid-template-columns: 25px 100px 1fr 50px;
-                gap: 8px;
-            }}
-            .stw-overall-value {{
-                font-size: 1.5rem;
-            }}
-        }}
-
-        /* Mobile (portrait) */
-        @media (max-width: 480px) {{
-            .header h1 {{
-                font-size: 1.5rem;
-            }}
-            .header .subtitle {{
-                font-size: 1rem;
-            }}
-            .section {{
-                padding: 20px 15px;
-            }}
-            .stw-coverage-dashboard {{
-                padding: 15px 10px;
-            }}
-            .stw-progress-row {{
-                grid-template-columns: 20px 80px 1fr 45px;
-                gap: 6px;
-            }}
-            .stw-label {{
-                font-size: 0.75rem;
-            }}
-            .stw-percentage {{
-                font-size: 0.8rem;
-            }}
-            .stw-overall-value {{
-                font-size: 1.3rem;
-            }}
-            table {{
-                font-size: 0.75rem;
-            }}
-            th, td {{
-                padding: 6px 8px;
-            }}
-        }}
-
-        /* ============================================
-           STW COVERAGE DASHBOARD
-           ============================================ */
-        .stw-coverage-dashboard {{
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 25px 30px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        /* INPUT SOURCES STYLES */
+        .input-sources-dashboard {{
+            background: white;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }}
 
-        .stw-header {{
+        .input-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
         }}
 
-        .stw-header h3 {{
-            margin: 0;
-            font-size: 1.4rem;
-            color: var(--primary);
-        }}
-
-        .stw-overall {{
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-        }}
-
-        .stw-overall-label {{
-            font-size: 0.9rem;
-            color: var(--text-light);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        .stw-overall-value {{
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--success);
-        }}
-
-        .stw-progress-container {{
+        .input-files-grid {{
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             margin-bottom: 15px;
         }}
 
-        .stw-progress-row {{
-            display: grid;
-            grid-template-columns: 30px 150px 1fr 60px;
+        .input-file-card {{
+            display: flex;
             align-items: center;
-            gap: 15px;
-            padding: 10px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }}
-
-        .stw-icon {{
-            font-size: 1.5rem;
-            text-align: center;
-        }}
-
-        .stw-label {{
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: var(--text);
-        }}
-
-        .stw-progress-bar {{
-            height: 24px;
-            background: #e9ecef;
-            border-radius: 12px;
-            overflow: hidden;
-            position: relative;
-        }}
-
-        .stw-progress-fill {{
-            height: 100%;
-            transition: width 0.6s ease;
-            border-radius: 12px;
-            position: relative;
-            background: linear-gradient(90deg, currentColor 0%, currentColor 80%, rgba(255,255,255,0.2) 100%);
-        }}
-
-        .stw-percentage {{
-            font-weight: 700;
-            font-size: 0.95rem;
-            color: var(--text);
-            text-align: right;
-        }}
-
-        .stw-note {{
-            margin-top: 15px;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.7);
-            border-left: 4px solid var(--accent);
-            border-radius: 4px;
-            font-size: 0.85rem;
-            color: var(--text-light);
-            line-height: 1.5;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
         }}
 
+        .file-icon {{ font-size: 1.5rem; margin-right: 12px; }}
+        .file-info {{ flex: 1; }}
+        .file-name {{ font-weight: 600; font-size: 0.9rem; color: var(--text); }}
+        .file-meta {{ font-size: 0.75rem; color: var(--text-light); }}
+        .file-status {{ color: var(--success); font-weight: bold; }}
+
+        /* STW MATRIX STYLES (Injected via get_stw_matrix_css if needed, but we used inline styles mostly) */
+        
+        /* PRINT OPTIMIZATIONS */
         @media print {{
-            .stw-coverage-dashboard {{
-                page-break-inside: avoid;
-                background: #f8f9fa !important;
-                box-shadow: none !important;
-            }}
+            .nav {{ display: none; }}
+            body {{ background: white; }}
+            .container {{ max-width: 100%; padding: 0; }}
+            .section {{ box-shadow: none; border: none; padding: 0; margin-bottom: 20px; }}
+            .cover {{ background: var(--primary) !important; -webkit-print-color-adjust: exact; }}
         }}
     </style>
 </head>
 <body>
-    <header class="header">
-        <h1>Piano Strategico {club_name}</h1>
-        <p class="subtitle">{current_year} — {current_year + 3}</p>
-        <p class="meta">{category}{" | " + region if region else ""}</p>
-        {f'<span class="credibility-badge credibility-{"high" if credibility >= 70 else "medium" if credibility >= 50 else "low"}">Credibilità dati: {credibility}%</span>' if credibility else ''}
-        {self._format_timing_badge(metadata)}
-    </header>
 
+    <!-- COVER PAGE -->
+    <div class="cover">
+        <h1>{club_name}</h1>
+        <div class="subtitle">Piano Strategico {current_year}-{current_year + 3}</div>
+        <div class="meta-box">
+            {category} | {region}
+        </div>
+        {self._format_timing_badge(metadata)}
+    </div>
+
+    <!-- NAVIGATION (Screen only) -->
     <nav class="nav">
         {nav_items}
     </nav>
 
-    {stw_dashboard_html}
-
-    {rf_methodology_html}
-
     <main class="container">
+        <!-- INPUT SOURCES -->
+        {input_sources_html}
+
+        <!-- STW MATRIX -->
+        {stw_matrix_html}
+
+        <!-- METHODOLOGY -->
+        {rf_methodology_html}
+
+        <!-- SECTIONS -->
         {sections_html}
     </main>
 
-    <footer class="footer">
-        <p>Documento generato da <span class="brand">Rooting Future Strategy Engine</span> v5.4</p>
-        <p style="margin-top: 8px;">© {current_year} - Tutti i diritti riservati</p>
-        <p style="margin-top: 12px; font-size: 0.8rem; color: #a0aec0;">
-            Generato il {datetime.now().strftime('%d/%m/%Y alle %H:%M')}
-        </p>
-    </footer>
-
-    <script>
-        // Smooth scroll per navigation
-        document.querySelectorAll('.nav-item').forEach(link => {{
-            link.addEventListener('click', (e) => {{
-                e.preventDefault();
-                const target = document.querySelector(link.getAttribute('href'));
-                if (target) {{
-                    const navHeight = document.querySelector('.nav').offsetHeight;
-                    window.scrollTo({{
-                        top: target.offsetTop - navHeight - 20,
-                        behavior: 'smooth'
-                    }});
-                }}
-            }});
-        }});
-
-        // Active nav item on scroll
-        const sections = document.querySelectorAll('.section');
-        const navItems = document.querySelectorAll('.nav-item');
-        const nav = document.querySelector('.nav');
-
-        function updateActiveNav() {{
-            const navHeight = nav.offsetHeight;
-            let current = '';
-
-            sections.forEach(section => {{
-                const top = section.offsetTop - navHeight - 100;
-                if (window.scrollY >= top) {{
-                    current = section.getAttribute('id');
-                }}
-            }});
-
-            navItems.forEach(item => {{
-                item.classList.remove('active');
-                if (item.getAttribute('href') === '#' + current) {{
-                    item.classList.add('active');
-                }}
-            }});
-        }}
-
-        window.addEventListener('scroll', updateActiveNav);
-        updateActiveNav();
-
-        // Print button (optional)
-        function printDocument() {{
-            window.print();
-        }}
-    </script>
 </body>
 </html>'''
 
