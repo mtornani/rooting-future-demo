@@ -220,13 +220,16 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
         # Determina Fonte Esplicita
         source_label = "Stima AI"
         source_class = "source-est"
+        source_icon = "📊"
         
         if est.tier == DataTier.TIER_1_FACT:
             source_label = "Questionario Board"
             source_class = "source-ver"
+            source_icon = "📋"
         elif est.tier == DataTier.TIER_2_DEDUCED:
             source_label = "Dedotto da Parametri"
             source_class = "source-ded"
+            source_icon = "🔍"
         
         # Formattazione
         val_str = f"{unit}{val/1000000:.1f}M" if val >= 1000000 else f"{unit}{val/1000:.0f}K"
@@ -246,7 +249,7 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
             <td style="font-weight:700;">{val_str}</td>
             <td style="color:#666;">{bench_str}</td>
             <td class="gap-{gap_class}">{gap_str}</td>
-            <td><span class="source-badge {source_class}">{source_label}</span></td>
+            <td><span class="source-badge {source_class}">{source_icon} {source_label}</span></td>
         </tr>
         '''
 
@@ -559,7 +562,26 @@ def generate_executive_report_html(
 <head>
     <meta charset="UTF-8">
     <title>Executive Report - {club_name}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
+        :root {{
+            --primary: #6a0dad; /* Viola Rooting Future */
+            --primary-dark: #4b0082;
+            --secondary: {secondary_color};
+            --accent: #9c27b0;
+            --text: #1a202c;
+            --text-light: #718096;
+            --white: #ffffff;
+            --bg-light: #f7fafc;
+            --border: #e2e8f0;
+            
+            /* Badge Colors */
+            --badge-q: #7B1FA2; /* Questionnaire */
+            --badge-r: #1565C0; /* Research */
+            --badge-e: #F57C00; /* Estimate */
+        }}
+
         @page {{
             size: A4;
             margin: 15mm;
@@ -572,11 +594,17 @@ def generate_executive_report_html(
         }}
 
         body {{
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Inter', sans-serif;
             font-size: 10pt;
-            line-height: 1.4;
-            color: #333;
+            line-height: 1.5;
+            color: var(--text);
             background: white;
+        }}
+
+        h1, h2, h3, .page-title {{
+            font-family: 'Montserrat', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
         }}
 
         /* === COVER PAGE === */
@@ -586,62 +614,53 @@ def generate_executive_report_html(
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: linear-gradient(135deg, {primary_color}, {primary_dark});
-            color: {text_on_primary};
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }}
+
+        .cover::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.1;
+            z-index: 0;
+        }}
+
+        .cover > * {{
+            z-index: 1;
         }}
 
         .cover h1 {{
-            font-size: 28pt;
+            font-size: 32pt;
             margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 3px;
+            letter-spacing: 2px;
         }}
 
         .cover .subtitle {{
-            font-size: 14pt;
+            font-size: 16pt;
             opacity: 0.9;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            font-weight: 300;
         }}
 
         .cover .period {{
             font-size: 18pt;
             font-weight: 700;
-            background: {secondary_color};
-            color: {primary_color};
-            padding: 10px 30px;
-            border-radius: 30px;
-            margin-bottom: 40px;
-        }}
-
-        .cover .category {{
-            font-size: 12pt;
-            opacity: 0.8;
-        }}
-
-        .cover .generated {{
-            position: absolute;
-            bottom: 30px;
-            font-size: 9pt;
-            opacity: 0.7;
-        }}
-
-        .timing-badge {{
-            position: absolute;
-            bottom: 70px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 6px 14px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 16px;
-            font-size: 9pt;
-            font-weight: 500;
+            background: rgba(255,255,255,0.15);
             backdrop-filter: blur(10px);
+            padding: 12px 40px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.3);
+            margin-bottom: 40px;
         }}
 
         /* === PAGE SECTIONS === */
         .page {{
-            padding: 8mm 0;
+            padding: 10mm 0;
         }}
 
         .page-break {{
@@ -649,724 +668,165 @@ def generate_executive_report_html(
         }}
 
         .page-title {{
-            background: {primary_color};
-            color: {text_on_primary};
-            padding: 12px 20px;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            padding: 15px 25px;
             font-size: 14pt;
-            font-weight: 700;
-            margin-bottom: 15px;
-            border-radius: 4px;
-        }}
-
-        .page-title .icon {{
-            margin-right: 10px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
         }}
 
         /* === KPI CARDS === */
         .kpi-grid {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 12px;
+            margin-bottom: 25px;
         }}
 
         .kpi-card {{
-            background: linear-gradient(135deg, {primary_color}, {primary_dark});
-            color: {text_on_primary};
-            padding: 15px;
-            border-radius: 8px;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            padding: 20px 15px;
+            border-radius: 12px;
             text-align: center;
+            transition: transform 0.2s;
         }}
 
         .kpi-card .value {{
-            font-size: 18pt;
-            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 20pt;
+            font-weight: 800;
+            color: var(--primary);
         }}
 
         .kpi-card .label {{
             font-size: 8pt;
-            opacity: 0.9;
-            margin-top: 5px;
-        }}
-
-        .kpi-card .tier {{
-            font-size: 7pt;
-            background: rgba(255,255,255,0.2);
-            padding: 2px 6px;
-            border-radius: 3px;
-            margin-top: 5px;
-            display: inline-block;
-        }}
-
-        /* === CHARTS === */
-        .charts-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }}
-
-        .chart-box {{
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 10px;
-        }}
-
-        .chart-box h4 {{
-            font-size: 10pt;
-            color: {primary_color};
-            margin-bottom: 10px;
-            text-align: center;
-        }}
-
-        .chart-box img {{
-            max-width: 100%;
-            height: auto;
-        }}
-
-        /* === AREAS === */
-        .areas-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }}
-
-        .area-box {{
-            border: 1px solid #e0e0e0;
-            border-left: 4px solid;
-            border-radius: 0 8px 8px 0;
-            padding: 10px;
-            background: #fafafa;
-            page-break-inside: avoid;
-        }}
-
-        .area-header {{
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid #e0e0e0;
-        }}
-
-        .area-icon {{
-            font-size: 14pt;
-        }}
-
-        .area-title {{
-            font-weight: 700;
-            font-size: 10pt;
-        }}
-
-        .area-content {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 8px;
-        }}
-
-        .obj-col {{
-            min-width: 0; /* Permette al contenuto di restringersi */
-        }}
-
-        .obj-label {{
-            font-size: 6pt;
-            font-weight: 700;
-            padding: 2px 5px;
-            border-radius: 3px;
-            display: inline-block;
-            margin-bottom: 4px;
-        }}
-
-        .obj-label.macro {{
-            background: #C8E6C9;
-            color: #2E7D32;
-        }}
-
-        .obj-label.micro {{
-            background: #FFF9C4;
-            color: #F57F17;
-        }}
-
-        .obj-list {{
-            font-size: 7pt;
-            padding-left: 12px;
-            margin: 0;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            hyphens: auto;
-        }}
-
-        .obj-list li {{
-            margin-bottom: 3px;
-            line-height: 1.25;
-        }}
-
-        /* Troncamento solo su schermo, non in print */
-        .obj-list li.truncate-screen {{
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }}
-
-        /* === CLICKABLE CARDS === */
-        .area-box.clickable {{
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-        }}
-
-        .area-box.clickable:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            border-color: #999;
-        }}
-
-        .expand-hint {{
-            margin-left: auto;
-            font-size: 12pt;
-            opacity: 0.5;
-        }}
-
-        .area-box.clickable:hover .expand-hint {{
-            opacity: 1;
-        }}
-
-        .click-hint {{
-            text-align: center;
-            font-size: 7pt;
-            color: #999;
-            margin-top: 5px;
-            font-style: italic;
-        }}
-
-        /* === MODAL POPUP === */
-        .modal {{
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.6);
-            backdrop-filter: blur(3px);
-        }}
-
-        .modal.active {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }}
-
-        .modal-content {{
-            background: white;
-            width: 90%;
-            max-width: 700px;
-            max-height: 85vh;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: modalSlideIn 0.3s ease;
-        }}
-
-        @keyframes modalSlideIn {{
-            from {{
-                opacity: 0;
-                transform: translateY(-30px) scale(0.95);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }}
-        }}
-
-        .modal-close {{
-            position: absolute;
-            right: 20px;
-            top: 15px;
-            font-size: 28px;
-            font-weight: bold;
-            color: #666;
-            cursor: pointer;
-            z-index: 10;
-        }}
-
-        .modal-close:hover {{
-            color: #000;
-        }}
-
-        .modal-header {{
-            padding: 20px 25px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            position: relative;
-        }}
-
-        .modal-icon {{
-            font-size: 28pt;
-        }}
-
-        .modal-header h2 {{
-            margin: 0;
-            font-size: 18pt;
-            color: #333;
-        }}
-
-        .modal-body {{
-            padding: 25px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }}
-
-        .modal-section {{
-            margin-bottom: 20px;
-        }}
-
-        .modal-section:last-child {{
-            margin-bottom: 0;
-        }}
-
-        .modal-section h3 {{
-            font-size: 11pt;
-            margin-bottom: 10px;
-            color: #444;
-        }}
-
-        .modal-list {{
-            padding-left: 20px;
-            margin: 0;
-        }}
-
-        .modal-list li {{
-            margin-bottom: 8px;
-            font-size: 10pt;
-            line-height: 1.5;
-        }}
-
-
-
-        /* === EXECUTIVE SUMMARY === */
-        .exec-box {{
-            background: {primary_color}10;
-            border-left: 4px solid {primary_color};
-            padding: 15px;
-            border-radius: 0 8px 8px 0;
-        }}
-
-        .exec-box ul {{
-            padding-left: 20px;
-        }}
-
-        .exec-box li {{
-            margin-bottom: 8px;
-        }}
-
-        /* === TIMELINE === */
-        .timeline {{
-            display: flex;
-            justify-content: space-between;
-            margin: 20px 0;
-        }}
-
-        .timeline-item {{
-            flex: 1;
-            text-align: center;
-            padding: 0 10px;
-        }}
-
-        .timeline-marker {{
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 14pt;
-            margin: 0 auto 10px;
-        }}
-
-        .timeline-content {{
-            font-size: 9pt;
-        }}
-
-        .timeline-content strong {{
-            display: block;
-            margin-bottom: 5px;
-            color: {primary_color};
-        }}
-
-        /* === METHODOLOGY === */
-        .method-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }}
-
-        .method-box {{
-            background: #f5f5f5;
-            padding: 12px;
-            border-radius: 8px;
-        }}
-
-        .method-box h4 {{
-            font-size: 10pt;
-            color: {primary_color};
-            margin-bottom: 8px;
-        }}
-
-        .tier-legend {{
-            display: flex;
-            gap: 15px;
-            margin-top: 15px;
-        }}
-
-        .tier-item {{
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 8pt;
-        }}
-
-        .tier-badge {{
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 7pt;
-            font-weight: 700;
-        }}
-
-        .tier-1 {{ background: #C8E6C9; color: #2E7D32; }}
-        .tier-2 {{ background: #BBDEFB; color: #1565C0; }}
-        .tier-3 {{ background: #FFF9C4; color: #F57F17; }}
-
-        .disclaimer {{
-            background: #fff8e1;
-            border: 1px solid #ffcc02;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 8pt;
-            margin-top: 15px;
-        }}
-
-        /* === FOOTER === */
-        .footer {{
-            text-align: center;
-            font-size: 8pt;
-            color: #999;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #e0e0e0;
-        }}
-
-        /* === STW DASHBOARD === */
-        .stw-dashboard {{
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 15px;
-        }}
-
-        .stw-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e0e0e0;
             font-weight: 600;
-            font-size: 10pt;
-        }}
-
-        .stw-overall {{
-            font-size: 18pt;
-            font-weight: 700;
-            color: #38a169;
-        }}
-
-        .stw-row {{
-            display: grid;
-            grid-template-columns: 20px 100px 1fr 50px;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }}
-
-        .stw-icon {{
-            font-size: 12pt;
-            text-align: center;
-        }}
-
-        .stw-label {{
-            font-size: 8pt;
-            font-weight: 600;
-            color: #333;
-        }}
-
-        .stw-bar {{
-            height: 16px;
-            background: #e9ecef;
-            border-radius: 8px;
-            overflow: hidden;
-        }}
-
-        .stw-fill {{
-            height: 100%;
-            transition: width 0.6s ease;
-        }}
-
-        .stw-percent {{
-            font-size: 8pt;
-            font-weight: 700;
-            text-align: right;
-        }}
-
-        .stw-note {{
-            font-size: 7pt;
-            color: #666;
-            margin-top: 10px;
-            font-style: italic;
-        }}
-
-        /* === QUESTIONNAIRE BADGE === */
-        .badge-questionnaire {{
-            background: linear-gradient(135deg, #7B1FA2, #9C27B0);
-            color: white;
-            padding: 1px 6px;
-            border-radius: 10px;
-            font-size: 7pt;
-            font-weight: 700;
-            margin-left: 5px;
-            display: inline-flex;
-            align-items: center;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-top: 5px;
         }}
 
         /* === COMPARISON TABLE === */
         .comparison-container {{
-            margin-top: 15px;
+            margin: 25px 0;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
         }}
 
         .comparison-table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 8pt;
         }}
 
         .comparison-table th {{
-            background: #f1f3f5;
-            padding: 6px 10px;
+            background: var(--primary);
+            color: white;
+            padding: 12px 15px;
             text-align: left;
-            border-bottom: 2px solid #dee2e6;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 9pt;
+            text-transform: uppercase;
         }}
 
         .comparison-table td {{
-            padding: 8px 10px;
-            border-bottom: 1px solid #dee2e6;
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 10pt;
         }}
 
-        .gap-pos {{ color: #38a169; font-weight: 700; }}
-        .gap-neg {{ color: #e53e3e; font-weight: 700; }}
-
-        /* === SOURCE BADGES === */
+        /* === BADGES === */
         .source-badge {{
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 7pt;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 7.5pt;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }}
+        .source-ver {{ background: #F3E5F5; color: var(--badge-q); }}
+        .source-ded {{ background: #E3F2FD; color: var(--badge-r); }}
+        .source-est {{ background: #FFF3E0; color: var(--badge-e); }}
+
+        /* === AREAS === */
+        .areas-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }}
+
+        .area-box {{
+            background: white;
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 8px;
+            padding: 20px;
+            page-break-inside: avoid;
+        }}
+
+        /* === STW DASHBOARD === */
+        .stw-dashboard {{
+            background: #fdfbff;
+            border: 1px solid #e9d8fd;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 25px;
+        }}
+
+        .stw-fill {{
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%) !important;
+        }}
+
+        /* === I TUOI DATI PAGE === */
+        .data-source-page {{
+            background: #fcfaff;
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            padding: 30px;
+            margin: 20px 0;
+        }}
+
+        .data-stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }}
+
+        .stat-item {{
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(106, 13, 173, 0.05);
+            text-align: center;
+            border: 1px solid #eee;
+        }}
+
+        .stat-value {{
+            font-family: 'Montserrat', sans-serif;
+            font-size: 28pt;
+            font-weight: 800;
+            color: var(--primary);
+        }}
+
+        .stat-label {{
+            font-size: 9pt;
             font-weight: 600;
-            display: inline-block;
-        }}
-        .source-ver {{ background: #C8E6C9; color: #2E7D32; border: 1px solid #A5D6A7; }}
-        .source-ded {{ background: #BBDEFB; color: #1565C0; border: 1px solid #90CAF9; }}
-        .source-est {{ background: #FFF9C4; color: #F57F17; border: 1px solid #FFF59D; }}
-
-        /* ================================================================
-           RESPONSIVE STYLES - Mobile & Tablet
-           ================================================================ */
-
-        /* Tablet */
-        @media (max-width: 1024px) {{
-            .kpi-grid {{
-                grid-template-columns: repeat(2, 1fr);
-            }}
-            .stw-row {{
-                grid-template-columns: 18px 90px 1fr 45px;
-                gap: 8px;
-            }}
+            color: var(--text-light);
+            text-transform: uppercase;
         }}
 
-        /* Mobile */
-        @media (max-width: 768px) {{
-            body {{
-                font-size: 9pt;
-            }}
-            .cover h1 {{
-                font-size: 22pt;
-            }}
-            .cover .period {{
-                font-size: 14pt;
-            }}
-            .page-title {{
-                font-size: 12pt;
-                padding: 10px 15px;
-            }}
-            .kpi-grid {{
-                grid-template-columns: 1fr;
-                gap: 8px;
-            }}
-            .kpi-card {{
-                padding: 12px;
-            }}
-            .charts-grid {{
-                grid-template-columns: 1fr;
-            }}
-            .areas-grid {{
-                grid-template-columns: 1fr;
-            }}
-            .stw-dashboard {{
-                padding: 12px;
-            }}
-            .stw-row {{
-                grid-template-columns: 16px 75px 1fr 40px;
-                gap: 6px;
-                margin-bottom: 6px;
-            }}
-            .stw-icon {{
-                font-size: 10pt;
-            }}
-            .stw-label {{
-                font-size: 7pt;
-            }}
-            .stw-percent {{
-                font-size: 7pt;
-            }}
-            .stw-overall {{
-                font-size: 14pt;
-            }}
-        }}
-
-        /* Mobile Small */
-        @media (max-width: 480px) {{
-            .cover h1 {{
-                font-size: 18pt;
-            }}
-            .cover .subtitle {{
-                font-size: 11pt;
-            }}
-            .stw-row {{
-                grid-template-columns: 14px 60px 1fr 35px;
-                gap: 4px;
-            }}
-            .stw-label {{
-                font-size: 6pt;
-            }}
-        }}
-
-        /* ================================================================
-           PRINT STYLES - Executive Report A4 Ottimizzato
-           ================================================================ */
         @media print {{
-            /* === NASCONDI ELEMENTI INTERATTIVI === */
-            .modal,
-            .click-hint,
-            .expand-hint,
-            button {{
-                display: none !important;
-            }}
-
-            /* === FORZA COLORI === */
-            * {{
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }}
-
-            body {{
-                background: white !important;
-                font-size: 10pt !important;
-            }}
-
-            /* === COVER PAGE === */
-            .cover {{
-                height: 100vh;
-                break-after: page;
-            }}
-
-            /* === PAGE BREAKS === */
-            .page-break {{
-                break-after: page !important;
-                page-break-after: always !important;
-            }}
-
-            .page {{
-                padding: 0 !important;
-            }}
-
-            /* === ELEMENTI NON SPEZZABILI === */
-            .no-break,
-            .kpi-card,
-            .kpi-grid,
-            .chart-box,
-            .area-box,
-            .exec-box,
-            .method-box,
-            .timeline,
-            .stw-dashboard,
-            .disclaimer {{
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }}
-
-            /* === TITOLI === */
-            .page-title,
-            h2, h3, h4 {{
-                break-after: avoid !important;
-                page-break-after: avoid !important;
-            }}
-
-            /* === CARD AREE CLICCABILI === */
-            .area-box.clickable {{
-                cursor: default;
-            }}
-
-            .area-box.clickable:hover {{
-                transform: none !important;
-                box-shadow: none !important;
-            }}
-
-            /* === RIMUOVI TRONCAMENTO === */
-            .obj-list li.truncate-screen {{
-                white-space: normal !important;
-                overflow: visible !important;
-                text-overflow: clip !important;
-                word-wrap: break-word !important;
-            }}
-
-            /* === GRAFICI === */
-            .charts-grid {{
-                break-inside: avoid !important;
-            }}
-
-            .chart-box img {{
-                max-width: 100% !important;
-                height: auto !important;
-            }}
-
-            /* === BOX SHADOW REMOVAL === */
-            .kpi-card,
-            .chart-box,
-            .area-box,
-            .method-box {{
-                box-shadow: none !important;
-            }}
-
-            /* === REGOLA @PAGE === */
-            @page {{
-                size: A4;
-                margin: 15mm;
-            }}
+            .modal, .click-hint, button {{ display: none !important; }}
+            * {{ -webkit-print-color-adjust: exact !important; }}
+            .page-break {{ page-break-after: always; }}
         }}
     </style>
 </head>
@@ -1374,57 +834,100 @@ def generate_executive_report_html(
 
 <!-- PAGINA 1: COVER -->
 <div class="cover page-break">
+    <div style="font-size: 10pt; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.8;">Rooting Future</div>
     <h1>{club_name}</h1>
-    <div class="subtitle">Piano Strategico Triennale</div>
-    <div class="period">{current_year} - {current_year + 3}</div>
-    <div class="category">{category}</div>
+    <div class="subtitle">Strategic Planning Framework</div>
+    <div class="period">PIANO TRIENNALE {current_year} - {current_year + 3}</div>
+    <div style="font-family: 'Montserrat'; font-size: 12pt; text-transform: uppercase; letter-spacing: 2px;">Executive Report</div>
     {_format_timing_badge(metadata)}
-    <div class="generated">
-        Executive Report generato da Rooting Future Strategy Engine v5.4<br>
-        {datetime.now().strftime('%d/%m/%Y')}
+</div>
+
+<!-- PAGINA 2: I TUOI DATI -->
+<div class="page page-break">
+    <div class="page-title"><span class="icon">📋</span> I Tuoi Dati: Trasparenza e Metodologia</div>
+    
+    <div class="data-source-page">
+        <h2 style="color: var(--primary); margin-bottom: 15px;">La Base del Tuo Piano</h2>
+        <p style="font-size: 11pt; color: var(--text-light); margin-bottom: 20px;">
+            Questo documento non è una semplice generazione AI. È costruito sui dati reali forniti dal Board di <strong>{club_name}</strong>, 
+            incrociati con i benchmark ufficiali FIGC e la nostra metodologia proprietaria.
+        </p>
+
+        <div class="data-stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{metadata.get('total_questionnaires', 0)}</div>
+                <div class="stat-label">Questionari Board</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{metadata.get('verified_data_count', 0)}+</div>
+                <div class="stat-label">Dati Verificati</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{int(metadata.get('questionnaire_completion', 0) * 100)}%</div>
+                <div class="stat-label">Completezza Input</div>
+            </div>
+        </div>
+
+        <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid var(--badge-q);">
+            <h3 style="color: var(--badge-q); font-size: 11pt; margin-bottom: 10px;">🛡️ Garanzia di Qualità</h3>
+            <ul style="font-size: 9.5pt; padding-left: 20px; color: var(--text);">
+                <li>Dati estratti dai questionari Word caricati dal sistema.</li>
+                <li>Incrocio automatico con database benchmark Serie {category}.</li>
+                <li>Validazione scientifica degli scostamenti (Gap Analysis).</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="page-title" style="margin-top: 30px;"><span class="icon">📋</span> Sintesi Strategica</div>
+    <div class="exec-box" style="background: #f9f7ff; border-left: 4px solid var(--primary); padding: 20px; border-radius: 0 12px 12px 0;">
+        <ul style="list-style: none; padding: 0;">
+            {exec_html}
+        </ul>
     </div>
 </div>
 
-<!-- PAGINA 2: EXECUTIVE SUMMARY + KPI + GRAFICI -->
+<!-- PAGINA 3: KPI + GRAFICI -->
 <div class="page page-break">
-    <div class="page-title"><span class="icon">📋</span> Executive Summary</div>
-    <div class="exec-box">
-        <ul>{exec_html}</ul>
-    </div>
-
-    <div class="page-title" style="margin-top:15px;"><span class="icon">💰</span> Quadro Finanziario</div>
+    <div class="page-title"><span class="icon">💰</span> Quadro Finanziario e Benchmark</div>
+    
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="value">€{fat_val/1_000_000:.1f}M</div>
             <div class="label">Fatturato</div>
-            <div class="tier">{fatturato.tier.value.upper() if fatturato else 'N/A'}</div>
+            <div class="value">€{fat_val/1_000_000:.1f}M</div>
+            <div class="source-badge source-{'ver' if fatturato and fatturato.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if fatturato and fatturato.tier == DataTier.TIER_1_FACT else '📊' } {fatturato.tier.value.upper() if fatturato else 'N/A'}
+            </div>
         </div>
         <div class="kpi-card">
-            <div class="value">€{mi_val/1_000:.0f}K</div>
             <div class="label">Monte Ingaggi</div>
-            <div class="tier">{monte_ingaggi.tier.value.upper() if monte_ingaggi else 'N/A'}</div>
+            <div class="value">€{mi_val/1_000:.0f}K</div>
+            <div class="source-badge source-{'ver' if monte_ingaggi and monte_ingaggi.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if monte_ingaggi and monte_ingaggi.tier == DataTier.TIER_1_FACT else '📊' } {monte_ingaggi.tier.value.upper() if monte_ingaggi else 'N/A'}
+            </div>
         </div>
         <div class="kpi-card">
-            <div class="value">€{vr_val/1_000:.0f}K</div>
             <div class="label">Valore Rosa</div>
-            <div class="tier">{valore_rosa.tier.value.upper() if valore_rosa else 'N/A'}</div>
+            <div class="value">€{vr_val/1_000:.0f}K</div>
+            <div class="source-badge source-{'ver' if valore_rosa and valore_rosa.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if valore_rosa and valore_rosa.tier == DataTier.TIER_1_FACT else '📊' } {valore_rosa.tier.value.upper() if valore_rosa else 'N/A'}
+            </div>
         </div>
-        <div class="kpi-card" style="background:{'linear-gradient(135deg,#38a169,#2f855a)' if marg_val >= 0 else 'linear-gradient(135deg,#e53e3e,#c53030)'};">
-            <div class="value">€{marg_val/1_000:.0f}K</div>
+        <div class="kpi-card" style="background: {primary_color}05;">
             <div class="label">Margine Op.</div>
-            <div class="tier">{margine.tier.value.upper() if margine else 'N/A'}</div>
+            <div class="value" style="color: {'#38a169' if marg_val >= 0 else '#e53e3e'}">€{marg_val/1_000:.0f}K</div>
+            <div class="source-badge source-est">📊 STIMA</div>
         </div>
     </div>
 
     {_generate_comparison_table_html(estimates, category)}
 
-    <div class="charts-grid">
-        <div class="chart-box">
-            <h4>Composizione Ricavi</h4>
+    <div class="charts-grid" style="margin-top: 20px;">
+        <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
+            <h4 style="font-family: 'Montserrat'; color: var(--primary);">Composizione Ricavi</h4>
             {pie_img}
         </div>
-        <div class="chart-box">
-            <h4>Gap vs Benchmark {category}</h4>
+        <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
+            <h4 style="font-family: 'Montserrat'; color: var(--primary);">Gap Analysis vs {category}</h4>
             {gap_img}
         </div>
     </div>
@@ -1432,56 +935,48 @@ def generate_executive_report_html(
     {stw_dashboard_html}
 </div>
 
-<!-- PAGINA 3: AREE STRATEGICHE + ROADMAP -->
+<!-- PAGINA 4: AREE STRATEGICHE + ROADMAP -->
 <div class="page page-break">
-    <div class="page-title"><span class="icon">🎯</span> Aree Strategiche</div>
+    <div class="page-title"><span class="icon">🎯</span> Aree Strategiche di Intervento</div>
     <div class="areas-grid">
         {areas_html}
     </div>
 
-    <div class="page-title" style="margin-top:15px;"><span class="icon">📅</span> Roadmap Triennale</div>
+    <div class="page-title" style="margin-top:30px;"><span class="icon">📅</span> Roadmap Triennale</div>
     {timeline_html}
 </div>
 
-<!-- PAGINA 4: METODOLOGIA (ultima, senza page-break) -->
+<!-- PAGINA 5: METODOLOGIA -->
 <div class="page">
     <div class="page-title"><span class="icon">📊</span> Metodologia e Fonti</div>
 
-    {_generate_questionnaire_box(metadata, club_name)}
-
     <div class="method-grid">
         <div class="method-box">
-            <h4>Fonti Dati</h4>
-            <ul style="font-size:8pt;padding-left:15px;">
-                <li><strong>FIGC Report Calcio 2024</strong> - Benchmark ufficiali</li>
-                <li><strong>Transfermarkt</strong> - Valori rosa, statistiche</li>
-                <li><strong>Web Research</strong> - News, bilanci pubblici</li>
-                <li><strong>Knowledge Base</strong> - Documenti caricati</li>
+            <h4>Fonti Dati Utilizzate</h4>
+            <ul style="font-size:8.5pt; padding-left:15px; color: var(--text);">
+                <li><strong>Questionari Rooting Future</strong> - Input diretti del club 📋</li>
+                <li><strong>FIGC Report Calcio 2024</strong> - Benchmark ufficiali di categoria</li>
+                <li><strong>Transfermarkt</strong> - Valutazioni di mercato e statistiche rose</li>
+                <li><strong>Web Research</strong> - News, bilanci pubblici e news territoriali 🔍</li>
             </ul>
         </div>
         <div class="method-box">
-            <h4>Campi Stimati</h4>
-            <ul style="font-size:8pt;padding-left:15px;">
+            <h4>Analisi dei Campi</h4>
+            <ul style="font-size:8.5pt; padding-left:15px; color: var(--text);">
                 {_format_estimated_fields(estimated_fields)}
             </ul>
         </div>
     </div>
 
-    <div class="tier-legend">
-        <div class="tier-item"><span class="tier-badge tier-1">FATTO</span> Dato verificato</div>
-        <div class="tier-item"><span class="tier-badge tier-2">DEDOTTO</span> Calcolato</div>
-        <div class="tier-item"><span class="tier-badge tier-3">STIMA</span> Benchmark</div>
-    </div>
-
-    <div class="disclaimer">
-        <strong>⚠️ Disclaimer:</strong> I dati contrassegnati [STIMA] hanno natura indicativa.
-        Si raccomanda verifica con fonti ufficiali prima di decisioni strategiche.
+    <div class="tier-legend" style="margin-top: 20px; background: var(--bg-light); padding: 15px; border-radius: 8px;">
+        <div class="tier-item"><span class="source-badge source-ver">📋 QUESTIONARIO</span> Dato verificato dal club</div>
+        <div class="tier-item"><span class="source-badge source-ded">🔍 DEDOTTO</span> Calcolato da parametri indiretti</div>
+        <div class="tier-item"><span class="source-badge source-est">📊 STIMA</span> Calcolo algoritmico su benchmark</div>
     </div>
 
     <div class="footer">
-        🤖 Generato da <strong>Rooting Future Strategy Engine v5.4</strong> |
-        {datetime.now().strftime('%d/%m/%Y %H:%M')} |
-        Per il piano completo vedere documento esteso
+        Documento generato da <strong>Rooting Future Strategy Engine v5.4.3</strong> |
+        {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
 </div>
 
@@ -1498,29 +993,13 @@ function closeModal(modalId) {{
     document.getElementById(modalId).classList.remove('active');
     document.body.style.overflow = 'auto';
 }}
-
-// Chiudi modal cliccando fuori
-document.addEventListener('click', function(e) {{
-    if (e.target.classList.contains('modal')) {{
-        e.target.classList.remove('active');
-        document.body.style.overflow = 'auto';
-    }}
-}});
-
-// Chiudi modal con ESC
-document.addEventListener('keydown', function(e) {{
-    if (e.key === 'Escape') {{
-        document.querySelectorAll('.modal.active').forEach(m => {{
-            m.classList.remove('active');
-        }});
-        document.body.style.overflow = 'auto';
-    }}
-}});
 </script>
 
 </body>
 </html>
 '''
+
+    return html
 
     return html
 

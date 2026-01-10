@@ -8,7 +8,7 @@ Genera un documento A4 singola pagina (o doppia) con:
 - Matrice STW semplificata
 - Top 5 priorità
 
-Perfetto per condivisione rapida su WhatsApp, email, presentazioni.
+Design: Senior Data Architect Edition (Purple & Bold)
 """
 
 import re
@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Any
 from config import OUTPUT_DIR
 from stw_matrix import STW_FRAMEWORK, STWCategory, get_category_color, get_category_icon
 from stw_analyzer import calculate_stw_progress
+from data_estimator import estimate_missing_financials, DataTier
 
 logger = logging.getLogger(__name__)
 
@@ -43,32 +44,29 @@ class OnePagerExporter:
     ) -> Path:
         """
         Genera One-Pager infografica.
-
-        Args:
-            plan_data: Dict con sezioni del piano (per estrarre highlights)
-            club_name: Nome del club
-            metadata: Metadati (colori, categoria, credibility_score, etc.)
-            stw_progress: Dict con progressi STW per categoria {categoria: percentuale}
-
-        Returns:
-            Path del file HTML generato
         """
         metadata = metadata or {}
-        primary_color = metadata.get('primary_color', '#1a365d')
+        primary_color = "#6a0dad" # Viola RF
         secondary_color = metadata.get('secondary_color', '#c9a227')
         category = metadata.get('category', 'Serie D')
         credibility_score = metadata.get('credibility_score', 72)
         sources_count = metadata.get('sources_count', 15)
         total_questionnaires = metadata.get('total_questionnaires', 0)
 
+        # Centralized KPI Extraction
+        club_data_input = {
+            'dimensione_rosa': metadata.get('dimensione_rosa', 22),
+            'capienza_stadio': metadata.get('capienza_stadio', 0)
+        }
+        known_financials = metadata.get('known_financials', {})
+        estimates = estimate_missing_financials(club_data_input, category, known_financials)
+
         # Estrai highlights dal piano
         highlights = self._extract_highlights(plan_data)
 
         # Calcola progress STW dinamicamente se non fornito
         if stw_progress is None:
-            logger.info("Calculating STW progress from plan content...")
             stw_progress = calculate_stw_progress(plan_data)
-            logger.info(f"STW Progress calculated: {stw_progress}")
 
         # Genera HTML
         html = self._generate_html(
@@ -81,6 +79,7 @@ class OnePagerExporter:
             stw_progress=stw_progress,
             highlights=highlights,
             total_questionnaires=total_questionnaires,
+            estimates=estimates,
             metadata=metadata
         )
 
@@ -114,30 +113,13 @@ class OnePagerExporter:
             if vision_match:
                 highlights['vision'] = vision_match.group(1).strip()[:200]
 
-            # Cerca priorità (liste numerate)
+            # Cerca priorità (liste numerate o bold)
             priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
+            if not priorities:
+                priorities = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
             highlights['top_priorities'] = [p.strip() for p in priorities[:5]]
 
-        # Estrai KPI dal financial
-        financial = plan_data.get('financial', '')
-        if financial:
-            # Cerca numeri con € o %
-            kpi_matches = re.findall(r'([\w\s]+)[:\s]*(€[\d.,]+[KMB]?|\d+%|\d+[\.,]\d+)', financial)
-            highlights['key_kpis'] = [(k.strip(), v) for k, v in kpi_matches[:4]]
-
         return highlights
-
-    def _generate_questionnaire_badge(self, total_questionnaires: int) -> str:
-        """Genera badge per i questionari compilati"""
-        if total_questionnaires == 0:
-            return ""
-
-        return f'''
-            <div class="credibility-badge" style="background: linear-gradient(135deg, #7B1FA2 0%, #9C27B0 100%);">
-                <span>📋 Doc. Board:</span>
-                <span class="credibility-score">{total_questionnaires}</span>
-            </div>
-        '''
 
     def _generate_html(
         self,
@@ -150,17 +132,13 @@ class OnePagerExporter:
         stw_progress: Dict[str, int],
         highlights: Dict[str, Any],
         total_questionnaires: int = 0,
+        estimates: Dict = None,
         metadata: Dict = None
     ) -> str:
-        """Genera l'HTML completo del One-Pager"""
+        """Genera l'HTML completo del One-Pager con Montserrat/Inter"""
         metadata = metadata or {}
-
         current_year = datetime.now().year
         generation_date = datetime.now().strftime("%d/%m/%Y")
-
-        # Calcola colore chiaro
-        light_color = self._lighten_color(primary_color, 0.92)
-        contrast_color = self._get_contrast_color(primary_color)
 
         # Top priorities HTML
         priorities_html = ''
@@ -177,23 +155,44 @@ class OnePagerExporter:
             priorities_html += f'''
             <div class="priority-item">
                 <span class="priority-num">{i}</span>
-                <span class="priority-text">{p[:60]}{'...' if len(p) > 60 else ''}</span>
+                <span class="priority-text">{p}</span>
+            </div>'''
+
+        # KPI Dashboard con dati reali centralizzati
+        kpis = []
+        if estimates:
+            fat = estimates.get('fatturato')
+            mi = estimates.get('monte_ingaggi')
+            vr = estimates.get('valore_rosa')
+            
+            kpis.append(('FATTURATO', f"€{fat.value/1000:.0f}K", 'ver' if fat.tier == DataTier.TIER_1_FACT else 'est'))
+            kpis.append(('INGAGGI', f"€{mi.value/1000:.0f}K", 'ver' if mi.tier == DataTier.TIER_1_FACT else 'est'))
+            kpis.append(('ROSA', f"€{vr.value/1000:.0f}K", 'ver' if vr.tier == DataTier.TIER_1_FACT else 'est'))
+            kpis.append(('FONTI', str(sources_count), 'r'))
+
+        kpi_html = ''
+        for label, val, s_type in kpis:
+            badge = '📋' if s_type == 'ver' else '📊' if s_type == 'est' else '🔍'
+            kpi_html += f'''
+            <div class="kpi-card">
+                <div class="kpi-value">{val}</div>
+                <div class="kpi-label">{badge} {label}</div>
             </div>'''
 
         # STW Progress bars
         stw_bars_html = ''
-        stw_labels = {
-            'sportivi': ('SPORTIVI', get_category_icon(STWCategory.SPORTIVI)),
-            'strutturali': ('STRUTTURALI', get_category_icon(STWCategory.STRUTTURALI)),
-            'marketing': ('MARKETING', get_category_icon(STWCategory.MARKETING)),
-            'sociali': ('SOCIALI', get_category_icon(STWCategory.SOCIALI))
-        }
-        for key, (label, icon) in stw_labels.items():
+        stw_labels = [
+            ('sportivi', 'SPORTIVI', STWCategory.SPORTIVI),
+            ('strutturali', 'STRUTTURALI', STWCategory.STRUTTURALI),
+            ('marketing', 'MARKETING', STWCategory.MARKETING),
+            ('sociali', 'SOCIALI', STWCategory.SOCIALI)
+        ]
+        for key, label, cat_enum in stw_labels:
             progress = stw_progress.get(key, 50)
-            color = get_category_color(getattr(STWCategory, key.upper()))
+            color = get_category_color(cat_enum)
             stw_bars_html += f'''
             <div class="stw-row">
-                <span class="stw-icon">{icon}</span>
+                <span class="stw-icon">{get_category_icon(cat_enum)}</span>
                 <span class="stw-label">{label}</span>
                 <div class="stw-bar">
                     <div class="stw-fill" style="width: {progress}%; background: {color};"></div>
@@ -205,560 +204,222 @@ class OnePagerExporter:
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>One-Pager - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
             --primary: {primary_color};
+            --primary-dark: #4b0082;
             --secondary: {secondary_color};
-            --light: #{light_color};
-            --contrast: {contrast_color};
             --text: #1a1a1a;
-            --text-muted: #666666;
-            --border: #e5e5e5;
+            --text-muted: #666;
+            --bg-light: #fdfbff;
+            --badge-q: #7B1FA2;
         }}
 
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-
-        @page {{
-            size: A4;
-            margin: 0;
-        }}
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        @page {{ size: A4; margin: 0; }}
 
         body {{
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif;
             background: #ffffff;
             color: var(--text);
             width: 210mm;
-            min-height: 297mm;
+            height: 297mm;
             margin: 0 auto;
-            padding: 0;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            display: flex;
+            flex-direction: column;
         }}
 
-        /* ============================================
-           HEADER - Full width brand bar
-           ============================================ */
         .header {{
-            background: var(--primary);
-            color: var(--contrast);
-            padding: 8mm 10mm;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 10mm 15mm;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }}
 
-        .header-left {{
-            display: flex;
-            flex-direction: column;
-            gap: 1mm;
-        }}
-
-        .header-brand {{
-            font-size: 7pt;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            opacity: 0.7;
-        }}
-
         .header-club {{
-            font-family: 'Oswald', sans-serif;
-            font-size: 28pt;
-            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 24pt;
+            font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 1px;
-            line-height: 1;
         }}
 
-        .header-right {{
-            text-align: right;
-        }}
-
-        .header-title {{
-            font-family: 'Oswald', sans-serif;
-            font-size: 10pt;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }}
-
-        .header-period {{
-            font-size: 8pt;
-            opacity: 0.8;
-            margin-top: 1mm;
-        }}
-
-        /* ============================================
-           MAIN CONTENT - Grid Layout
-           ============================================ */
         .main {{
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto;
-            gap: 5mm;
-            padding: 8mm 10mm;
+            gap: 8mm;
+            padding: 10mm 15mm;
+            flex: 1;
         }}
 
-        /* ============================================
-           KPI DASHBOARD - Top Row Full Width
-           ============================================ */
         .kpi-dashboard {{
             grid-column: span 2;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 4mm;
+            gap: 5mm;
         }}
 
         .kpi-card {{
-            background: var(--light);
-            border-radius: 3mm;
-            padding: 5mm;
+            background: var(--bg-light);
+            border-radius: 12px;
+            padding: 6mm;
             text-align: center;
-            border-left: 4px solid var(--primary);
-        }}
-
-        .kpi-card.highlight {{
-            background: var(--primary);
-            color: var(--contrast);
-            border-left: none;
+            border: 1px solid #e9d8fd;
+            border-bottom: 4px solid var(--primary);
         }}
 
         .kpi-value {{
-            font-family: 'Oswald', sans-serif;
-            font-size: 28pt;
-            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 22pt;
+            font-weight: 800;
+            color: var(--primary);
             line-height: 1;
         }}
 
         .kpi-label {{
-            font-size: 7pt;
+            font-size: 7.5pt;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 1px;
             margin-top: 2mm;
-            opacity: 0.8;
-        }}
-
-        /* ============================================
-           STW PROGRESS SECTION
-           ============================================ */
-        .stw-section {{
-            background: #fafafa;
-            border-radius: 3mm;
-            padding: 5mm;
+            color: var(--text-muted);
         }}
 
         .section-title {{
-            font-family: 'Oswald', sans-serif;
-            font-size: 11pt;
-            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 12pt;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 1px;
             color: var(--primary);
-            margin-bottom: 4mm;
-            padding-bottom: 2mm;
+            margin-bottom: 5mm;
             border-bottom: 2px solid var(--primary);
+            padding-bottom: 2mm;
         }}
 
-        .stw-row {{
-            display: flex;
-            align-items: center;
-            gap: 3mm;
-            margin-bottom: 3mm;
+        .stw-section, .priorities-section {{
+            background: white;
+            border-radius: 12px;
+            padding: 6mm;
+            border: 1px solid #eee;
         }}
 
-        .stw-icon {{
-            font-size: 14pt;
-            width: 8mm;
-        }}
+        .stw-row {{ display: flex; align-items: center; gap: 3mm; margin-bottom: 4mm; }}
+        .stw-label {{ font-size: 8pt; font-weight: 700; width: 25mm; }}
+        .stw-bar {{ flex: 1; height: 5mm; background: #eee; border-radius: 10px; overflow: hidden; }}
+        .stw-fill {{ height: 100%; border-radius: 10px; }}
+        .stw-percent {{ font-size: 9pt; font-weight: 700; width: 10mm; text-align: right; }}
 
-        .stw-label {{
-            font-size: 8pt;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            width: 25mm;
-        }}
+        .priority-item {{ display: flex; align-items: flex-start; gap: 4mm; margin-bottom: 4mm; }}
+        .priority-num {{ background: var(--primary); color: white; width: 7mm; height: 7mm; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt; flex-shrink: 0; }}
+        .priority-text {{ font-size: 9.5pt; line-height: 1.3; font-weight: 500; }}
 
-        .stw-bar {{
-            flex: 1;
-            height: 6mm;
-            background: #e0e0e0;
-            border-radius: 3mm;
-            overflow: hidden;
-        }}
-
-        .stw-fill {{
-            height: 100%;
-            border-radius: 3mm;
-            transition: width 0.3s ease;
-        }}
-
-        .stw-percent {{
-            font-size: 9pt;
-            font-weight: 700;
-            width: 10mm;
-            text-align: right;
-        }}
-
-        /* ============================================
-           PRIORITIES SECTION
-           ============================================ */
-        .priorities-section {{
-            background: #fafafa;
-            border-radius: 3mm;
-            padding: 5mm;
-        }}
-
-        .priority-item {{
-            display: flex;
-            align-items: flex-start;
-            gap: 3mm;
-            margin-bottom: 3mm;
-            padding-bottom: 3mm;
-            border-bottom: 1px dashed var(--border);
-        }}
-
-        .priority-item:last-child {{
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }}
-
-        .priority-num {{
-            background: var(--primary);
-            color: var(--contrast);
-            width: 6mm;
-            height: 6mm;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 8pt;
-            font-weight: 700;
-            flex-shrink: 0;
-        }}
-
-        .priority-text {{
-            font-size: 9pt;
-            line-height: 1.4;
-        }}
-
-        /* ============================================
-           VISION QUOTE - Full Width
-           ============================================ */
         .vision-section {{
             grid-column: span 2;
-            background: linear-gradient(135deg, var(--primary) 0%, {self._darken_color(primary_color, 0.2)} 100%);
-            color: var(--contrast);
-            padding: 6mm 8mm;
-            border-radius: 3mm;
-            position: relative;
-        }}
-
-        .vision-quote {{
-            font-size: 12pt;
-            font-style: italic;
-            line-height: 1.5;
-            position: relative;
-            padding-left: 8mm;
-        }}
-
-        .vision-quote::before {{
-            content: '"';
-            font-family: 'Oswald', serif;
-            font-size: 48pt;
-            position: absolute;
-            left: -2mm;
-            top: -5mm;
-            opacity: 0.3;
-        }}
-
-        .vision-label {{
-            font-size: 7pt;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            opacity: 0.7;
-            margin-bottom: 2mm;
-        }}
-
-        /* ============================================
-           TIMELINE / ROADMAP
-           ============================================ */
-        .timeline-section {{
-            grid-column: span 2;
-            background: #fafafa;
-            border-radius: 3mm;
-            padding: 5mm;
-        }}
-
-        .timeline {{
-            display: flex;
-            justify-content: space-between;
-            position: relative;
-            margin-top: 4mm;
-        }}
-
-        .timeline::before {{
-            content: '';
-            position: absolute;
-            top: 4mm;
-            left: 10%;
-            right: 10%;
-            height: 2px;
-            background: var(--border);
-        }}
-
-        .timeline-item {{
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
+            padding: 8mm 10mm;
+            border-radius: 12px;
             text-align: center;
-            position: relative;
-            flex: 1;
         }}
 
-        .timeline-dot {{
-            width: 8mm;
-            height: 8mm;
-            background: var(--primary);
-            border-radius: 50%;
-            margin: 0 auto 3mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--contrast);
-            font-size: 7pt;
-            font-weight: 700;
-            position: relative;
-            z-index: 1;
-        }}
+        .vision-quote {{ font-family: 'Inter', sans-serif; font-size: 13pt; font-style: italic; line-height: 1.5; }}
 
-        .timeline-year {{
-            font-family: 'Oswald', sans-serif;
-            font-size: 10pt;
-            font-weight: 700;
-            color: var(--primary);
-        }}
-
-        .timeline-desc {{
-            font-size: 7pt;
-            color: var(--text-muted);
-            margin-top: 1mm;
-        }}
-
-        /* ============================================
-           FOOTER
-           ============================================ */
         .footer {{
-            background: var(--text);
-            color: #ffffff;
-            padding: 4mm 10mm;
+            background: #1a1a1a;
+            color: white;
+            padding: 6mm 15mm;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            font-size: 7pt;
-        }}
-
-        .footer-left {{
-            display: flex;
-            gap: 6mm;
-        }}
-
-        .footer-item {{
-            display: flex;
-            flex-direction: column;
-        }}
-
-        .footer-label {{
-            opacity: 0.6;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-size: 6pt;
-        }}
-
-        .footer-value {{
-            font-weight: 600;
-        }}
-
-        .footer-qr {{
-            width: 15mm;
-            height: 15mm;
-            background: #ffffff;
-            border-radius: 2mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 6pt;
-            color: var(--text);
-        }}
-
-        /* ============================================
-           CREDIBILITY BADGE
-           ============================================ */
-        .credibility-badge {{
-            display: inline-flex;
-            align-items: center;
-            gap: 2mm;
-            background: rgba(255,255,255,0.2);
-            padding: 2mm 4mm;
-            border-radius: 2mm;
             font-size: 8pt;
         }}
 
-        .credibility-score {{
-            font-weight: 700;
-            font-size: 10pt;
-        }}
-
-        /* ============================================
-           PRINT STYLES
-           ============================================ */
-        @media print {{
-            body {{
-                width: 210mm;
-                height: 297mm;
-            }}
-
-            .header, .vision-section, .kpi-card.highlight {{
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }}
-        }}
+        .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
     </style>
 </head>
 <body>
-
-    <!-- HEADER -->
     <header class="header">
-        <div class="header-left">
-            <span class="header-brand">Rooting Future</span>
-            <span class="header-club">{club_name}</span>
+        <div>
+            <div style="font-size: 8pt; letter-spacing: 3px; opacity: 0.8; text-transform: uppercase;">Strategic Infographic</div>
+            <div class="header-club">{club_name}</div>
         </div>
-        <div class="header-right">
-            <div class="header-title">Piano Strategico</div>
-            <div class="header-period">{current_year} — {current_year + 3}</div>
-            <div class="credibility-badge">
-                <span>Credibilità:</span>
-                <span class="credibility-score">{credibility_score}%</span>
-            </div>
-            {self._generate_questionnaire_badge(total_questionnaires)}
+        <div style="text-align: right;">
+            <div style="font-family: 'Montserrat'; font-size: 11pt; font-weight: 700;">PIANO STRATEGICO {current_year}</div>
+            <div class="credibility-badge">📋 Dati Board: {total_questionnaires} • {credibility_score}% Credibilità</div>
         </div>
     </header>
 
-    <!-- MAIN CONTENT -->
     <main class="main">
-
-        <!-- KPI DASHBOARD -->
         <div class="kpi-dashboard">
-            <div class="kpi-card highlight">
-                <div class="kpi-value">3</div>
-                <div class="kpi-label">Anni Piano</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-value">8</div>
-                <div class="kpi-label">Aree Strategiche</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-value">{sources_count}</div>
-                <div class="kpi-label">Fonti Verificate</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-value">21</div>
-                <div class="kpi-label">Obiettivi STW</div>
-            </div>
+            {kpi_html}
         </div>
 
-        <!-- STW PROGRESS -->
         <div class="stw-section">
             <h3 class="section-title">Copertura Matrice STW</h3>
             {stw_bars_html}
         </div>
 
-        <!-- TOP PRIORITIES -->
         <div class="priorities-section">
             <h3 class="section-title">Top 5 Priorità</h3>
             {priorities_html}
         </div>
 
-        <!-- VISION QUOTE -->
         <div class="vision-section">
-            <div class="vision-label">Visione Strategica</div>
-            <div class="vision-quote">
-                {highlights.get('vision', 'Consolidare la posizione competitiva attraverso lo sviluppo del settore giovanile, il rafforzamento dell\'identità di marca e la sostenibilità economico-finanziaria nel medio-lungo termine.')}
-            </div>
+            <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.7;">Visione Strategica Unificata</div>
+            <div class="vision-quote">"{highlights.get('vision', 'Guidare il club verso una crescita sostenibile, unendo eccellenza tecnica e solidità finanziaria.')}"</div>
         </div>
-
-        <!-- TIMELINE ROADMAP -->
-        <div class="timeline-section">
-            <h3 class="section-title">Roadmap Triennale</h3>
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-dot">Q1</div>
-                    <div class="timeline-year">{current_year}</div>
-                    <div class="timeline-desc">Setup &<br>Analisi</div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-dot">Q4</div>
-                    <div class="timeline-year">{current_year}</div>
-                    <div class="timeline-desc">Quick<br>Wins</div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-dot">H1</div>
-                    <div class="timeline-year">{current_year + 1}</div>
-                    <div class="timeline-desc">Sviluppo<br>Organico</div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-dot">H2</div>
-                    <div class="timeline-year">{current_year + 2}</div>
-                    <div class="timeline-desc">Scale<br>Up</div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-dot">FY</div>
-                    <div class="timeline-year">{current_year + 3}</div>
-                    <div class="timeline-desc">Target<br>Raggiunto</div>
-                </div>
-            </div>
-        </div>
-
     </main>
 
-    <!-- FOOTER -->
     <footer class="footer">
-        <div class="footer-left">
-            <div class="footer-item">
-                <span class="footer-label">Categoria</span>
-                <span class="footer-value">{category}</span>
-            </div>
-            <div class="footer-item">
-                <span class="footer-label">Generato</span>
-                <span class="footer-value">{generation_date}</span>
-            </div>
-            <div class="footer-item">
-                <span class="footer-label">Framework</span>
-                <span class="footer-value">STW Methodology</span>
-            </div>
-            <div class="footer-item">
-                <span class="footer-label">Engine</span>
-                <span class="footer-value">Rooting Future v5.4</span>
-            </div>
-            {f'''<div class="footer-item">
-                <span class="footer-label">⏱️ Tempo Gen.</span>
-                <span class="footer-value">{int(metadata.get("total_generation_time", 0) // 60)}m {int(metadata.get("total_generation_time", 0) % 60)}s</span>
-            </div>''' if metadata and metadata.get("total_generation_time") else ''}
-        </div>
-        <div class="footer-qr">
-            QR
-        </div>
+        <div>Rooting Future Strategy Engine v5.4.3</div>
+        <div>Generato il {generation_date}</div>
+        <div>Metodologia STW-Aligned</div>
     </footer>
-
 </body>
 </html>'''
-
         return html
+
+    def _lighten_color(self, hex_color: str, factor: float = 0.9) -> str:
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        r = min(255, int(r + (255 - r) * factor))
+        g = min(255, int(g + (255 - g) * factor))
+        b = min(255, int(b + (255 - b) * factor))
+        return f'{r:02x}{g:02x}{b:02x}'
+
+    def _darken_color(self, hex_color: str, factor: float = 0.2) -> str:
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        r = int(r * (1 - factor))
+        g = int(g * (1 - factor))
+        b = int(b * (1 - factor))
+        return f'#{r:02x}{g:02x}{b:02x}'
+
+    def _get_contrast_color(self, hex_color: str) -> str:
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return '#ffffff' if luminance < 0.5 else '#1a1a1a'
+
+
+# Singleton per uso globale
+onepager_exporter = OnePagerExporter()
+
+
+def create_onepager(
+    plan_data: Dict,
+    club_name: str,
+    metadata: Dict = None,
+    stw_progress: Dict[str, int] = None
+) -> Path:
+    """
+    Funzione helper per creare One-Pager infografica.
+    """
+    return onepager_exporter.export(plan_data, club_name, metadata, stw_progress)
+
 
     def _lighten_color(self, hex_color: str, factor: float = 0.9) -> str:
         """Schiarisce un colore"""
