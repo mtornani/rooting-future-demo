@@ -113,91 +113,32 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# SSE LOG STREAMING SYSTEM
+# LOGGING SYSTEM (Polling-based, No SSE to avoid deadlocks)
 # =============================================================================
 
 # Buffer per gli ultimi N log
 log_history: List[Dict] = []
-LOG_HISTORY_SIZE = 50
+LOG_HISTORY_SIZE = 100
 log_history_lock = threading.Lock()
 
-# SSE handler - sarà inizializzato dopo la definizione della classe
-log_stream_handler = None
-
-
-class LogStreamHandler(logging.Handler):
-    """
-    Custom logging handler che invia log a tutti i client SSE connessi.
-    Thread-safe con queue per ogni client.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.clients: Dict[str, queue.Queue] = {}
-        self.lock = threading.Lock()
-        self.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
-
-    def emit(self, record):
-        """Invia log a tutti i client connessi."""
-        try:
-            msg = self.format(record)
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "level": record.levelname,
-                "message": msg,
-                "logger": record.name,
-            }
-
-            # Salva nella history
-            add_to_log_history(log_entry)
-
-            with self.lock:
-                dead_clients = []
-                for client_id, client_queue in self.clients.items():
-                    try:
-                        client_queue.put_nowait(log_entry)
-                    except queue.Full:
-                        dead_clients.append(client_id)
-
-                for client_id in dead_clients:
-                    del self.clients[client_id]
-
-        except Exception:
-            self.handleError(record)
-
-    def register_client(self, client_id: str) -> queue.Queue:
-        """Registra un nuovo client SSE."""
-        with self.lock:
-            client_queue = queue.Queue(maxsize=100)
-            self.clients[client_id] = client_queue
-            return client_queue
-
-    def unregister_client(self, client_id: str):
-        """Rimuovi client SSE."""
-        with self.lock:
-            if client_id in self.clients:
-                del self.clients[client_id]
-
-
-def add_to_log_history(entry: Dict):
-    """Aggiunge entry alla history dei log."""
+def add_to_log_history(level: str, message: str, source: str = "system"):
+    """Aggiunge un log al buffer per la dashboard."""
     with log_history_lock:
-        log_history.append(entry)
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level.upper(),
+            "message": message,
+            "source": source
+        }
+        log_history.append(log_entry);
         if len(log_history) > LOG_HISTORY_SIZE:
             log_history.pop(0)
 
-
-# Initialize SSE handler globally so it works with WSGI servers too
-log_stream_handler = LogStreamHandler()
-logging.getLogger().addHandler(log_stream_handler)
-
-
 def broadcast_log(level: str, message: str, source: str = "system"):
     """
-    Funzione helper per inviare log custom alla dashboard.
+    Invia un log alla console e al buffer della dashboard.
     """
+    # Console logging
     if level.upper() == "INFO":
         logger.info(f"[{source}] {message}")
     elif level.upper() == "WARNING":
@@ -206,6 +147,12 @@ def broadcast_log(level: str, message: str, source: str = "system"):
         logger.error(f"[{source}] {message}")
     else:
         logger.info(f"[{source}] {message}")
+    
+    # Buffer per dashboard
+    add_to_log_history(level, message, source)
+
+# SSE handler rimosso perché instabile su alcuni sistemi
+log_stream_handler = None
 
 
 # =============================================================================
@@ -334,58 +281,20 @@ def legacy_index():
 @app.route("/api/stream/logs")
 def stream_logs():
     """
-    Endpoint SSE per streaming dei log in tempo reale.
-    I client si connettono qui per ricevere log live.
+    Ritorna i log correnti in formato JSON (Polling fallback).
+    Il sistema SSE è stato disabilitato per stabilità.
     """
-    import uuid
-
-    def generate():
-        client_id = str(uuid.uuid4())
-
-        # Se SSE handler non disponibile, usa solo polling
-        if log_stream_handler is None:
-            with log_history_lock:
-                for entry in log_history[-20:]:
-                    yield f"data: {json.dumps(entry)}\n\n"
-            yield f"data: {json.dumps({'level': 'WARNING', 'message': 'SSE non disponibile, usa polling', 'timestamp': datetime.now().isoformat()})}\n\n"
-            return
-
-        client_queue = log_stream_handler.register_client(client_id)
-
-        try:
-            # Invia prima la history
-            with log_history_lock:
-                for entry in log_history[-20:]:
-                    yield f"data: {json.dumps(entry)}\n\n"
-
-            # Poi stream continuo
-            while True:
-                try:
-                    entry = client_queue.get(timeout=30)
-                    yield f"data: {json.dumps(entry)}\n\n"
-                except queue.Empty:
-                    yield f": keepalive\n\n"
-
-        except GeneratorExit:
-            pass
-        finally:
-            if log_stream_handler:
-                log_stream_handler.unregister_client(client_id)
-
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    with log_history_lock:
+        return jsonify({
+            "success": True, 
+            "logs": list(log_history),
+            "mode": "polling"
+        })
 
 
 @app.route("/api/logs/history")
 def get_log_history():
-    """Endpoint per ottenere la history dei log (polling fallback)."""
+    """Endpoint per ottenere la history dei log."""
     with log_history_lock:
         return jsonify(
             {"success": True, "logs": list(log_history), "count": len(log_history)}
