@@ -196,7 +196,7 @@ def _generate_stw_dashboard_html(stw_progress: Dict[str, int]) -> str:
 
 
 def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) -> str:
-    """Genera tabella confronto Club vs Benchmark per Executive Report"""
+    """Genera tabella confronto Club vs Benchmark per Executive Report con fonte esplicita"""
     benchmarks = BenchmarkDatabase.FINANCIAL_BENCHMARKS.get(category, {})
     if not benchmarks:
         return ""
@@ -217,8 +217,16 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
         bench_key = 'fatturato_medio' if key == 'fatturato' else 'monte_ingaggi_medio' if key == 'monte_ingaggi' else 'costo_rosa_medio'
         bench_val = benchmarks.get(bench_key, 0)
         
-        # Badge questionario se tier è FATTO (dato certo)
-        q_badge = '<span class="badge-questionnaire">📋</span>' if est.tier == DataTier.FATTO else ""
+        # Determina Fonte Esplicita
+        source_label = "Stima AI"
+        source_class = "source-est"
+        
+        if est.tier == DataTier.FATTO:
+            source_label = "Questionario Board"
+            source_class = "source-ver"
+        elif est.tier == DataTier.DEDOTTO:
+            source_label = "Dedotto da Parametri"
+            source_class = "source-ded"
         
         # Formattazione
         val_str = f"{unit}{val/1000000:.1f}M" if val >= 1000000 else f"{unit}{val/1000:.0f}K"
@@ -234,10 +242,11 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
 
         rows_html += f'''
         <tr>
-            <td>{label} {q_badge}</td>
+            <td><strong>{label}</strong></td>
             <td style="font-weight:700;">{val_str}</td>
             <td style="color:#666;">{bench_str}</td>
             <td class="gap-{gap_class}">{gap_str}</td>
+            <td><span class="source-badge {source_class}">{source_label}</span></td>
         </tr>
         '''
 
@@ -247,10 +256,11 @@ def _generate_comparison_table_html(estimates: Dict[str, Any], category: str) ->
         <table class="comparison-table">
             <thead>
                 <tr>
-                    <th>Metrica</th>
-                    <th>Club</th>
-                    <th>Benchmark</th>
-                    <th>Gap</th>
+                    <th width="25%">Metrica</th>
+                    <th width="15%">Club</th>
+                    <th width="15%">Benchmark</th>
+                    <th width="15%">Gap</th>
+                    <th width="30%">Fonte Dato</th>
                 </tr>
             </thead>
             <tbody>
@@ -298,25 +308,44 @@ def _generate_questionnaire_box(metadata: Dict[str, Any], club_name: str) -> str
 
 
 def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
-    """Estrae obiettivi MACRO e MICRO in forma sintetica."""
+    """Estrae obiettivi MACRO e MICRO in forma sintetica con fallback aggressivi."""
     result = {'macro': [], 'micro': []}
     if not content:
         return result
 
-    # MACRO: ## N. TITOLO (cattura tutto il titolo)
-    macro_pattern = r'#{2,3}\s*\d+\.\s*([A-ZÀ-Ÿ][^\n]{5,80})'
-    macro_matches = re.findall(macro_pattern, content)
-    for m in macro_matches[:4]:
-        clean = _clean_text(m)
-        # Mantieni capitalizzazione originale, solo pulisci
-        result['macro'].append(clean)  # Nessun troncamento, lascia che CSS gestisca
+    # --- MACRO OBIETTIVI ---
+    # 1. Cerca header ## numerati o non
+    macro_matches = re.findall(r'##\s*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,80})', content)
+    
+    # 2. Se pochi header, cerca bold line all'inizio di paragrafi che sembrano titoli
+    if len(macro_matches) < 2:
+        bold_matches = re.findall(r'\n\*\*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,60})\*\*', content)
+        macro_matches.extend(bold_matches)
 
-    # MICRO: ### N.N TITOLO
-    micro_pattern = r'#{3,4}\s*\d+\.\d+\s*([A-ZÀ-Ÿ][^\n]{5,60})'
-    micro_matches = re.findall(micro_pattern, content)
+    for m in macro_matches[:4]:
+        clean = _clean_text(m).split(':')[0] # Prendi solo parte prima dei due punti
+        if len(clean) > 5:
+            result['macro'].append(clean)
+
+    # --- MICRO OBIETTIVI ---
+    # 1. Cerca header ###
+    micro_matches = re.findall(r'###\s*(?:\d+\.\d+)?\s*([A-ZÀ-Ÿ].{5,80})', content)
+    
+    # 2. Se pochi header, cerca bullet points forti
+    if len(micro_matches) < 2:
+        bullet_matches = re.findall(r'[-*•]\s+([A-ZÀ-Ÿ].{10,100})', content)
+        micro_matches.extend(bullet_matches)
+
     for m in micro_matches[:4]:
-        clean = _clean_text(m)
-        result['micro'].append(clean)  # Nessun troncamento
+        clean = _clean_text(m).split(':')[0]
+        if len(clean) > 5:
+            result['micro'].append(clean)
+
+    # Fallback finale se vuoto
+    if not result['macro']:
+        result['macro'] = ["Definizione obiettivi strategici", "Consolidamento societario"]
+    if not result['micro']:
+        result['micro'] = ["Analisi operativa", "Sviluppo risorse umane"]
 
     return result
 
@@ -1141,6 +1170,18 @@ def generate_executive_report_html(
 
         .gap-pos {{ color: #38a169; font-weight: 700; }}
         .gap-neg {{ color: #e53e3e; font-weight: 700; }}
+
+        /* === SOURCE BADGES === */
+        .source-badge {{
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 7pt;
+            font-weight: 600;
+            display: inline-block;
+        }}
+        .source-ver {{ background: #C8E6C9; color: #2E7D32; border: 1px solid #A5D6A7; }}
+        .source-ded {{ background: #BBDEFB; color: #1565C0; border: 1px solid #90CAF9; }}
+        .source-est {{ background: #FFF9C4; color: #F57F17; border: 1px solid #FFF59D; }}
 
         /* ================================================================
            RESPONSIVE STYLES - Mobile & Tablet
