@@ -37,3 +37,4 @@
 [2026-01-23 21:25] COMPLETED OPT-002: Real Async Execution with ThreadPoolExecutor - TRUE parallel execution now active. Expected generation time: 60s -> 15-20s (-66%%).
 [2026-01-23 22:35] COMPLETED OPT-003: Export Layer Unification - Centralized core export logic in export_core.py. Refactored 6 exporters to use inheritance. Reduced code duplication by ~500 LOC.
 [2026-01-23 22:45] COMPLETED FIX-001: Knowledge Store Bug Fixes - Fixed sqlite3.Row attribute error in RAG fetch and defined missing 'full_content' variable in upload logic.
+[2026-01-23 22:50] COMPLETED FIX-002: PDF Export Optimization - Optimized CSS in export_pdf_server.py to prevent WeasyPrint infinite loops (reduced cover height, stabilized column breaks).
