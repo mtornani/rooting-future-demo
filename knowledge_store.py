@@ -11,6 +11,7 @@ Sistema di persistenza conoscenza per:
 
 import json
 import hashlib
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -18,6 +19,37 @@ from dataclasses import dataclass, field, asdict
 import logging
 import sqlite3
 import pickle
+from cryptography.fernet import Fernet
+
+# =============================================================================
+# ENCRYPTION HELPER
+# =============================================================================
+
+# In produzione, ENCRYPTION_KEY deve essere in .env
+# Generabile con: Fernet.generate_key().decode()
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "bW995M4DtsehWjIlmLvxYbY6nUpViBhqolsWlliQxHI=")
+
+def encrypt_data(data: str) -> str:
+    """Cifra una stringa usando Fernet"""
+    if not data: return ""
+    f = Fernet(ENCRYPTION_KEY.encode())
+    return f.encrypt(data.encode()).decode()
+
+def decrypt_data(token: str) -> str:
+    """Decifra un token Fernet"""
+    if not token: return ""
+    
+    # Backward compatibility: se sembra JSON, non decifrare
+    stripped = token.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return token
+
+    try:
+        f = Fernet(ENCRYPTION_KEY.encode())
+        return f.decrypt(token.encode()).decode()
+    except Exception as e:
+        logger.error(f"Decryption error: {e}")
+        return "{}" # Return empty json as fallback
 
 try:
     from google import genai
@@ -47,6 +79,7 @@ class Document:
     title: str
     content: str
     doc_type: str  # "plan", "benchmark", "template", "research"
+    section_type: str = ""  # "sportivi", "marketing", etc. (OPT-001)
     metadata: Dict = field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
@@ -94,6 +127,7 @@ class PlanRecord:
     export_paths: List[str] = field(default_factory=list)
     notes: str = ""
     last_edited_by: str = ""
+    owner_id: Optional[int] = None
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -113,15 +147,20 @@ class SQLiteKnowledgeStore:
         self.db_path = db_path or (KNOWLEDGE_DIR / "rooting_future.db")
         self._init_db()
 
-    def _init_db(self):
-        """Inizializza database con schema"""
+    def _init_db(self) -> None:
+        """Inizializza database con schema e ottimizzazioni (OPT-001)"""
         with sqlite3.connect(self.db_path) as conn:
+            # Performance Optimizations (OPT-001)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS documents (
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
                     content TEXT,
                     doc_type TEXT,
+                    section_type TEXT,
                     club_name TEXT,
                     category TEXT,
                     tags TEXT,
@@ -144,10 +183,22 @@ class SQLiteKnowledgeStore:
                     export_paths TEXT,
                     notes TEXT,
                     last_edited_by TEXT,
+                    owner_id INTEGER,
                     created_at TEXT,
                     updated_at TEXT
                 )
             """)
+            
+            # Migration: Add columns if missing (OPT-001)
+            try:
+                conn.execute("ALTER TABLE plans ADD COLUMN owner_id INTEGER")
+            except sqlite3.OperationalError:
+                pass 
+
+            try:
+                conn.execute("ALTER TABLE documents ADD COLUMN section_type TEXT")
+            except sqlite3.OperationalError:
+                pass
 
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS benchmarks (
@@ -163,14 +214,68 @@ class SQLiteKnowledgeStore:
                 )
             """)
 
-            # Indici per ricerche veloci
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    full_name TEXT,
+                    role TEXT DEFAULT 'viewer',
+                    credits INTEGER DEFAULT 0, -- Sistema di crediti per piani
+                    first_login INTEGER DEFAULT 1, -- Flag per onboarding
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS plan_assignments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    assigned_by INTEGER,
+                    created_at TEXT,
+                    FOREIGN KEY(plan_id) REFERENCES plans(id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS plan_developments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    activity_type TEXT, -- "update", "note", "task_completed"
+                    description TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY(plan_id) REFERENCES plans(id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
+            
+            # Initial setup for killswitch
+            conn.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('global_lockout', '0')")
+
+            # Indici per ricerche veloci (OPT-001 Optimized)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(doc_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_club ON documents(club_name)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_category_section ON documents(category, section_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_plans_club ON plans(club_name)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_plans_status ON plans(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_plans_owner ON plans(owner_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_plans_created ON plans(created_at DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmarks_metric ON benchmarks(metric, category)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 
             conn.commit()
+            logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
     # -------------------------------------------------------------------------
     # DOCUMENTS CRUD
@@ -181,13 +286,14 @@ class SQLiteKnowledgeStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO documents
-                (id, title, content, doc_type, club_name, category, tags, metadata, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, title, content, doc_type, section_type, club_name, category, tags, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 doc.id,
                 doc.title,
                 doc.content,
                 doc.doc_type,
+                doc.section_type,
                 doc.club_name,
                 doc.category,
                 json.dumps(doc.tags),
@@ -212,6 +318,7 @@ class SQLiteKnowledgeStore:
                     title=row["title"],
                     content=row["content"],
                     doc_type=row["doc_type"],
+                    section_type=dict(row).get("section_type", ""),
                     club_name=row["club_name"],
                     category=row["category"],
                     tags=json.loads(row["tags"]) if row["tags"] else [],
@@ -225,6 +332,7 @@ class SQLiteKnowledgeStore:
         self,
         query: str = "",
         doc_type: str = "",
+        section_type: str = "",
         club_name: str = "",
         category: str = "",
         limit: int = 20
@@ -239,6 +347,9 @@ class SQLiteKnowledgeStore:
         if doc_type:
             conditions.append("doc_type = ?")
             params.append(doc_type)
+        if section_type:
+            conditions.append("section_type = ?")
+            params.append(section_type)
         if club_name:
             conditions.append("club_name LIKE ?")
             params.append(f"%{club_name}%")
@@ -263,6 +374,7 @@ class SQLiteKnowledgeStore:
                     title=row["title"],
                     content=row["content"],
                     doc_type=row["doc_type"],
+                    section_type=dict(row).get("section_type", ""),
                     club_name=row["club_name"],
                     category=row["category"],
                     tags=json.loads(row["tags"]) if row["tags"] else [],
@@ -274,99 +386,327 @@ class SQLiteKnowledgeStore:
             ]
 
     # -------------------------------------------------------------------------
+    # USERS CRUD (Multi-Tenancy)
+    # -------------------------------------------------------------------------
+
+    def create_user(self, email: str, password_hash: str, full_name: str = "", role: str = "viewer") -> int:
+        """Crea nuovo utente"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                INSERT INTO users (email, password_hash, full_name, role, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (email, password_hash, full_name, role, datetime.now().isoformat()))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        """Recupera utente per email"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            return dict(row) if row else None
+
+    def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """Recupera utente per ID"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            return dict(row) if row else None
+
+    def get_user_credits(self, user_id: int) -> int:
+        """Recupera il saldo crediti di un utente"""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
+            return row[0] if row else 0
+
+    def list_users(self) -> List[Dict]:
+        """Lista tutti gli utenti con statistiche"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            # Recupera utenti e conta piani assegnati/posseduti
+            query = """
+                SELECT 
+                    u.id, u.email, u.full_name, u.role, u.credits, u.last_login, u.created_at,
+                    (SELECT COUNT(*) FROM plan_assignments pa WHERE pa.user_id = u.id) as assigned_plans_count,
+                    (SELECT COUNT(*) FROM plans p WHERE p.owner_id = u.id) as owned_plans_count
+                FROM users u
+                ORDER BY u.created_at DESC
+            """
+            # Nota: 'last_login' potrebbe non esistere se non aggiunto alla tabella users, 
+            # gestiamo l'errore o assumiamo che la colonna esista/venga ignorata se la query è generica.
+            # Per sicurezza usiamo una query più semplice se la colonna manca, 
+            # ma qui assumiamo che lo schema sia coerente o che lo aggiorniamo.
+            
+            # Controllo preventivo colonna last_login (migration on the fly "soft")
+            cursor = conn.execute("PRAGMA table_info(users)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            final_query = query
+            if 'last_login' not in columns:
+                final_query = query.replace("u.last_login,", "NULL as last_login,")
+
+            rows = conn.execute(final_query).fetchall()
+            return [dict(row) for row in rows]
+
+
+    def update_user_credits(self, user_id: int, amount: int) -> bool:
+        """Aggiunge o sottrae crediti a un utente"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("UPDATE users SET credits = credits + ? WHERE id = ?", (amount, user_id))
+            conn.commit()
+            return conn.total_changes > 0
+
+    def has_sufficient_credits(self, user_id: int, required: int = 1) -> bool:
+        """Verifica se l'utente ha crediti sufficienti"""
+        # Super Admin ha crediti infiniti
+        user = self.get_user_by_id(user_id)
+        if user and user['role'] == 'super_admin':
+            return True
+        return self.get_user_credits(user_id) >= required
+
+    # -------------------------------------------------------------------------
+    # ASSIGNMENTS & DEVELOPMENTS
+    # -------------------------------------------------------------------------
+
+    def assign_plan(self, plan_id: str, user_id: int, assigned_by: int) -> bool:
+        """Assegna un piano a un Temporary Manager"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO plan_assignments (plan_id, user_id, assigned_by, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (plan_id, user_id, assigned_by, datetime.now().isoformat()))
+            conn.commit()
+            return True
+
+    def get_assigned_plans(self, user_id: int) -> List[str]:
+        """Recupera IDs dei piani assegnati a un utente"""
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute("SELECT plan_id FROM plan_assignments WHERE user_id = ?", (user_id,)).fetchall()
+            return [row[0] for row in rows]
+
+    def add_development_log(self, plan_id: str, user_id: int, activity_type: str, description: str):
+        """Registra un'attività di sviluppo sul piano"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO plan_developments (plan_id, user_id, activity_type, description, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (plan_id, user_id, activity_type, description, datetime.now().isoformat()))
+            conn.commit()
+
+    def get_plan_developments(self, plan_id: str) -> List[Dict]:
+        """Recupera la cronologia degli sviluppi di un piano"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT d.*, u.full_name as user_name 
+                FROM plan_developments d
+                JOIN users u ON d.user_id = u.id
+                WHERE d.plan_id = ?
+                ORDER BY d.created_at DESC
+            """, (plan_id,)).fetchall()
+            return [dict(row) for row in rows]
+
+    # -------------------------------------------------------------------------
+    # SYSTEM SETTINGS & KILLSWITCH
+    # -------------------------------------------------------------------------
+
+    def set_system_setting(self, key: str, value: str):
+        """Imposta un parametro di sistema"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)", (key, value))
+            conn.commit()
+
+    def get_system_setting(self, key: str, default: str = None) -> str:
+        """Recupera un parametro di sistema"""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("SELECT value FROM system_settings WHERE key = ?", (key,)).fetchone()
+            return row[0] if row else default
+
+    def is_killswitch_active(self) -> bool:
+        """Controlla se il sistema è in modalità blocco totale"""
+        return self.get_system_setting('global_lockout', '0') == '1'
+
+    # -------------------------------------------------------------------------
     # PLANS CRUD
     # -------------------------------------------------------------------------
 
-    def save_plan(self, plan: PlanRecord) -> str:
-        """Salva piano strategico"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO plans
-                (id, club_name, category, region, status, plan_data, sources_count,
-                 credibility_score, export_paths, notes, last_edited_by, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                plan.id,
-                plan.club_name,
-                plan.category,
-                plan.region,
-                plan.status,
-                json.dumps(plan.plan_data),
-                plan.sources_count,
-                plan.credibility_score,
-                json.dumps(plan.export_paths),
-                plan.notes,
-                plan.last_edited_by,
-                plan.created_at,
-                datetime.now().isoformat(),
-            ))
-            conn.commit()
-        return plan.id
-
     def get_plan(self, plan_id: str) -> Optional[PlanRecord]:
-        """Recupera piano per ID"""
+        """Recupera un piano per ID"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                "SELECT * FROM plans WHERE id = ?", (plan_id,)
-            ).fetchone()
-
+            row = conn.execute("SELECT * FROM plans WHERE id = ?", (plan_id,)).fetchone()
+            
             if row:
+                # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
+                decrypted_json = decrypt_data(row["plan_data"])
+                try:
+                    plan_data = json.loads(decrypted_json)
+                except:
+                    plan_data = {}
+
                 return PlanRecord(
                     id=row["id"],
                     club_name=row["club_name"],
                     category=row["category"],
                     region=row["region"],
                     status=row["status"],
-                    plan_data=json.loads(row["plan_data"]) if row["plan_data"] else {},
+                    plan_data=plan_data,
                     sources_count=row["sources_count"],
                     credibility_score=row["credibility_score"],
                     export_paths=json.loads(row["export_paths"]) if row["export_paths"] else [],
                     notes=row["notes"],
                     last_edited_by=row["last_edited_by"],
+                    owner_id=row["owner_id"],
                     created_at=row["created_at"],
                 )
         return None
 
-    def list_plans(
-        self,
-        status: str = "",
-        category: str = "",
-        club_name: str = "",
-        limit: int = 50,
-        offset: int = 0
-    ) -> Tuple[List[PlanRecord], int]:
-        """
-        Lista piani con filtri e paginazione.
+    def save_plan(self, plan: PlanRecord, owner_id: int = None) -> str:
+        """Salva piano strategico con cifratura del contenuto"""
+        with sqlite3.connect(self.db_path) as conn:
+            # Check if plan exists to preserve owner_id if not provided
+            existing_owner = None
+            if not owner_id:
+                row = conn.execute("SELECT owner_id FROM plans WHERE id = ?", (plan.id,)).fetchone()
+                if row:
+                    existing_owner = row[0]
+            
+            final_owner = owner_id if owner_id else existing_owner
+            
+            # CIFRATURA: Cifriamo il contenuto sensibile del piano
+            encrypted_plan_data = encrypt_data(json.dumps(plan.plan_data))
 
-        Returns:
-            (lista_piani, conteggio_totale)
-        """
-        conditions = []
-        params = []
+            conn.execute("""
+                INSERT OR REPLACE INTO plans
+                (id, club_name, category, region, status, plan_data, sources_count,
+                 credibility_score, export_paths, notes, last_edited_by, owner_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                plan.id,
+                plan.club_name,
+                plan.category,
+                plan.region,
+                plan.status,
+                encrypted_plan_data,
+                plan.sources_count,
+                plan.credibility_score,
+                json.dumps(plan.export_paths),
+                plan.notes,
+                plan.last_edited_by,
+                final_owner,
+                plan.created_at,
+                datetime.now().isoformat(),
+            ))
+            conn.commit()
+        return plan.id
 
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
-        if category:
-            conditions.append("category = ?")
-            params.append(category)
-        if club_name:
-            conditions.append("club_name LIKE ?")
-            params.append(f"%{club_name}%")
+        def list_plans(
+
+            self,
+
+            status: str = "",
+
+            category: str = "",
+
+            club_name: str = "",
+
+            owner_id: int = None,
+
+            plan_ids: List[str] = None,
+
+            limit: int = 50,
+
+            offset: int = 0,
+
+            exclude_status: str = ""
+
+        ) -> Tuple[List[PlanRecord], int]:
+
+            """
+
+            Lista piani con filtri e paginazione.
+
+            Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
+
+            """
+
+            conditions = []
+
+            params = []
+
+    
+
+            # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
+
+            if owner_id:
+
+                # Mostra i piani di cui è owner O quelli che gli sono stati assegnati
+
+                assigned_ids = self.get_assigned_plans(owner_id)
+
+                if assigned_ids:
+
+                    placeholders = ",".join(["?" for _ in assigned_ids])
+
+                    conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
+
+                    params.append(owner_id)
+
+                    params.extend(assigned_ids)
+
+                else:
+
+                    conditions.append("owner_id = ?")
+
+                    params.append(owner_id)
+
+    
+
+            if status:
+
+                conditions.append("status = ?")
+
+                params.append(status)
+
+            
+
+            if exclude_status:
+
+                conditions.append("status != ?")
+
+                params.append(exclude_status)
+
+    
+
+            if category:
+
+                conditions.append("category = ?")
+
+                params.append(category)
+
+            if club_name:
+
+                conditions.append("club_name LIKE ?")
+
+                params.append(f"%{club_name}%")
+        
+        if plan_ids is not None:
+            if not plan_ids: 
+                return [], 0
+            placeholders = ",".join(["?" for _ in plan_ids])
+            conditions.append(f"id IN ({placeholders})")
+            params.extend(plan_ids)
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            # Count totale
             total = conn.execute(
                 f"SELECT COUNT(*) FROM plans WHERE {where_clause}",
                 params
             ).fetchone()[0]
 
-            # Piani paginati
             rows = conn.execute(f"""
                 SELECT * FROM plans
                 WHERE {where_clause}
@@ -374,23 +714,30 @@ class SQLiteKnowledgeStore:
                 LIMIT ? OFFSET ?
             """, params + [limit, offset]).fetchall()
 
-            plans = [
-                PlanRecord(
+            plans = []
+            for row in rows:
+                # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
+                decrypted_json = decrypt_data(row["plan_data"])
+                try:
+                    plan_data = json.loads(decrypted_json)
+                except:
+                    plan_data = {}
+
+                plans.append(PlanRecord(
                     id=row["id"],
                     club_name=row["club_name"],
                     category=row["category"],
                     region=row["region"],
                     status=row["status"],
-                    plan_data=json.loads(row["plan_data"]) if row["plan_data"] else {},
+                    plan_data=plan_data,
                     sources_count=row["sources_count"],
                     credibility_score=row["credibility_score"],
                     export_paths=json.loads(row["export_paths"]) if row["export_paths"] else [],
                     notes=row["notes"],
                     last_edited_by=row["last_edited_by"],
+                    owner_id=row["owner_id"],
                     created_at=row["created_at"],
-                )
-                for row in rows
-            ]
+                ))
 
             return plans, total
 
@@ -869,34 +1216,74 @@ class KnowledgeManager:
     Combina SQLite storage + Gemini RAG.
     """
 
-    def __init__(self):
+    def __init__(self, file_search_manager: Any = None):
         self.store = SQLiteKnowledgeStore()
         self.rag = GeminiKnowledgeRAG()
+        self.file_search_manager = file_search_manager
 
-    def add_plan_to_knowledge(self, plan_record: PlanRecord) -> str:
-        """Salva piano e indicizza per RAG"""
+    def add_plan_to_knowledge(self, plan_record: PlanRecord, owner_id: int = None) -> str:
+        """Salva piano e indicizza per RAG (Aggiornato OPT-001)"""
         # Salva in SQLite
-        plan_id = self.store.save_plan(plan_record)
+        plan_id = self.store.save_plan(plan_record, owner_id)
 
-        # Crea documento per RAG
-        content_parts = []
+        # Crea documenti separati per sezione per RAG granulare
         for section, text in plan_record.plan_data.items():
+            content = ""
             if isinstance(text, str):
-                content_parts.append(f"## {section}\n{text}")
+                content = text
+            elif isinstance(text, dict) and 'content' in text:
+                content = text['content']
+            
+            if len(content) < 200: continue
 
-        doc = Document(
-            id=f"plan_{plan_id}",
-            title=f"Piano Strategico {plan_record.club_name}",
-            content="\n\n".join(content_parts),
-            doc_type="plan",
-            club_name=plan_record.club_name,
-            category=plan_record.category,
-            metadata={
-                "plan_id": plan_id,
-                "credibility_score": plan_record.credibility_score,
-            }
-        )
-        self.store.add_document(doc)
+            doc = Document(
+                id=f"plan_{plan_id}_{section}",
+                title=f"Piano {plan_record.club_name} - Sezione {section}",
+                content=content,
+                doc_type="plan",
+                section_type=section,
+                club_name=plan_record.club_name,
+                category=plan_record.category,
+                metadata={
+                    "plan_id": plan_id,
+                    "credibility_score": plan_record.credibility_score,
+                }
+            )
+            self.store.add_document(doc)
+
+        # Carica su Gemini File Search Store (RAG a servizio)
+        if self.file_search_manager:
+            try:
+                # Costruisci contenuto completo del piano per l'upload
+                full_content_parts = [f"Piano Strategico: {plan_record.club_name}\n"]
+                for section, text in plan_record.plan_data.items():
+                    content = ""
+                    if isinstance(text, str):
+                        content = text
+                    elif isinstance(text, dict) and 'content' in text:
+                        content = text['content']
+                    
+                    if content:
+                        full_content_parts.append(f"\n--- SEZIONE: {section} ---\n{content}")
+                
+                full_content = "\n".join(full_content_parts)
+
+                # Crea un file temporaneo per l'upload
+                temp_dir = Path(KNOWLEDGE_DIR / "temp_uploads")
+                temp_dir.mkdir(exist_ok=True)
+                temp_file = temp_dir / f"{plan_id}.txt"
+                temp_file.write_text(full_content, encoding="utf-8")
+                
+                success = self.file_search_manager.upload_file(temp_file)
+                if success:
+                    logger.info(f"Plan {plan_id} uploaded to Gemini File Search Store")
+                else:
+                    logger.warning(f"Failed to upload plan {plan_id} to Gemini File Search Store")
+                
+                # Rimuovi file temporaneo
+                # temp_file.unlink() 
+            except Exception as e:
+                logger.error(f"Error during Gemini File Search upload: {e}")
 
         return plan_id
 
@@ -926,23 +1313,32 @@ class KnowledgeManager:
         section_type: str
     ) -> List[Document]:
         """
-        Recupera contesto per generazione sezione.
+        Recupera contesto per generazione sezione (Ottimizzato OPT-001).
         Utile per template e esempi da piani precedenti.
         """
-        # Cerca piani della stessa categoria
+        # Cerca piani della stessa categoria e tipo sezione usando l'indice
         docs = self.store.search_documents(
             doc_type="plan",
             category=club_category,
-            limit=10
+            section_type=section_type,
+            limit=5
         )
 
-        # Filtra per sezione se possibile
-        filtered = []
-        for doc in docs:
-            if section_type.lower() in doc.content.lower():
-                filtered.append(doc)
+        if not docs:
+            # Fallback: cerca per categoria e filtra nel contenuto
+            docs = self.store.search_documents(
+                doc_type="plan",
+                category=club_category,
+                limit=10
+            )
+            # Filtra per sezione nel contenuto
+            filtered = []
+            for doc in docs:
+                if section_type.lower() in doc.content.lower():
+                    filtered.append(doc)
+            return filtered[:3] if filtered else docs[:3]
 
-        return filtered[:3] if filtered else docs[:3]
+        return docs[:3]
 
     def export_full_knowledge_base(self, output_path: Path = None) -> Path:
         """Esporta knowledge base completa per backup"""
