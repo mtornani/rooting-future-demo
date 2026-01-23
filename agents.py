@@ -14,12 +14,22 @@ import logging
 import asyncio
 import json
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Semaphore
 
 import os
 try:
     import google.generativeai as genai
+    from google.api_core.exceptions import InvalidArgument
     GENAI_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logging.error(f"GENAI IMPORT ERROR: {e}")
+    GENAI_AVAILABLE = False
+    genai = None
+    InvalidArgument = Exception  # Fallback type if import fails
+except Exception as e:
+    logging.error(f"GENAI UNEXPECTED ERROR: {e}")
     GENAI_AVAILABLE = False
     genai = None
 
@@ -33,6 +43,133 @@ from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ASYNC GEMINI CLIENT (OPT-002)
+# =============================================================================
+
+class AsyncGeminiClient:
+    """
+    Wrapper per esecuzione parallela reale di chiamate Gemini usando ThreadPoolExecutor.
+
+    Features:
+    - True parallel execution (max 6 workers)
+    - Rate limiting (60 requests/min)
+    - Retry logic with exponential backoff
+    - Thread-safe operation
+    """
+
+    def __init__(self, max_workers: int = 6, rate_limit: int = 60):
+        """
+        Args:
+            max_workers: Number of concurrent threads (default 6)
+            rate_limit: Max requests per minute (default 60)
+        """
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.rate_limit = rate_limit
+        self.request_times = []
+        self.semaphore = Semaphore(max_workers)
+        logger.info(f"AsyncGeminiClient initialized with {max_workers} workers, {rate_limit} req/min")
+
+    def _check_rate_limit(self) -> None:
+        """Check and enforce rate limiting"""
+        now = time.time()
+        # Remove requests older than 60 seconds
+        self.request_times = [t for t in self.request_times if now - t < 60]
+
+        # If at limit, wait
+        if len(self.request_times) >= self.rate_limit:
+            sleep_time = 60 - (now - self.request_times[0])
+            if sleep_time > 0:
+                logger.warning(f"Rate limit reached, sleeping {sleep_time:.1f}s")
+                time.sleep(sleep_time)
+                # Clean up again after sleep
+                now = time.time()
+                self.request_times = [t for t in self.request_times if now - t < 60]
+
+        self.request_times.append(now)
+
+    def _execute_with_retry(
+        self,
+        func: Callable,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0
+    ) -> Any:
+        """
+        Execute function with exponential backoff retry logic.
+
+        Args:
+            func: Function to execute
+            max_retries: Maximum number of retries
+            backoff_factor: Multiplier for exponential backoff
+
+        Returns:
+            Function result
+
+        Raises:
+            Last exception if all retries fail
+        """
+        for attempt in range(max_retries):
+            try:
+                self._check_rate_limit()
+                result = func()
+                return result
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"All {max_retries} retries failed: {e}")
+                    raise
+
+                sleep_time = backoff_factor ** attempt
+                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time}s...")
+                time.sleep(sleep_time)
+
+    async def execute_parallel(
+        self,
+        tasks: List[Callable],
+        task_names: List[str] = None
+    ) -> List[Any]:
+        """
+        Execute multiple tasks in parallel using ThreadPoolExecutor.
+
+        Args:
+            tasks: List of callables (sync functions)
+            task_names: Optional names for logging
+
+        Returns:
+            List of results in same order as tasks
+        """
+        if task_names is None:
+            task_names = [f"Task-{i}" for i in range(len(tasks))]
+
+        loop = asyncio.get_event_loop()
+        futures = []
+
+        for task, name in zip(tasks, task_names):
+            logger.debug(f"Scheduling {name} for parallel execution")
+            future = loop.run_in_executor(
+                self.executor,
+                self._execute_with_retry,
+                task
+            )
+            futures.append(future)
+
+        # Wait for all to complete
+        results = await asyncio.gather(*futures, return_exceptions=True)
+
+        # Log results
+        for name, result in zip(task_names, results):
+            if isinstance(result, Exception):
+                logger.error(f"{name} failed with exception: {result}")
+            else:
+                logger.info(f"{name} completed successfully")
+
+        return results
+
+    def shutdown(self):
+        """Cleanup executor"""
+        self.executor.shutdown(wait=True)
+        logger.info("AsyncGeminiClient shutdown complete")
 
 
 # =============================================================================
@@ -92,6 +229,13 @@ Scrivi SEMPRE a nome del CLUB come istituzione, MAI a nome di singoli stakeholde
 - "Si raccomanda l'adozione di..."
 - "La Società intende perseguire..."
 - "Il piano triennale delinea..."
+
+**DIRETTIVA TRASPARENZA DATI (OBBLIGATORIA):**
+Sii trasparente sulla provenienza dei dati:
+1. Se un dato proviene dal Board, scrivi "(fonte: questionario)".
+2. Se un dato è frutto di stima basata su benchmark, scrivi "(fonte: stima AI)".
+3. Se un dato è tratto da ricerca web, scrivi "(fonte: ricerca web)".
+4. Se non hai un dato, scrivi "(dato da acquisire)".
 ---
 """
 
@@ -130,7 +274,9 @@ Riassumi in un paragrafo per ciascuna delle 4 categorie STW:
 - 🤝 **SOCIALI**: Sintesi impatto sociale e sostenibilità
 
 ### TOP 5 PRIORITÀ MACRO
-Elenca i 5 obiettivi MACRO prioritari con codice STW (es. "SPORTIVI MACRO 4: Miglioramento Competitivo").
+Elenca i 5 obiettivi MACRO prioritari con codice STW (es. "SPORTIVI MACRO 4: Miglioramento Competitivo"). 
+Per ogni priorità, aggiungi una brevissima motivazione (max 15 parole) che spieghi PERCHÈ è stata scelta o l'ordine di importanza.
+Formato: "CODICE: Titolo - Motivazione"
 
 ### QUICK WINS (Azioni Micro Immediate)
 Identifica 5 azioni MICRO ad alto impatto da avviare entro 6 mesi, con codice STW.
@@ -497,6 +643,44 @@ Fonti ricavi:
 }
 
 
+import hashlib
+from pathlib import Path
+
+# =============================================================================
+# AI CACHE SYSTEM
+# =============================================================================
+
+class AICache:
+    """
+    Cache persistente per le risposte dell'AI.
+    Evita chiamate ridondanti a Gemini per gli stessi prompt.
+    """
+    def __init__(self):
+        self.cache_dir = Path("knowledge_base/ai_cache")
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+
+    def _get_hash(self, prompt: str) -> str:
+        return hashlib.md5(prompt.encode("utf-8")).hexdigest()
+
+    def get(self, prompt: str) -> Optional[str]:
+        cache_path = self.cache_dir / f"{self._get_hash(prompt)}.txt"
+        if cache_path.exists():
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                logger.warning(f"Cache read error: {e}")
+        return None
+
+    def set(self, prompt: str, response: str):
+        cache_path = self.cache_dir / f"{self._get_hash(prompt)}.txt"
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(response)
+        except Exception as e:
+            logger.warning(f"Cache write error: {e}")
+
+
 # =============================================================================
 # STRATEGIC AGENT
 # =============================================================================
@@ -513,11 +697,15 @@ class StrategicAgent:
         self.sourcer = SourcedContentGenerator()
         self.file_search_store_name = file_search_store_name
         self.model = None
+        self.cache = AICache() # Inizializza cache
 
         api_key = GEMINI_API_KEY or os.environ.get("GOOGLE_API_KEY")
         if GENAI_AVAILABLE and api_key:
             try:
                 genai.configure(api_key=api_key)
+
+                # Inizializza il modello senza tool di ricerca Google
+                # (l'API non supporta più google_search come tool)
                 self.model = genai.GenerativeModel(MODEL_CONFIG.name)
                 self.available = True
             except Exception as e:
@@ -604,7 +792,8 @@ e soggette a revisione post-allineamento.
         club_data: Dict,
         research_data: Dict = None,
         context: Dict = None,
-        stakeholder_meta: Dict = None
+        stakeholder_meta: Dict = None,
+        rag_context: List[Any] = None
     ) -> Dict[str, Any]:
         """
         Genera output per l'area di competenza, usando il File Search Tool.
@@ -613,31 +802,71 @@ e soggette a revisione post-allineamento.
             club_data: Dati del club
             research_data: Dati da ricerca web
             context: Output di altri agenti (per coordinator)
-            stakeholder_meta: Metadati stakeholder per conflict-aware generation
-                - alignment_score: Score 0-100
-                - conflicts: Lista conflitti
-                - synthesized_vision: Visione sintetizzata
+            stakeholder_meta: Metadati stakeholder
+            rag_context: Contesto RAG (documenti simili)
         """
         if not self.available:
             return self._generate_mock(club_data)
 
-        prompt_content = self._build_simple_prompt(club_data, research_data, context, stakeholder_meta)
+        prompt_content = self._build_simple_prompt(
+            club_data, 
+            research_data, 
+            context, 
+            stakeholder_meta,
+            rag_context
+        )
 
-        try:
-            logger.debug(f"Invio richiesta a Gemini per {self.spec.name}")
-            response = self.model.generate_content(
-                prompt_content,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=MODEL_CONFIG.temperature,
-                    max_output_tokens=MODEL_CONFIG.max_tokens,
+        # === AI CACHE CHECK ===
+        cached_response = self.cache.get(prompt_content)
+        if cached_response:
+            logger.info(f"⚡ AI Cache HIT for agent {self.spec.name}")
+            raw_content = cached_response
+            citations = [] # Citations not cached/needed for replay
+        else:
+            try:
+                logger.debug(f"Invio richiesta a Gemini per {self.spec.name}")
+                response = self.model.generate_content(
+                    prompt_content,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=MODEL_CONFIG.temperature,
+                        max_output_tokens=MODEL_CONFIG.max_tokens,
+                    )
                 )
-            )
-            raw_content = response.text
-            citations = []
+                raw_content = response.text
+                citations = []
+                
+                # Salva in cache
+                self.cache.set(prompt_content, raw_content)
 
-        except Exception as e:
-            logger.error(f"Agent {self.spec.name} generation error: {e}")
-            return {'content': f"Errore: {e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+            except InvalidArgument as e:
+                # FALLBACK: Se errore 400 (spesso per tools non supportati/deprecati), riprova senza tools
+                if "google_search" in str(e) or "tool" in str(e) or "supported" in str(e):
+                    logger.warning(f"Agent {self.spec.name} tool error (Fallback triggered): {e}")
+                    try:
+                        # Riprova SENZA tools
+                        logger.info(f"Retrying Agent {self.spec.name} WITHOUT tools...")
+                        fallback_model = genai.GenerativeModel(MODEL_CONFIG.name) # No tools
+                        response = fallback_model.generate_content(
+                            prompt_content,
+                            generation_config=genai.types.GenerationConfig(
+                                temperature=MODEL_CONFIG.temperature,
+                                max_output_tokens=MODEL_CONFIG.max_tokens,
+                            )
+                        )
+                        raw_content = response.text
+                        citations = []
+                        # Aggiungi nota al contenuto
+                        raw_content += "\n\n*(Nota: Ricerca Google disabilitata per questa sezione a causa di restrizioni API)*"
+                    except Exception as fallback_e:
+                        logger.error(f"Agent {self.spec.name} fallback failed: {fallback_e}")
+                        return {'content': f"Errore generazione (anche in fallback): {fallback_e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+                else:
+                    logger.error(f"Agent {self.spec.name} generation error (InvalidArgument): {e}")
+                    return {'content': f"Errore: {e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+
+            except Exception as e:
+                logger.error(f"Agent {self.spec.name} generation error: {e}")
+                return {'content': f"Errore: {e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
 
         cleaned = self._post_process(raw_content)
         content, sources, unverified = self.sourcer.process_content(cleaned, context=club_data.get('club_name', ''))
@@ -657,19 +886,32 @@ e soggette a revisione post-allineamento.
         club_data: Dict,
         research_data: Dict = None,
         context: Dict = None,
-        stakeholder_meta: Dict = None
+        stakeholder_meta: Dict = None,
+        rag_context: List[Any] = None
     ) -> str:
         """
-        Costruisce un prompt semplificato con supporto per conflict-aware generation.
-
-        Args:
-            club_data: Dati del club
-            research_data: Dati da ricerca web
-            context: Output altri agenti (per coordinator)
-            stakeholder_meta: Metadati stakeholder (alignment_score, conflicts, vision)
+        Costruisce un prompt semplificato con supporto per conflict-aware generation e RAG.
         """
         club_info = f"DATI CLUB:\n- Nome: {club_data.get('club_name', 'N/A')}\n- Categoria: {club_data.get('category', 'N/A')}"
         benchmark_info = self._get_relevant_benchmarks(club_data.get('category', ''))
+
+        # === RAG CONTEXT (BEST PRACTICES) ===
+        rag_info = ""
+        if rag_context:
+            rag_info = "\n--- \n## 🧠 MEMORIA STORICA E BEST PRACTICE (RAG)\n"
+            rag_info += "Il sistema ha recuperato i seguenti esempi da piani di successo simili. "
+            rag_info += "Usa questi contenuti come ispirazione per tono, struttura e qualità, ma ADATTA rigorosamente al club attuale.\n\n"
+            
+            for idx, doc in enumerate(rag_context[:2]): # Max 2 docs per non inquinare
+                # Gestisci sia oggetti Document che dict
+                content = doc.content if hasattr(doc, 'content') else doc.get('content', '')
+                club = doc.club_name if hasattr(doc, 'club_name') else doc.get('club_name', 'Altro Club')
+                
+                # Prendi solo la parte rilevante (prime 1000 parole)
+                preview = content[:1500] + "..." if len(content) > 1500 else content
+                rag_info += f"**ESEMPIO {idx+1} (da {club}):**\n{preview}\n\n"
+            
+            rag_info += "---\n"
 
         # === STAKEHOLDER CONTEXT (Multi-Stakeholder Conflict Awareness) ===
         stakeholder_info = ""
@@ -720,8 +962,21 @@ e soggette a revisione post-allineamento.
 
         # Dati sintetizzati dal webhook (se presenti in club_data)
         synthesized_from_club = ""
+        
+        # Estrai dati specifici da questionario (additional_data in club_data)
+        questionnaire_data = []
+        for key, value in club_data.items():
+            if club_data.get(f"{key}_source") == "questionnaire":
+                label = key.replace('_', ' ').title()
+                questionnaire_data.append(f"- {label}: {value}")
+        
+        if questionnaire_data:
+            synthesized_from_club += "\n**DATI REALI DA QUESTIONARIO BOARD (OBBLIGATORIO CITARE FONTE):**\n"
+            synthesized_from_club += "\n".join(questionnaire_data) + "\n"
+            synthesized_from_club += "**ISTRUZIONE FONTE:** Quando usi uno di questi dati, scrivi sempre '(fonte: questionario)' subito dopo il dato.\n"
+
         if club_data.get('synthesized_vision'):
-            synthesized_from_club = f"\n**VISIONE STRATEGICA SINTETIZZATA:**\n{club_data['synthesized_vision'][:600]}\n"
+            synthesized_from_club += f"\n**VISIONE STRATEGICA SINTETIZZATA:**\n{club_data['synthesized_vision'][:600]}\n"
         if club_data.get('swot_aggregated'):
             synthesized_from_club += "\n**SWOT AGGREGATO:**\n"
             for cat, items in club_data['swot_aggregated'].items():
@@ -740,7 +995,7 @@ e soggette a revisione post-allineamento.
             context_text = json.dumps(context, indent=2, ensure_ascii=False)
             context_info = f"\nOUTPUT ALTRI AGENTI (per sintesi):\n{context_text[:1500]}"
 
-        return f"{self.spec.system_prompt}\n\n{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
+        return f"{self.spec.system_prompt}\n\n{rag_info}{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
         
     def _get_relevant_benchmarks(self, category: str) -> str:
         """Recupera benchmark rilevanti per la categoria"""
@@ -791,6 +1046,7 @@ class MultiAgentOrchestrator:
         self.agents: Dict[AgentRole, StrategicAgent] = {}
         self.knowledge_store = knowledge_store
         self.file_search_store_name = file_search_store_name
+        self.async_client = AsyncGeminiClient(max_workers=6, rate_limit=60)  # OPT-002
         self._init_agents()
 
     def _init_agents(self):
@@ -860,7 +1116,29 @@ class MultiAgentOrchestrator:
         for role, agent in sorted_agents:
             agent_start = time.time()
             logger.info(f"Running agent: {agent.spec.name}")
-            output = agent.generate(club_data, research_data)
+            
+            # --- RAG CONTEXT FETCHING ---
+            rag_context = []
+            if self.knowledge_store:
+                try:
+                    category = club_data.get('category', 'Eccellenza')
+                    # Usa il nome dell'agente o ruolo come filtro sezione
+                    section_keyword = agent.spec.name.split()[0]  # Es. "STW", "Financial"
+                    rag_context = self.knowledge_store.get_context_for_generation(
+                        club_category=category,
+                        section_type=section_keyword
+                    )
+                    if rag_context:
+                        logger.info(f"RAG: Fetched {len(rag_context)} examples for {agent.spec.name}")
+                except Exception as e:
+                    logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
+            # ---------------------------
+
+            output = agent.generate(
+                club_data, 
+                research_data,
+                rag_context=rag_context
+            )
 
             agent_time = time.time() - agent_start
             agent_timings[agent.spec.name] = round(agent_time, 2)
@@ -923,41 +1201,79 @@ class MultiAgentOrchestrator:
         club_data: Dict,
         research_data: Dict = None
     ) -> Dict[str, Any]:
-        """Esecuzione parallela agenti (async)"""
+        """
+        Esecuzione parallela agenti usando ThreadPoolExecutor (OPT-002).
+        TRUE parallel execution - 6 agents running concurrently.
+        """
         import asyncio
-        import time
 
         agent_timings = {}
         parallel_start = time.time()
 
-        async def run_agent(role: AgentRole, agent: StrategicAgent) -> tuple:
-            # Simula async (Gemini è sync)
-            agent_start = time.time()
-            output = agent.generate(club_data, research_data)
-            agent_time = time.time() - agent_start
-            agent_timings[agent.spec.name] = round(agent_time, 2)
-            logger.info(f"Agent {agent.spec.name} completed in {agent_time:.2f}s")
-            return role.value, output
+        def make_agent_task(role: AgentRole, agent: StrategicAgent):
+            """Create a closure that captures role and agent for parallel execution"""
+            def task():
+                agent_start = time.time()
 
-        async def run_all():
-            tasks = []
-            for role, agent in self.agents.items():
-                if role != AgentRole.COORDINATOR:
-                    tasks.append(run_agent(role, agent))
+                # --- RAG CONTEXT FETCHING ---
+                rag_context = []
+                if self.knowledge_store:
+                    try:
+                        category = club_data.get('category', 'Eccellenza')
+                        section_keyword = agent.spec.name.split()[0]
+                        rag_context = self.knowledge_store.get_context_for_generation(
+                            club_category=category,
+                            section_type=section_keyword
+                        )
+                    except Exception as e:
+                        logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
+                # ---------------------------
 
-            results = await asyncio.gather(*tasks)
-            return dict(results)
+                output = agent.generate(
+                    club_data,
+                    research_data,
+                    rag_context=rag_context
+                )
 
-        # Run async
+                agent_time = time.time() - agent_start
+                agent_timings[agent.spec.name] = round(agent_time, 2)
+                logger.info(f"Agent {agent.spec.name} completed in {agent_time:.2f}s")
+                return (role.value, output)
+            return task
+
+        # Prepare tasks for parallel execution
+        tasks = []
+        task_names = []
+        roles_order = []
+
+        for role, agent in self.agents.items():
+            if role != AgentRole.COORDINATOR:
+                tasks.append(make_agent_task(role, agent))
+                task_names.append(agent.spec.name)
+                roles_order.append(role.value)
+
+        # Execute in TRUE parallel using ThreadPoolExecutor
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            agent_results = loop.run_until_complete(run_all())
+            results_list = loop.run_until_complete(
+                self.async_client.execute_parallel(tasks, task_names)
+            )
         finally:
             loop.close()
 
+        # Convert results list to dict
+        agent_results = {}
+        for result in results_list:
+            if isinstance(result, Exception):
+                logger.error(f"Agent task failed: {result}")
+                continue
+            role_value, output = result
+            agent_results[role_value] = output
+
         parallel_time = time.time() - parallel_start
         agent_timings['Parallel_Execution_Time'] = round(parallel_time, 2)
+        logger.info(f"🚀 TRUE parallel execution completed in {parallel_time:.2f}s (OPT-002)")
 
         # Estrai contenuti e fonti
         plan = {}
