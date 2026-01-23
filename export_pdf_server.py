@@ -275,8 +275,94 @@ class PdfServerExporter(BaseExporter):
             text-align: justify;
         }}
 
-        h1, h2, h3, h4 {{ column-span: all; }}
-        table, .kpi-box, .insight-box, .action-box, blockquote {{ column-span: all; break-inside: avoid; }}
+        /* ===========================================
+           COPERTINA POSTER (Tactical Edition)
+           =========================================== */
+        .cover {
+            width: 210mm;
+            height: 296mm; /* Reduced slightly to prevent overflow loop */
+            background: var(--brand-gradient);
+            color: var(--contrast-color);
+            position: relative;
+            overflow: hidden;
+            page-break-after: always;
+        }
+
+        .cover::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.15;
+        }
+
+        .cover-content {
+            position: absolute;
+            top: 100mm; left: 25mm; right: 40mm;
+            z-index: 10;
+        }
+
+        .cover-brand {
+            font-size: 10pt;
+            letter-spacing: 5px;
+            background: #000;
+            color: #fff;
+            padding: 2mm 5mm;
+            display: inline-block;
+            margin-bottom: 12mm;
+        }
+
+        .cover-club {
+            font-size: 64pt;
+            font-weight: 800;
+            line-height: 0.9;
+            margin-bottom: 8mm;
+        }
+
+        .cover-title {
+            font-size: 22pt;
+            font-weight: 300;
+            border-left: 3pt solid var(--contrast-color);
+            padding-left: 6mm;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* ===========================================
+           LAYOUT A COLONNE
+           =========================================== */
+        .section-container {
+            margin-bottom: 15mm;
+            page-break-inside: auto;
+        }
+
+        .section-body {
+            column-count: 2;
+            column-gap: 10mm;
+            text-align: justify;
+            orphans: 3;
+            widows: 3;
+        }
+
+        h1 { 
+            column-span: all; 
+            page-break-before: always;
+            page-break-after: avoid;
+        }
+        
+        h2, h3, h4 { 
+            column-span: all; 
+            page-break-after: avoid;
+        }
+        
+        /* Removed column-span: all from generic containers to prevent infinite loops */
+        table, .kpi-box, .insight-box, .action-box, blockquote { 
+            break-inside: avoid; 
+            margin-bottom: 5mm;
+            display: inline-block; /* Helps with column breaking */
+            width: 100%;
+        }
+
 
         /* ===========================================
            BOX E BADGE
