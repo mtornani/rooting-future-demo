@@ -46,7 +46,7 @@ class OnePagerExporter:
         Genera One-Pager infografica.
         """
         metadata = metadata or {}
-        primary_color = "#6a0dad" # Viola RF
+        primary_color = metadata.get('primary_color', '#6a0dad')
         secondary_color = metadata.get('secondary_color', '#c9a227')
         category = metadata.get('category', 'Serie D')
         credibility_score = metadata.get('credibility_score', 72)
@@ -62,7 +62,7 @@ class OnePagerExporter:
         estimates = estimate_missing_financials(club_data_input, category, known_financials)
 
         # Estrai highlights dal piano
-        highlights = self._extract_highlights(plan_data)
+        highlights = self._extract_highlights(plan_data, metadata)
 
         # Calcola progress STW dinamicamente se non fornito
         if stw_progress is None:
@@ -95,7 +95,7 @@ class OnePagerExporter:
         logger.info(f"One-Pager exported: {filepath}")
         return filepath
 
-    def _extract_highlights(self, plan_data: Dict) -> Dict[str, Any]:
+    def _extract_highlights(self, plan_data: Dict, metadata: Dict = None) -> Dict[str, Any]:
         """Estrae highlights chiave dal piano per il one-pager"""
         highlights = {
             'vision': '',
@@ -103,6 +103,15 @@ class OnePagerExporter:
             'quick_wins': [],
             'key_kpis': [],
             'risks': []
+        }
+        
+        # Default motivations dictionary
+        DEFAULT_MOTIVATIONS = {
+            'SPORTIVI': 'Performance sportiva è driver principale per crescita club e attenzione mediatica.',
+            'STRUTTURALI': 'Fondamenta organizzative robuste garantiscono sostenibilità di lungo termine.',
+            'MARKETING': 'Visibilità e brand strength sono prerequisiti per crescita ricavi commerciali.',
+            'SOCIALI': 'Impatto sociale positivo rafforza legame con territorio e attrae sponsor ESG-oriented.',
+            'FINANZIARI': 'Sostenibilità economica è condizione necessaria per ogni strategia di crescita.'
         }
 
         # Estrai dall'executive summary
@@ -113,11 +122,47 @@ class OnePagerExporter:
             if vision_match:
                 highlights['vision'] = vision_match.group(1).strip()[:200]
 
-            # Cerca priorità (liste numerate o bold)
+            # Cerca priorità (liste numerate o bold) con eventuale motivazione
             priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
             if not priorities:
                 priorities = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
-            highlights['top_priorities'] = [p.strip() for p in priorities[:5]]
+            
+            # Formatta priorità separando eventuale motivazione (cerca " - " o " : ")
+            formatted_priorities = []
+            for p in priorities[:5]:
+                p_text = p.strip()
+                title = p_text
+                reason = ""
+                
+                if " - " in p_text:
+                    parts = p_text.split(" - ", 1)
+                    title = parts[0].strip()
+                    reason = parts[1].strip()
+                elif " : " in p_text:
+                    parts = p_text.split(" : ", 1)
+                    title = parts[0].strip()
+                    reason = parts[1].strip()
+                
+                # FALLBACK MOTIVATION GENERATION
+                if not reason:
+                    # Guess category from title
+                    t_upper = title.upper()
+                    if 'SPORT' in t_upper or 'TECNIC' in t_upper or 'SQUADRA' in t_upper:
+                        reason = DEFAULT_MOTIVATIONS['SPORTIVI']
+                    elif 'STRUTTUR' in t_upper or 'IMPIANT' in t_upper or 'ORGANIZ' in t_upper:
+                        reason = DEFAULT_MOTIVATIONS['STRUTTURALI']
+                    elif 'MARKET' in t_upper or 'COMUNICAZ' in t_upper or 'BRAND' in t_upper:
+                        reason = DEFAULT_MOTIVATIONS['MARKETING']
+                    elif 'SOCIAL' in t_upper or 'TERRITOR' in t_upper:
+                        reason = DEFAULT_MOTIVATIONS['SOCIALI']
+                    elif 'FINANZ' in t_upper or 'BUDGET' in t_upper or 'RICAV' in t_upper:
+                        reason = DEFAULT_MOTIVATIONS['FINANZIARI']
+                    else:
+                        reason = "Priorità strategica identificata per massimizzare l'impatto nel breve termine."
+
+                formatted_priorities.append({"title": title, "reason": reason})
+            
+            highlights['top_priorities'] = formatted_priorities
 
         return highlights
 
@@ -137,25 +182,53 @@ class OnePagerExporter:
     ) -> str:
         """Genera l'HTML completo del One-Pager con Montserrat/Inter"""
         metadata = metadata or {}
-        current_year = datetime.now().year
+        current_year = datetime.now().strftime("%Y")
         generation_date = datetime.now().strftime("%d/%m/%Y")
+        
+        # Calculate contrast for dynamic backgrounds
+        contrast_color = self._get_contrast_color(primary_color)
+        contrast_color_secondary = self._get_contrast_color(secondary_color)
+        
+        # FIX: Text on white background should be readable even if primary is white/light
+        text_on_white = primary_color
+        # Calcolo luminanza: se il colore è troppo chiaro, lo scuriamo in modo aggressivo per il testo su bianco
+        r, g, b = tuple(int(primary_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        
+        if lum > 0.65: # Abbassata soglia per maggior sicurezza
+            # Se è quasi bianco, usa un grigio molto scuro o il colore originale molto scurito
+            text_on_white = self._darken_color(primary_color, 0.7)
+        
+        # Ulteriore check: se dopo lo scurimento è ancora troppo chiaro (es. partendo da bianco puro)
+        r2, g2, b2 = tuple(int(text_on_white.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        lum2 = (0.299 * r2 + 0.587 * g2 + 0.114 * b2) / 255
+        if lum2 > 0.7:
+            text_on_white = "#333333" # Fallback a grigio scuro leggibile
 
         # Top priorities HTML
         priorities_html = ''
         priorities = highlights.get('top_priorities', [])
         if not priorities:
+            # Fallback mock con motivazioni
             priorities = [
-                'Completare organigramma tecnico (STW 1.1)',
-                'Definire piano marketing annuale (STW M2.2)',
-                'Attivare sistema CRM tifosi (STW M2.4)',
-                'Sviluppare programma settore giovanile',
-                'Implementare policy HR aziendali'
+                {"title": 'Completare organigramma tecnico', "reason": "Fondamentale per la stabilità operativa."},
+                {"title": 'Definire piano marketing annuale', "reason": "Necessario per la crescita dei ricavi."},
+                {"title": 'Attivare sistema CRM tifosi', "reason": "Ottimizzazione del database per campagne mirate."},
+                {"title": 'Sviluppare programma settore giovanile', "reason": "Asset strategico per il futuro tecnico."},
+                {"title": 'Implementare policy HR aziendali', "reason": "Miglioramento dell'efficienza interna."}
             ]
+        
         for i, p in enumerate(priorities[:5], 1):
+            title = p.get('title', '') if isinstance(p, dict) else p
+            reason = p.get('reason', '') if isinstance(p, dict) else ''
+            
             priorities_html += f'''
             <div class="priority-item">
-                <span class="priority-num">{i}</span>
-                <span class="priority-text">{p}</span>
+                <span class="priority-num" style="background: {text_on_white}; color: {self._get_contrast_color(text_on_white)};">{i}</span>
+                <div style="display: flex; flex-direction: column;">
+                    <span class="priority-text" style="font-weight: 700; color: {text_on_white};">{title}</span>
+                    {f'<span class="priority-reason" style="font-size: 8pt; color: #666; font-style: italic; margin-top: 0.5mm;">{reason}</span>' if reason else ''}
+                </div>
             </div>'''
 
         # KPI Dashboard con dati reali centralizzati
@@ -174,8 +247,9 @@ class OnePagerExporter:
         for label, val, s_type in kpis:
             badge = '📋' if s_type == 'ver' else '📊' if s_type == 'est' else '🔍'
             kpi_html += f'''
-            <div class="kpi-card">
-                <div class="kpi-value">{val}</div>
+            <div class="kpi-card" style="border-bottom-color: {text_on_white};
+">
+                <div class="kpi-value" style="color: {text_on_white};">{val}</div>
                 <div class="kpi-label">{badge} {label}</div>
             </div>'''
 
@@ -188,30 +262,42 @@ class OnePagerExporter:
             ('sociali', 'SOCIALI', STWCategory.SOCIALI)
         ]
         for key, label, cat_enum in stw_labels:
-            progress = stw_progress.get(key, 50)
+            prog_data = stw_progress.get(key, {})
+            # Gestisci sia dict che int per compatibilità
+            progress = prog_data.get('progress', 50) if isinstance(prog_data, dict) else prog_data
+            reasoning = prog_data.get('reasoning', '') if isinstance(prog_data, dict) else ''
+            
             color = get_category_color(cat_enum)
             stw_bars_html += f'''
-            <div class="stw-row">
-                <span class="stw-icon">{get_category_icon(cat_enum)}</span>
-                <span class="stw-label">{label}</span>
-                <div class="stw-bar">
-                    <div class="stw-fill" style="width: {progress}%; background: {color};"></div>
+            <div class="stw-row" style="margin-bottom: 4mm; display: flex; flex-direction: column; align-items: stretch;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1mm;">
+                    <span class="stw-label" style="font-weight: 700; font-size: 8pt; width: auto;">{get_category_icon(cat_enum)} {label}</span>
+                    <span class="stw-percent" style="font-weight: 800; color: {color}; width: auto;">{progress}%</span>
                 </div>
-                <span class="stw-percent">{progress}%</span>
+                <div class="stw-bar" style="background: #eee; height: 6px; border-radius: 3px; overflow: hidden; width: 100%;">
+                    <div class="stw-fill" style="width: {progress}%; background: {color}; height: 100%;"></div>
+                </div>
+                {f'<div style="font-size: 7pt; color: #666; margin-top: 1mm; font-style: italic;">{reasoning}</div>' if reasoning else ''}
             </div>'''
 
         html = f'''<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>One-Pager - {club_name}</title>
+    <title>Strategic Roadmap - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --primary: {primary_color};
-            --primary-dark: #4b0082;
-            --secondary: {secondary_color};
+            --club-primary: {metadata.get('primary_color', primary_color)};
+            --club-secondary: {metadata.get('secondary_color', secondary_color)};
+            --primary: var(--club-primary);
+            --primary-dark: var(--club-primary);
+            --brand-gradient: linear-gradient(135deg, var(--club-primary) 0%, var(--club-secondary) 100%);
+            --secondary: var(--club-secondary);
+            --contrast-color: {contrast_color};
+            --contrast-color-sec: {contrast_color_secondary};
+            --text-on-white: {text_on_white};
             --text: #1a1a1a;
             --text-muted: #666;
             --bg-light: #fdfbff;
@@ -221,7 +307,7 @@ class OnePagerExporter:
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         @page {{ size: A4; margin: 0; }}
 
-        body {{
+        body {{ 
             font-family: 'Inter', sans-serif;
             background: #ffffff;
             color: var(--text);
@@ -232,16 +318,27 @@ class OnePagerExporter:
             flex-direction: column;
         }}
 
-        .header {{
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
-            color: white;
+        .header {{ 
+            background: var(--brand-gradient);
+            color: var(--contrast-color);
             padding: 10mm 15mm;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: relative;
+        }}
+        
+        .header::after {{ 
+            content: "TOP SECRET - RF METHODOLOGY";
+            position: absolute;
+            top: 5mm;
+            right: 15mm;
+            font-size: 6pt;
+            letter-spacing: 2px;
+            opacity: 0.5;
         }}
 
-        .header-club {{
+        .header-club {{ 
             font-family: 'Montserrat', sans-serif;
             font-size: 24pt;
             font-weight: 800;
@@ -249,7 +346,7 @@ class OnePagerExporter:
             letter-spacing: 1px;
         }}
 
-        .main {{
+        .main {{ 
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8mm;
@@ -257,31 +354,31 @@ class OnePagerExporter:
             flex: 1;
         }}
 
-        .kpi-dashboard {{
+        .kpi-dashboard {{ 
             grid-column: span 2;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 5mm;
         }}
 
-        .kpi-card {{
+        .kpi-card {{ 
             background: var(--bg-light);
             border-radius: 12px;
             padding: 6mm;
             text-align: center;
             border: 1px solid #e9d8fd;
-            border-bottom: 4px solid var(--primary);
+            border-bottom: 4px solid var(--text-on-white);
         }}
 
-        .kpi-value {{
+        .kpi-value {{ 
             font-family: 'Montserrat', sans-serif;
             font-size: 22pt;
             font-weight: 800;
-            color: var(--primary);
+            color: var(--text-on-white);
             line-height: 1;
         }}
 
-        .kpi-label {{
+        .kpi-label {{ 
             font-size: 7.5pt;
             font-weight: 700;
             text-transform: uppercase;
@@ -289,94 +386,135 @@ class OnePagerExporter:
             color: var(--text-muted);
         }}
 
-        .section-title {{
+        .section-title {{ 
             font-family: 'Montserrat', sans-serif;
             font-size: 12pt;
             font-weight: 800;
             text-transform: uppercase;
-            color: var(--primary);
+            color: var(--text-on-white);
             margin-bottom: 5mm;
-            border-bottom: 2px solid var(--primary);
+            border-bottom: 2px solid var(--text-on-white);
             padding-bottom: 2mm;
         }}
 
-        .stw-section, .priorities-section {{
+        .stw-section, .priorities-section {{ 
             background: white;
             border-radius: 12px;
             padding: 6mm;
             border: 1px solid #eee;
         }}
 
-        .stw-row {{ display: flex; align-items: center; gap: 3mm; margin-bottom: 4mm; }}
-        .stw-label {{ font-size: 8pt; font-weight: 700; width: 25mm; }}
-        .stw-bar {{ flex: 1; height: 5mm; background: #eee; border-radius: 10px; overflow: hidden; }}
-        .stw-fill {{ height: 100%; border-radius: 10px; }}
-        .stw-percent {{ font-size: 9pt; font-weight: 700; width: 10mm; text-align: right; }}
+        .priority-item {{ display: flex; align-items: flex-start; gap: 4mm; margin-bottom: 3.5mm; }}
+        .priority-num {{ 
+            background: var(--text-on-white); 
+            color: var(--contrast-color); 
+            width: 6.5mm; height: 6.5mm; 
+            border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 800; font-size: 8.5pt; 
+            flex-shrink: 0; margin-top: 0.5mm; 
+        }}
+        .priority-text {{ font-size: 9pt; line-height: 1.2; font-weight: 700; color: var(--text-on-white); }}
+        .priority-reason {{ font-size: 8pt; line-height: 1.3; color: var(--text-muted); font-style: italic; }}
 
-        .priority-item {{ display: flex; align-items: flex-start; gap: 4mm; margin-bottom: 4mm; }}
-        .priority-num {{ background: var(--primary); color: white; width: 7mm; height: 7mm; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 9pt; flex-shrink: 0; }}
-        .priority-text {{ font-size: 9.5pt; line-height: 1.3; font-weight: 500; }}
-
-        .vision-section {{
+        .vision-section {{ 
             grid-column: span 2;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
-            color: white;
+            background: var(--brand-gradient);
+            color: var(--contrast-color);
             padding: 8mm 10mm;
             border-radius: 12px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        .vision-section::before {{ 
+            content: "CONFIDENTIAL";
+            position: absolute;
+            font-size: 40pt;
+            font-weight: 900;
+            opacity: 0.05;
+            transform: rotate(-15deg);
+            top: 10%;
+            left: 10%;
+            white-space: nowrap;
         }}
 
-        .vision-quote {{ font-family: 'Inter', sans-serif; font-size: 13pt; font-style: italic; line-height: 1.5; }}
+        .vision-quote {{ font-family: 'Inter', sans-serif; font-size: 13pt; font-style: italic; line-height: 1.5; position: relative; z-index: 1; }}
 
-        .footer {{
+        .footer {{ 
             background: #1a1a1a;
             color: white;
             padding: 6mm 15mm;
             display: flex;
             justify-content: space-between;
             font-size: 8pt;
+            border-top: 2mm solid var(--club-secondary);
         }}
 
         .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
+        
+        .secret-sauce {{ 
+            text-align: center;
+            grid-column: span 2;
+            margin-top: -4mm;
+            font-size: 7pt;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }}
     </style>
 </head>
 <body>
     <header class="header">
         <div>
-            <div style="font-size: 8pt; letter-spacing: 3px; opacity: 0.8; text-transform: uppercase;">Strategic Infographic</div>
+            <div style="font-size: 8pt; letter-spacing: 3px; opacity: 0.8; text-transform: uppercase;">Proprietary Strategic Engine</div>
             <div class="header-club">{club_name}</div>
         </div>
-        <div style="text-align: right;">
-            <div style="font-family: 'Montserrat'; font-size: 11pt; font-weight: 700;">PIANO STRATEGICO {current_year}</div>
-            <div class="credibility-badge">📋 Dati Board: {total_questionnaires} • {credibility_score}% Credibilità</div>
+        <div style="text-align: right; color: var(--contrast-color-sec);">
+            <div style="font-family: 'Montserrat'; font-size: 11pt; font-weight: 700;">STRATEGIC ROADMAP</div>
+            <div class="credibility-badge">📋 Verified Input: {total_questionnaires} Docs • {credibility_score}% Confidence</div>
         </div>
     </header>
 
     <main class="main">
         <div class="kpi-dashboard">
             {kpi_html}
+            <div style="grid-column: span 4; display: flex; justify-content: center; gap: 15mm; font-size: 7.5pt; margin-top: -2mm; color: var(--text-muted); font-weight: 500;">
+                <span>📋 <strong style="color:#7B1FA2">VERIFIED</strong></span>
+                <span>🔍 <strong style="color:#1565C0">DEDUCED</strong></span>
+                <span>📊 <strong style="color:#F57C00">ESTIMATED</strong></span>
+            </div>
+        </div>
+        
+        <div class="secret-sauce">
+            Powered by Rooting Future Multi-Agent AI • Proprietary STW™ Framework v5.4.6
         </div>
 
         <div class="stw-section">
-            <h3 class="section-title">Copertura Matrice STW</h3>
+            <h3 class="section-title">Methodological Coverage</h3>
             {stw_bars_html}
+            <p style="margin-top: 5mm; font-size: 8pt; color: var(--text-muted); line-height: 1.4; font-style: italic; border-left: 2px solid #e9d8fd; padding-left: 3mm;">
+                Adherence to the **Rooting Future Secret Formula** for sports management excellence.
+            </p>
         </div>
 
         <div class="priorities-section">
-            <h3 class="section-title">Top 5 Priorità</h3>
+            <h3 class="section-title">Strategic Priorities</h3>
             {priorities_html}
         </div>
 
         <div class="vision-section">
-            <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.7;">Visione Strategica Unificata</div>
+            <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.7;">Unified Strategic Vision</div>
             <div class="vision-quote">"{highlights.get('vision', 'Guidare il club verso una crescita sostenibile, unendo eccellenza tecnica e solidità finanziaria.')}"</div>
         </div>
     </main>
 
     <footer class="footer">
-        <div>Rooting Future Strategy Engine v5.4.3</div>
-        <div>Generato il {generation_date}</div>
-        <div>Metodologia STW-Aligned</div>
+        <div>&copy; {current_year} Rooting Future Strategic Framework</div>
+        <div>STW-ALIGNED • DATA-DRIVEN • PRIVATE & CONFIDENTIAL</div>
+        <div>Recipe #RF-2026-X</div>
     </footer>
 </body>
 </html>'''
@@ -399,48 +537,6 @@ class OnePagerExporter:
         return f'#{r:02x}{g:02x}{b:02x}'
 
     def _get_contrast_color(self, hex_color: str) -> str:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        return '#ffffff' if luminance < 0.5 else '#1a1a1a'
-
-
-# Singleton per uso globale
-onepager_exporter = OnePagerExporter()
-
-
-def create_onepager(
-    plan_data: Dict,
-    club_name: str,
-    metadata: Dict = None,
-    stw_progress: Dict[str, int] = None
-) -> Path:
-    """
-    Funzione helper per creare One-Pager infografica.
-    """
-    return onepager_exporter.export(plan_data, club_name, metadata, stw_progress)
-
-
-    def _lighten_color(self, hex_color: str, factor: float = 0.9) -> str:
-        """Schiarisce un colore"""
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        r = min(255, int(r + (255 - r) * factor))
-        g = min(255, int(g + (255 - g) * factor))
-        b = min(255, int(b + (255 - b) * factor))
-        return f'{r:02x}{g:02x}{b:02x}'
-
-    def _darken_color(self, hex_color: str, factor: float = 0.2) -> str:
-        """Scurisce un colore"""
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        r = int(r * (1 - factor))
-        g = int(g * (1 - factor))
-        b = int(b * (1 - factor))
-        return f'#{r:02x}{g:02x}{b:02x}'
-
-    def _get_contrast_color(self, hex_color: str) -> str:
-        """Restituisce bianco o nero per contrasto"""
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
