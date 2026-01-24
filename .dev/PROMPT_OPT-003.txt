@@ -1,0 +1,412 @@
+# PROMPT PER GEMINI CLI - OPT-003: Export Layer Unification
+
+Ciao Gemini! Lavoro su Rooting Future, sistema AI per piani strategici calcistici.
+
+## CONTEXT
+
+Il sistema esporta piani in 6 formati diversi:
+1. PDF (WeasyPrint)
+2. HTML (template Jinja2)
+3. DOCX (python-docx)
+4. Paged (HTML ottimizzato per stampa)
+5. OnePager (infografica)
+6. Package (ZIP con tutti i formati)
+
+**Problema Attuale**: Ogni formato ha un file separato (`export_pdf.py`, `export_html.py`, ecc.) con 60% di codice DUPLICATO.
+
+**Codice Duplicato** (presente in TUTTI i 6 file):
+- Applicazione colori club (branding)
+- Aggiunta sezione metodologia
+- Rendering template base
+- Gestione metadata
+
+**Risultato**:
+- 500+ righe duplicate
+- Bug fix richiede modifiche in 6 posti
+- Cambio branding richiede aggiornare 6 file
+- Difficile manutenzione
+
+**Soluzione**: Creare classe base (`BaseExporter`) con logica comune. Ogni exporter eredita e specializza solo la sua parte.
+
+## TECH STACK
+
+- Python 3.11+
+- WeasyPrint 67.0 (PDF)
+- python-docx 1.2.0 (DOCX)
+- Jinja2 (HTML templates)
+- File da creare: `export_core.py` (NUOVO)
+- File da modificare: `export_pdf_server.py`, `export_html.py`, `export_docx.py`, `export_paged.py`, `export_onepager.py`
+
+## TASK: OPT-003 - Export Layer Unification with BaseExporter
+
+⚠️ **ATTENZIONE**: Questo è un REFACTOR GRANDE. Procediamo passo per passo.
+
+### STEP 1: Analizza File Esistenti
+
+Prima di iniziare, analizza questi file per capire la struttura:
+- `export_pdf_server.py`
+- `export_html.py`
+- `export_docx.py`
+
+Identifica:
+1. Quali funzioni sono IDENTICHE in tutti i file
+2. Quali funzioni sono SIMILI (stessa logica, diversa implementazione)
+3. Quali funzioni sono UNICHE per ogni formato
+
+### STEP 2: Crea export_core.py con BaseExporter
+
+Crea un nuovo file `export_core.py` con questa struttura:
+
+```python
+"""
+Export Core - Base exporter class with common logic
+"""
+
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class BaseExporter(ABC):
+    """
+    Classe base astratta per tutti gli exporters.
+    Contiene logica comune: branding, metodologia, metadata.
+    """
+
+    def __init__(self, output_dir: Path = None):
+        """
+        Args:
+            output_dir: Directory dove salvare file esportati
+        """
+        self.output_dir = output_dir or Path("output")
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+
+    def export(
+        self,
+        club_name: str,
+        plan_data: Dict[str, Any],
+        sources: List[Dict] = None,
+        metadata: Dict = None
+    ) -> Path:
+        """
+        Main export method - orchestrates the export process.
+
+        Args:
+            club_name: Nome del club
+            plan_data: Dizionario con sezioni del piano
+            sources: Lista fonti (opzionale)
+            metadata: Metadata (colori, categoria, ecc.)
+
+        Returns:
+            Path al file esportato
+        """
+        logger.info(f"Starting export for {club_name} using {self.__class__.__name__}")
+
+        # 1. Validate input
+        self._validate_input(plan_data)
+
+        # 2. Prepare content (common preprocessing)
+        content = self._prepare_content(plan_data, sources)
+
+        # 3. Apply branding (colors, logo)
+        if metadata:
+            content = self._apply_branding(content, metadata)
+
+        # 4. Add methodology section
+        if metadata:
+            content = self._add_methodology(content, metadata)
+
+        # 5. Format-specific export (implementato da subclass)
+        filepath = self._export_format(club_name, content, metadata)
+
+        # 6. Verify output
+        self._verify_output(filepath)
+
+        logger.info(f"Export completed: {filepath}")
+        return filepath
+
+    def _validate_input(self, plan_data: Dict):
+        """Valida che plan_data contenga sezioni richieste"""
+        required_sections = ['executive_summary']
+        for section in required_sections:
+            if section not in plan_data:
+                logger.warning(f"Missing section: {section}")
+
+    def _prepare_content(self, plan_data: Dict, sources: List[Dict] = None) -> str:
+        """
+        Preprocessing comune del contenuto.
+        Può essere overridden da subclass se necessario.
+        """
+        # Default: concatena sezioni
+        sections = []
+        for key, value in plan_data.items():
+            if value:  # Skip empty sections
+                sections.append(value)
+
+        return "\n\n".join(sections)
+
+    def _apply_branding(self, content: str, metadata: Dict) -> str:
+        """
+        Applica branding del club (colori, logo, ecc.).
+        Logica comune per tutti i formati.
+
+        Args:
+            content: Contenuto da brandizzare
+            metadata: Dict con 'primary_color', 'secondary_color', ecc.
+
+        Returns:
+            Contenuto con branding applicato
+        """
+        # Estrai colori
+        primary_color = metadata.get('primary_color', '#1a365d')
+        secondary_color = metadata.get('secondary_color', '#ffffff')
+
+        # Placeholder per logo (se implementato in futuro)
+        logo_path = metadata.get('logo_path', None)
+
+        # Inject color variables (per HTML/CSS)
+        if '--primary-color' not in content:
+            # Aggiungi variabili CSS se non presenti
+            css_vars = f"""
+            <style>
+            :root {{
+                --primary-color: {primary_color};
+                --secondary-color: {secondary_color};
+            }}
+            </style>
+            """
+            content = css_vars + content
+
+        return content
+
+    def _add_methodology(self, content: str, metadata: Dict) -> str:
+        """
+        Aggiunge sezione metodologia standardizzata.
+        Comune per tutti i formati.
+        """
+        estimated_fields = metadata.get('estimated_fields', {})
+
+        if not estimated_fields:
+            return content  # Nessuna stima, skip metodologia
+
+        # Conta tier
+        tier1 = sum(1 for v in estimated_fields.values() if v == 'tier1')
+        tier2 = sum(1 for v in estimated_fields.values() if v == 'tier2')
+        tier3 = sum(1 for v in estimated_fields.values() if v == 'tier3')
+
+        methodology_html = f"""
+        <div class="methodology-section">
+            <h2>📊 Nota Metodologica</h2>
+            <p>Questo piano strategico è stato generato utilizzando un sistema AI multi-agente basato sulla metodologia Sport To Win (STW).</p>
+
+            <h3>Provenienza Dati</h3>
+            <ul>
+                <li><strong>Tier 1 (Verificato):</strong> {tier1} campi - Dati reali da questionario</li>
+                <li><strong>Tier 2 (Ricerca Web):</strong> {tier2} campi - Dati da fonti online verificate</li>
+                <li><strong>Tier 3 (Stimato):</strong> {tier3} campi - Stime AI basate su benchmark di mercato</li>
+            </ul>
+
+            <p><small>Generato il {datetime.now().strftime('%d/%m/%Y alle %H:%M')}</small></p>
+        </div>
+        """
+
+        # Append metodologia alla fine
+        return content + methodology_html
+
+    @abstractmethod
+    def _export_format(self, club_name: str, content: str, metadata: Dict) -> Path:
+        """
+        Implementa export specifico per formato.
+        DEVE essere implementato da ogni subclass.
+
+        Args:
+            club_name: Nome club
+            content: Contenuto processato
+            metadata: Metadata
+
+        Returns:
+            Path al file generato
+        """
+        pass
+
+    @abstractmethod
+    def _verify_output(self, filepath: Path):
+        """
+        Verifica che l'output sia valido.
+        Implementato da ogni subclass.
+        """
+        pass
+
+    def _safe_filename(self, club_name: str) -> str:
+        """Genera filename sicuro da club name"""
+        import re
+        safe_name = re.sub(r'[^\w\s-]', '', club_name)
+        safe_name = re.sub(r'[\s]+', '_', safe_name)
+        return safe_name.lower()
+```
+
+### STEP 3: Refactor export_pdf_server.py
+
+Modifica `export_pdf_server.py` per ereditare da `BaseExporter`:
+
+```python
+"""
+PDF Export - Inherits from BaseExporter
+"""
+
+from pathlib import Path
+from typing import Dict, Any
+import weasyprint
+import logging
+
+from export_core import BaseExporter
+
+logger = logging.getLogger(__name__)
+
+
+class PDFExporter(BaseExporter):
+    """
+    Esporta piani strategici in formato PDF usando WeasyPrint.
+    """
+
+    def _export_format(self, club_name: str, content: str, metadata: Dict) -> Path:
+        """
+        Implementa export PDF specifico.
+        """
+        filename = f"{self._safe_filename(club_name)}_strategic_plan.pdf"
+        filepath = self.output_dir / filename
+
+        # WeasyPrint: HTML → PDF
+        try:
+            weasyprint.HTML(string=content).write_pdf(filepath)
+            logger.info(f"PDF generated: {filepath}")
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            raise
+
+        return filepath
+
+    def _verify_output(self, filepath: Path):
+        """Verifica che PDF sia valido"""
+        if not filepath.exists():
+            raise FileNotFoundError(f"PDF not found: {filepath}")
+
+        # Check file size (PDF vuoto < 1KB è sospetto)
+        size = filepath.stat().st_size
+        if size < 1024:
+            logger.warning(f"PDF suspiciously small: {size} bytes")
+
+        logger.info(f"PDF verification passed: {filepath.name} ({size} bytes)")
+```
+
+### STEP 4: Refactor Altri Exporters
+
+Applica lo stesso pattern a:
+- `export_html.py` → `HTMLExporter(BaseExporter)`
+- `export_docx.py` → `DOCXExporter(BaseExporter)`
+- `export_paged.py` → `PagedExporter(BaseExporter)`
+- `export_onepager.py` → `OnePagerExporter(BaseExporter)`
+
+### STEP 5: Update Imports
+
+In `app.py` e altri file che usano gli exporters:
+
+**PRIMA**:
+```python
+from export_pdf_server import generate_pdf
+```
+
+**DOPO**:
+```python
+from export_pdf_server import PDFExporter
+
+# Usage
+exporter = PDFExporter(output_dir=Path("output"))
+pdf_path = exporter.export(club_name, plan_data, sources, metadata)
+```
+
+### STEP 6: Rimuovi Codice Duplicato
+
+Una volta che tutti gli exporters ereditano da `BaseExporter`, rimuovi:
+- Funzioni `_apply_branding` duplicate
+- Funzioni `_add_methodology` duplicate
+- Logica comune di preprocessing
+
+## REGOLE IMPORTANTI
+
+1. ✅ NON cancellare file esistenti finché nuovi exporters non sono testati
+2. ✅ Testa OGNI exporter dopo refactor (genera PDF, HTML, DOCX)
+3. ✅ Mantieni backward compatibility (vecchie function signature)
+4. ✅ Usa `@abstractmethod` per metodi che DEVONO essere implementati
+5. ✅ Aggiungi docstring a TUTTE le funzioni
+
+## VERIFICATION STEPS
+
+### Test 1: Syntax check
+```bash
+python -m py_compile export_core.py
+python -m py_compile export_pdf_server.py
+python -m py_compile export_html.py
+python -m py_compile export_docx.py
+```
+
+### Test 2: Genera piano di test con TUTTI i formati
+```bash
+# Genera piano completo
+# Verifica che tutti i 6 formati vengano generati correttamente
+# PDF, HTML, DOCX, Paged, OnePager, Package
+```
+
+### Test 3: Verifica branding consistency
+```bash
+# Tutti i formati devono avere STESSI colori club
+# Tutti i formati devono avere metodologia
+```
+
+### Test 4: Line count
+```bash
+# Conta righe prima
+find . -name "export_*.py" | xargs wc -l
+
+# Conta righe dopo refactor
+find . -name "export_*.py" | xargs wc -l
+
+# Dovrebbe essere -500 LOC o più
+```
+
+## OUTPUT ATTESO
+
+Mostrami:
+1. Classe `BaseExporter` completa in `export_core.py`
+2. `PDFExporter` refactored in `export_pdf_server.py`
+3. Piano per refactorare gli altri 5 exporters
+4. Stima LOC ridotte
+
+## STRATEGIA CONSIGLIATA
+
+⚠️ Questo è il refactor PIÙ GRANDE. Suggerisco:
+
+**Approccio incrementale**:
+1. Crea `export_core.py` (BaseExporter)
+2. Refactora SOLO `export_pdf_server.py` (PDFExporter)
+3. Testa PDF generation - SE OK, procedi
+4. Refactora `export_html.py` (HTMLExporter)
+5. Testa HTML generation - SE OK, procedi
+6. Continua uno alla volta
+
+**NON** fare tutti in una volta (troppo rischioso).
+
+## DOMANDE?
+
+Se la struttura attuale degli exporters è diversa da quanto descritto, descrivimi come sono fatti ora e adatterò la strategia.
+
+Inizia analizzando i file `export_*.py` esistenti e proponendomi:
+1. Quali funzioni sono duplicate (lista)
+2. Struttura proposta per `BaseExporter`
+3. Piano di refactoring passo-passo
+
+Procediamo con cautela - questo è codice critico per il business! 🎯

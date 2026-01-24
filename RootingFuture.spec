@@ -1,12 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('templates', 'templates'), ('static', 'static'), ('assets', 'assets')]
+binaries = []
+hiddenimports = ['engineio.async_drivers.threading', 'flask_socketio', 'docx', 'google.generativeai']
+tmp_ret = collect_all('stripe')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['app.py'],
-    pathex=['C:\\Users\\Mirko\\AppData\\Roaming\\Python\\Python312\\site-packages'],
-    binaries=[],
-    datas=[('.', '.')],
-    hiddenimports=['requests', 'sqlite3', 'lxml', 'pyphen', 'PIL', 'google.api_core.exceptions', 'google.generativeai', 'loguru', 'docx', 'docx.shared', 'html5lib', 'tinycss2', 'cssselect2', 'svglib', 'weasyprint', 'weasyprint.fonts', 'pyphen', 'plotly', 'kaleido', 'reportlab', 'reportlab.lib.fonts', 'reportlab.graphics.barcode.code128', 'reportlab.graphics.barcode.code93', 'reportlab.graphics.barcode.code39', 'reportlab.graphics.barcode.usps', 'reportlab.graphics.barcode.usps4s', 'reportlab.graphics.barcode.postnet', 'reportlab.graphics.barcode.ecc200datamatrix', 'reportlab.graphics.barcode.pdf417', 'reportlab.graphics.barcode.qr', 'reportlab.graphics.barcode.ean'],
+    pathex=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

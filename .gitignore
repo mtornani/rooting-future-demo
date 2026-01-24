@@ -36,3 +36,13 @@ start_simple.py
 *.pem
 *.key
 credentials.json
+
+# Development context (optional - track if you want)
+.dev/context/
+.dev/handoff_*.md
+
+# Demo/presentation files (optional)
+demo_output/
+demo_manual/
+presentation_demo/
+live_demo/

@@ -1,0 +1,20 @@
+{% extends "dashboard_simple.html" %}
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 2rem auto; line-height: 1.8; color: #cbd5e1;">
+    <h1 style="color: #10b981; margin-bottom: 1.5rem;">Termini di Servizio</h1>
+    <p>Ultimo aggiornamento: {{ now().strftime('%d/%m/%Y') }}</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">1. Descrizione del Servizio</h2>
+    <p>Rooting Future fornisce uno strumento multi-agente basato su intelligenza artificiale per la consulenza strategica sportiva.</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">2. Limitazione di Responsabilità</h2>
+    <p>Le analisi generate dall'intelligenza artificiale sono strumenti di supporto decisionale. Rooting Future non si assume responsabilità per decisioni gestionali o sportive basate sui report prodotti.</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">3. Utilizzo dei Crediti</h2>
+    <p>L'accesso alla generazione dei piani e subordinato all'acquisto di crediti. I crediti non sono rimborsabili una volta utilizzato il servizio di generazione.</p>
+    
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #334155;">
+        <a href="/" class="btn btn-secondary">Torna alla Dashboard</a>
+    </div>
+</div>
+{% endblock %}

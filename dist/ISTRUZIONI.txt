@@ -1,0 +1,12 @@
+===================================================
+  ROOTING FUTURE STRATEGY ENGINE v5.4
+===================================================
+
+ISTRUZIONI AVVIO:
+1. Apri la cartella 'RootingFuture'
+2. Fai doppio click su 'RootingFuture.exe'
+3. Si aprira una finestra nera (console) - NON chiuderla
+4. Il browser si aprira automaticamente su http://127.0.0.1:5000
+
+NOTA:
+Se richiesto, inserisci la Chiave di Attivazione fornita.

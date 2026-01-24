@@ -1,0 +1,211 @@
+    <script>
+        // Elements
+        const logConsole = document.getElementById('logConsole');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const mainAnalyzeBtn = document.getElementById('mainAnalyzeBtn');
+        const finalGenerateBtn = document.getElementById('finalGenerateBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadResults = document.getElementById('uploadResults');
+        const initialActions = document.getElementById('initialActions');
+        const dashboardContainer = document.getElementById('alignmentDashboardContainer');
+        const clubNameConfirmed = document.getElementById('clubNameConfirmed');
+        
+        // Technical Mode Elements
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const standardUpload = document.getElementById('standardUpload');
+        const technicalUpload = document.getElementById('technicalUpload');
+        const localPathInput = document.getElementById('localPathInput');
+        const browseBtn = document.getElementById('browseBtn');
+        
+        let selectedFiles = [];
+        let lastExtractedData = null;
+        let eventSource = null;
+        let isTechnicalMode = false;
+
+        // Toggle Mode
+        toggleModeBtn.onclick = () => {
+            isTechnicalMode = !isTechnicalMode;
+            standardUpload.style.display = isTechnicalMode ? 'none' : 'block';
+            technicalUpload.style.display = isTechnicalMode ? 'block' : 'none';
+            toggleModeBtn.textContent = isTechnicalMode ? 'Torna a Standard Mode' : 'Passa a Technical Mode';
+            addLog('INFO', `Modalità cambiata: ${isTechnicalMode ? 'Technical' : 'Standard'}`);
+            renderFiles();
+        };
+
+        // Browse Button
+        browseBtn.onclick = async () => {
+            try {
+                const resp = await fetch('/api/browse-folder', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    localPathInput.value = data.path;
+                    addLog('INFO', `Cartella selezionata: ${data.path}`);
+                    renderFiles();
+                }
+            } catch (err) {
+                console.error('Browse error:', err);
+            }
+        };
+
+        // SSE Connection
+        function connectSSE() {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/stream/logs');
+            eventSource.onopen = () => {
+                document.getElementById('connectionStatus').className = 'connection-status connected';
+                document.getElementById('connectionText').textContent = 'Connesso';
+            };
+            eventSource.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    addLog(data.level, data.message);
+                } catch (err) {}
+            };
+            eventSource.onerror = () => {
+                document.getElementById('connectionStatus').className = 'connection-status disconnected';
+                document.getElementById('connectionText').textContent = 'Disconnesso';
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        function addLog(level, message) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<span class="log-time">${time}</span><span class="log-level ${level}">${level}</span><span>${escapeHtml(message)}</span>`;
+            logConsole.appendChild(div);
+            while (logConsole.children.length > 100) logConsole.removeChild(logConsole.firstChild);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        function clearLogs() { logConsole.innerHTML = ''; addLog('INFO', 'Console svuotata'); }
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        function showToast(message, type = 'info') { addLog(type.toUpperCase(), message); }
+
+        // File Upload Handlers
+        if (dropZone) {
+            dropZone.onclick = () => fileInput.click();
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+            dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); };
+            fileInput.onchange = (e) => handleFiles(e.target.files);
+        }
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file.name.endsWith('.docx') && !selectedFiles.some(f => f.name === file.name)) {
+                    selectedFiles.push(file);
+                }
+            }
+            renderFiles();
+        }
+
+        function renderFiles() {
+            fileList.innerHTML = selectedFiles.map((f, i) => `
+                <div class="file-item">
+                    <span>${f.name}</span>
+                    <button class="file-remove" onclick="removeFile(${i})">X</button>
+                </div>
+            `).join('');
+            
+            // Abilita se ci sono file in standard mode O se c'è un percorso in technical mode
+            if (isTechnicalMode) {
+                mainAnalyzeBtn.disabled = localPathInput.value.trim() === '';
+            } else {
+                mainAnalyzeBtn.disabled = selectedFiles.length === 0;
+            }
+        }
+
+        function removeFile(idx) { selectedFiles.splice(idx, 1); renderFiles(); }
+
+        // Logic for mainAnalyzeBtn
+        mainAnalyzeBtn.onclick = async () => {
+            const clubName = document.getElementById('clubName').value || 'Club';
+            setBtnState(true);
+
+            try {
+                let data;
+                if (isTechnicalMode) {
+                    const path = localPathInput.value.trim();
+                    addLog('INFO', `Analisi cartella: ${path}...`);
+                    const resp = await fetch('/api/ingest-local', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: path, club_name: clubName })
+                    });
+                    data = await resp.json();
+                } else {
+                    addLog('INFO', `Upload e analisi di ${selectedFiles.length} file...`);
+                    const formData = new FormData();
+                    selectedFiles.forEach(f => formData.append('files[]', f));
+                    formData.append('club_name', clubName);
+                    const resp = await fetch('/api/upload-docx', { method: 'POST', body: formData });
+                    data = await resp.json();
+                }
+                handleAnalysisResponse(data);
+            } catch (err) {
+                addLog('ERROR', err.message);
+            } finally {
+                setBtnState(false);
+            }
+        };
+
+        function setBtnState(loading) {
+            mainAnalyzeBtn.disabled = loading;
+            mainAnalyzeBtn.textContent = loading ? 'Analisi in corso...' : '🚀 Avvia Analisi Scientifica';
+        }
+
+        function handleAnalysisResponse(data) {
+            if (data.success) {
+                addLog('INFO', `Analisi completata. Stakeholder: ${data.stakeholders_extracted}`);
+                dashboardContainer.innerHTML = data.alignment_dashboard;
+                uploadResults.style.display = 'block';
+                initialActions.style.display = 'none';
+                standardUpload.style.display = 'none';
+                technicalUpload.style.display = 'none';
+                clubNameConfirmed.value = data.extracted_data.club_name || document.getElementById('clubName').value;
+                lastExtractedData = data.extracted_data;
+            } else {
+                addLog('ERROR', data.error);
+                alert(data.error);
+            }
+        }
+
+        finalGenerateBtn.onclick = async () => {
+            const clubName = clubNameConfirmed.value;
+            const category = document.getElementById('category').value;
+            finalGenerateBtn.disabled = true;
+            finalGenerateBtn.textContent = 'Generazione in corso...';
+            addLog('INFO', `Generazione piano per ${clubName}...`);
+
+            try {
+                const resp = await fetch('/api/generate-from-webhook', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        club_name: clubName,
+                        category: category,
+                        project_id: lastExtractedData.project_id,
+                        stakeholders_inputs: lastExtractedData.stakeholders,
+                        request_mode: 'production'
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    addLog('INFO', `Piano generato!`);
+                    setTimeout(() => window.location.href = '/view/' + data.plan_id, 1000);
+                } else {
+                    addLog('ERROR', data.error);
+                }
+            } catch (err) {
+                addLog('ERROR', err.message);
+            } finally {
+                finalGenerateBtn.disabled = false;
+                finalGenerateBtn.textContent = 'Conferma e Genera Piano Strategico';
+            }
+        };
+
+        connectSSE();
+    </script>

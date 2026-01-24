@@ -23,424 +23,337 @@
         .logo { font-size: 1.25rem; font-weight: 700; color: #10b981; }
         .nav a { color: #94a3b8; text-decoration: none; margin-left: 1.5rem; }
         .nav a:hover { color: #fff; }
-
         .main { display: flex; height: calc(100vh - 60px); }
-
-        /* Left Panel */
-        .left-panel {
-            width: 50%;
-            padding: 1.5rem;
-            overflow-y: auto;
-            border-right: 1px solid #334155;
-        }
-
-        /* Right Panel - Console */
-        .right-panel {
-            width: 50%;
-            display: flex;
-            flex-direction: column;
-            background: #0a0f1a;
-        }
-        .console-header {
-            padding: 1rem;
-            background: #1e293b;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .left-panel { width: 50%; padding: 1.5rem; overflow-y: auto; border-right: 1px solid #334155; }
+        .right-panel { width: 50%; display: flex; flex-direction: column; background: #0a0f1a; }
+        .console-header { padding: 1rem; background: #1e293b; display: flex; justify-content: space-between; align-items: center; }
         .console-title { color: #10b981; font-weight: 600; }
-        .console-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            font-family: 'Consolas', monospace;
-            font-size: 0.85rem;
-        }
+        .console-body { flex: 1; overflow-y: auto; padding: 1rem; font-family: 'Consolas', monospace; font-size: 0.85rem; }
         .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; }
         .log-time { color: #64748b; margin-right: 0.5rem; }
         .log-level { padding: 0.1rem 0.4rem; border-radius: 3px; margin-right: 0.5rem; font-size: 0.75rem; }
         .log-level.INFO { background: #3b82f6; }
         .log-level.WARNING { background: #f59e0b; }
         .log-level.ERROR { background: #ef4444; }
-        .connection-status {
-            padding: 0.5rem 1rem;
-            background: #1e293b;
-            font-size: 0.8rem;
-        }
-        .status-dot {
-            display: inline-block;
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            margin-right: 0.5rem;
-        }
-        .connected .status-dot { background: #22c55e; }
-        .disconnected .status-dot { background: #ef4444; }
-
-        /* Cards */
-        .card {
-            background: #1e293b;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
+        .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
         .card h3 { color: #10b981; margin-bottom: 1rem; }
-
-        /* Stats */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .stat-card {
-            background: #1e293b;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-        }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #1e293b; padding: 1rem; border-radius: 8px; text-align: center; }
         .stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
-        .stat-label { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
-
-        /* Upload */
-        .upload-zone {
-            border: 2px dashed #334155;
-            border-radius: 8px;
-            padding: 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .upload-zone:hover { border-color: #10b981; background: #1e293b; }
-        .upload-zone.dragover { border-color: #10b981; background: #1e293b; }
-        .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-
-        .file-list { margin-top: 1rem; }
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            background: #334155;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-        }
-        .file-remove {
-            background: #ef4444;
-            border: none;
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        /* Form */
+        .upload-zone { border: 2px dashed #334155; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover, .upload-zone.dragover { border-color: #10b981; background: #1e293b; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #334155; border-radius: 4px; margin-bottom: 0.5rem; }
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; color: #94a3b8; }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 0.75rem;
-            background: #334155;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            color: #f1f5f9;
-        }
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #10b981;
-        }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #f1f5f9; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
         .btn-primary { background: #10b981; color: white; }
-        .btn-primary:hover { background: #059669; }
-        .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+        .btn-primary:disabled { background: #475569; cursor: not-allowed; opacity: 0.7; }
         .btn-secondary { background: #334155; color: #f1f5f9; }
-
-        /* Recent Plans */
-        .plan-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            background: #334155;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-        }
-        .plan-name { font-weight: 600; }
-        .plan-date { color: #64748b; font-size: 0.85rem; }
-
-        /* Alerts */
-        .alert {
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-        }
-        .alert-warning { background: #78350f; border-left: 4px solid #f59e0b; }
     </style>
 </head>
 <body>
     <header class="header">
-        <div class="logo">Rooting Future v5.4</div>
+        <div class="logo">Rooting Future v5.4.9</div>
         <nav class="nav">
             <a href="/">Dashboard</a>
             <a href="{{ url_for('plans_list') }}">Piani</a>
-            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            {% if user.role != 'user' %}
+            <a href="{{ url_for('new_plan') }}">Nuovo</a>
             <a href="{{ url_for('review_queue') }}">Review</a>
-            <a href="/legacy">Legacy</a>
+            {% endif %}
+            {% if user and user.is_authenticated %}
+                <span style="color: #64748b; margin-left: 1rem; font-size: 0.9rem;">{{ user.email }}</span>
+                <a href="{{ url_for('auth.logout') }}" style="color: #ef4444;">Esci</a>
+            {% endif %}
         </nav>
     </header>
 
     <div class="main">
-        <!-- Left Panel -->
         <div class="left-panel">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <!-- Stats -->
             <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.total_plans }}</div>
-                    <div class="stat-label">Piani Totali</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div>
-                    <div class="stat-label">In Bozza</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.sections_needing_review }}</div>
-                    <div class="stat-label">Da Revisionare</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.average_credibility }}%</div>
-                    <div class="stat-label">Credibilita</div>
-                </div>
+                <div class="stat-card"><div class="stat-value">{{ stats.total_plans }}</div><div class="stat-label">Piani Totali</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div><div class="stat-label">Bozze</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.sections_needing_review }}</div><div class="stat-label">Review</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.average_credibility }}%</div><div class="stat-label">Credibilità</div></div>
             </div>
 
-            <!-- Upload Card -->
             <div class="card">
-                <h3>Upload DOCX Stakeholder</h3>
-                {% if docx_available %}
-                <form id="uploadForm" enctype="multipart/form-data">
-                    <div class="upload-zone" id="dropZone">
-                        <div class="upload-icon">📁</div>
-                        <div>Trascina i file DOCX qui</div>
-                        <div style="color:#64748b;font-size:0.85rem;margin-top:0.5rem;">o clicca per selezionare</div>
-                        <input type="file" id="fileInput" accept=".docx" multiple hidden>
-                    </div>
-                    <div class="file-list" id="fileList"></div>
-
-                    <div class="form-group" style="margin-top:1rem;">
-                        <label>Nome Club</label>
-                        <input type="text" id="clubName" placeholder="Es: AC Rimini 1912">
-                    </div>
-                    <div class="form-group">
-                        <label>Categoria</label>
-                        <select id="category">
-                            {% for cat in categories %}
-                            <option value="{{ cat }}">{{ cat }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-                        Genera Piano
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin:0;">Ingestion Stakeholder</h3>
+                    <button type="button" id="toggleModeBtn" class="btn btn-secondary" style="font-size: 0.7rem; padding: 4px 8px;">
+                        Passa a Folder Mode
                     </button>
-                </form>
-                {% else %}
-                <p style="color:#f59e0b;">python-docx non installato. Esegui: pip install python-docx</p>
-                {% endif %}
-            </div>
+                </div>
 
-            <!-- Recent Plans -->
-            <div class="card">
-                <h3>Piani Recenti</h3>
-                {% if stats.recent_plans %}
-                    {% for plan in stats.recent_plans[:5] %}
-                    <div class="plan-item">
-                        <div>
-                            <div class="plan-name">{{ plan.club_name }}</div>
-                            <div class="plan-date">{{ plan.last_modified[:10] if plan.last_modified else 'N/A' }}</div>
+                <form id="uploadForm">
+                    <div id="standardUpload">
+                        <div class="upload-zone" id="dropZone">
+                            <div class="upload-icon">📁</div>
+                            <div>Trascina i file DOCX o uno <strong>ZIP</strong> qui</div>
+                            <input type="file" id="fileInput" accept=".docx,.zip" multiple hidden>
                         </div>
-                        <a href="{{ url_for('plan_detail', plan_id=plan.plan_id) }}" class="btn btn-secondary">Apri</a>
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <p style="color:#64748b;">Nessun piano generato.</p>
-                {% endif %}
+
+                    <div id="technicalUpload" style="display:none;">
+                        <div class="upload-zone" id="folderDropZone" style="border-color: #818cf8;">
+                            <div class="upload-icon">📂</div>
+                            <div>Carica Intera Cartella (Technical)</div>
+                            <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+                        </div>
+                    </div>
+
+                    <div class="file-list" id="fileList" style="margin-top:10px;"></div>
+
+                    <div id="initialActions" style="margin-top:1rem;">
+                        <div class="form-group">
+                            <label>Nome Club / Azienda</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="clubName" placeholder="Es: AC Rimini 1912" style="flex: 1;">
+                                <button type="button" class="btn btn-secondary" id="searchWebBtn" style="white-space: nowrap;">🔍 Cerca sul Web</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>🏆 Categoria / Campionato</label>
+                            <select id="category" style="border-left: 4px solid #10b981;">
+                                <option value="">-- Seleziona Categoria --</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="mainAnalyzeBtn" style="width: 100%; height: 50px;">
+                            🚀 Carica Documenti ed Analizza
+                        </button>
+                    </div>
+
+                    <div id="loadingIndicator" style="display:none; text-align:center; padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; margin-top: 20px;">
+                        <div style="font-size: 2rem; animation: spin 2s linear infinite;">⏳</div>
+                        <p style="margin-top: 10px; color: #10b981; font-weight: bold;">Analisi in background...</p>
+                        <small style="color: #94a3b8;">Il sistema sta analizzando i file. Guarda i log a destra per i dettagli.</small>
+                    </div>
+
+                    <style> @keyframes spin { 100% { transform: rotate(360deg); } } </style>
+
+                    <div id="uploadResults" style="display:none; margin-top: 20px;">
+                        <div style='background:#1e293b; padding:20px; border-radius:12px; border: 1px solid #334155; margin-bottom: 20px;'>
+                            <h3 style='color:#10b981; margin-top:0; border-bottom:1px solid #334155; padding-bottom:10px;'>🏛️ Anagrafica Società</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                                <div class="form-group"><label style="font-size:0.75rem;">Stadio</label><input type="text" id="stadiumConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Anno Fondazione</label><input type="number" id="foundationConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Presidente</label><input type="text" id="presidentConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Budget Stimato</label><input type="text" id="budgetConfirmed" style="background:#0f172a;"></div>
+                            </div>
+                        </div>
+                        <div id="alignmentDashboardContainer"></div>
+                        <button type="button" class="btn btn-primary" id="finalGenerateBtn" style="width: 100%; margin-top: 20px; height: 60px; font-size: 1.1rem; background: linear-gradient(to right, #10b981, #059669);">
+                            💎 Conferma e Genera Progetto Finale
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
-        <!-- Right Panel: Console -->
         <div class="right-panel">
-            <div class="console-header">
-                <div class="console-title">Live Console</div>
-                <div>
-                    <button class="btn btn-secondary" onclick="clearLogs()" style="padding:0.4rem 0.8rem;">Clear</button>
-                </div>
-            </div>
-            <div class="console-body" id="logConsole">
-                <div class="log-entry">
-                    <span class="log-time">--:--:--</span>
-                    <span class="log-level INFO">INFO</span>
-                    <span>Connessione in corso...</span>
-                </div>
-            </div>
-            <div class="connection-status disconnected" id="connectionStatus">
-                <span class="status-dot"></span>
-                <span id="connectionText">Disconnesso</span>
-            </div>
+            <div class="console-header"><div class="console-title">Live Console</div></div>
+            <div class="console-body" id="logConsole"></div>
         </div>
     </div>
 
     <script>
-        // Elements
         const logConsole = document.getElementById('logConsole');
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const folderDropZone = document.getElementById('folderDropZone');
+        const folderInput = document.getElementById('folderInput');
         const fileList = document.getElementById('fileList');
-        const submitBtn = document.getElementById('submitBtn');
-        const uploadForm = document.getElementById('uploadForm');
+        const mainAnalyzeBtn = document.getElementById('mainAnalyzeBtn');
+        const finalGenerateBtn = document.getElementById('finalGenerateBtn');
+        const uploadResults = document.getElementById('uploadResults');
+        const initialActions = document.getElementById('initialActions');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const dashboardContainer = document.getElementById('alignmentDashboardContainer');
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const searchWebBtn = document.getElementById('searchWebBtn');
+        const standardUpload = document.getElementById('standardUpload');
+        const technicalUpload = document.getElementById('technicalUpload');
+
         let selectedFiles = [];
-        let eventSource = null;
+        let lastExtractedData = null;
+        let isTechnicalMode = false;
+        let displayedLogs = new Set();
 
-        // SSE Connection
-        function connectSSE() {
-            if (eventSource) eventSource.close();
+        toggleModeBtn.onclick = () => {
+            isTechnicalMode = !isTechnicalMode;
+            standardUpload.style.display = isTechnicalMode ? 'none' : 'block';
+            technicalUpload.style.display = isTechnicalMode ? 'block' : 'none';
+            toggleModeBtn.textContent = isTechnicalMode ? 'Standard Mode' : 'Folder Mode';
+            selectedFiles = [];
+            renderFiles();
+        };
 
-            eventSource = new EventSource('/api/stream/logs');
-
-            eventSource.onopen = () => {
-                document.getElementById('connectionStatus').className = 'connection-status connected';
-                document.getElementById('connectionText').textContent = 'Connesso';
-                addLog('INFO', 'Connesso al server');
-            };
-
-            eventSource.onmessage = (e) => {
+        if (searchWebBtn) {
+            searchWebBtn.onclick = async () => {
+                const name = document.getElementById('clubName').value;
+                if (!name) { alert("Inserisci il nome del club."); return; }
+                
+                searchWebBtn.disabled = true;
+                searchWebBtn.innerHTML = "⏳ Ricerca in corso...";
+                addLog('INFO', "Avvio ricerca anagrafica web per: " + name);
+                
                 try {
-                    const data = JSON.parse(e.data);
-                    addLog(data.level, data.message);
-                } catch (err) {}
-            };
-
-            eventSource.onerror = () => {
-                document.getElementById('connectionStatus').className = 'connection-status disconnected';
-                document.getElementById('connectionText').textContent = 'Disconnesso';
-                setTimeout(connectSSE, 3000);
+                    const resp = await fetch('/api/research/basic-info', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ club_name: name }) 
+                    });
+                    const data = await resp.json();
+                    
+                    if (data.success) {
+                        uploadResults.style.display = 'block';
+                        document.getElementById('stadiumConfirmed').value = data.info.stadium || "";
+                        document.getElementById('foundationConfirmed').value = data.info.foundation_year || "";
+                        document.getElementById('presidentConfirmed').value = data.info.president || "";
+                        document.getElementById('budgetConfirmed').value = data.info.budget || "";
+                        addLog('INFO', "✅ Dati club recuperati con successo dal web.");
+                    } else {
+                        addLog('WARNING', "Nessun dato trovato per questo club.");
+                        alert("Ricerca completata: nessun dato anagrafico trovato. Inseriscili manualmente.");
+                    }
+                } catch (e) { 
+                    addLog('ERROR', "Errore durante la ricerca web: " + e);
+                } finally { 
+                    searchWebBtn.disabled = false; 
+                    searchWebBtn.innerHTML = "🔍 Cerca sul Web"; 
+                }
             };
         }
 
         function addLog(level, message) {
             const div = document.createElement('div');
             div.className = 'log-entry';
-            const time = new Date().toLocaleTimeString();
-            div.innerHTML = `<span class="log-time">${time}</span><span class="log-level ${level}">${level}</span><span>${escapeHtml(message)}</span>`;
+            div.innerHTML = '<span class="log-time">' + new Date().toLocaleTimeString() + '</span><span class="log-level ' + level + '">' + level + '</span><span>' + message + '</span>';
             logConsole.appendChild(div);
-            while (logConsole.children.length > 100) logConsole.removeChild(logConsole.firstChild);
             logConsole.scrollTop = logConsole.scrollHeight;
         }
 
-        function clearLogs() {
-            logConsole.innerHTML = '';
-            addLog('INFO', 'Console svuotata');
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // File Upload
-        if (dropZone) {
-            dropZone.onclick = () => fileInput.click();
-            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
-            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-            dropZone.ondrop = (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('dragover');
-                handleFiles(e.dataTransfer.files);
-            };
-            fileInput.onchange = (e) => handleFiles(e.target.files);
-        }
+        if (dropZone) dropZone.onclick = () => fileInput.click();
+        if (folderDropZone) folderDropZone.onclick = () => folderInput.click();
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+        folderInput.onchange = (e) => handleFiles(e.target.files);
 
         function handleFiles(files) {
-            for (const file of files) {
-                if (file.name.endsWith('.docx') && !selectedFiles.some(f => f.name === file.name)) {
-                    selectedFiles.push(file);
-                }
-            }
+            for (const f of files) { if (f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.zip')) { if (f.name.endsWith('.zip')) selectedFiles = [f]; else selectedFiles.push(f); } }
             renderFiles();
         }
 
         function renderFiles() {
-            fileList.innerHTML = selectedFiles.map((f, i) => `
-                <div class="file-item">
-                    <span>${f.name}</span>
-                    <button class="file-remove" onclick="removeFile(${i})">X</button>
-                </div>
-            `).join('');
-            submitBtn.disabled = selectedFiles.length === 0;
+            fileList.innerHTML = selectedFiles.map((f, i) => '<div class="file-item"><span>' + (f.webkitRelativePath || f.name) + '</span><button type="button" onclick="selectedFiles.splice(' + i + ',1);renderFiles();">X</button></div>').join('');
+            mainAnalyzeBtn.disabled = (selectedFiles.length === 0);
         }
 
-        function removeFile(idx) {
-            selectedFiles.splice(idx, 1);
-            renderFiles();
-        }
+        mainAnalyzeBtn.onclick = async () => {
+            mainAnalyzeBtn.disabled = true;
+            loadingIndicator.style.display = 'block';
+            initialActions.style.display = 'none';
+            standardUpload.style.display = 'none';
+            technicalUpload.style.display = 'none';
+            
+            const formData = new FormData();
+            selectedFiles.forEach(f => formData.append('files[]', f, f.webkitRelativePath || f.name));
+            formData.append('club_name', document.getElementById('clubName').value);
 
-        // Form Submit
-        if (uploadForm) {
-            uploadForm.onsubmit = async (e) => {
-                e.preventDefault();
-                if (selectedFiles.length === 0) return;
+            try {
+                const resp = await fetch('/api/upload-docx', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (data.success) {
+                    // Inizia il polling per i risultati dell'analisi
+                    pollAnalysisResults(data.project_id);
+                } else { alert(data.error); resetUI(); }
+            } catch (e) { resetUI(); }
+        };
 
-                const clubName = document.getElementById('clubName').value || 'Club Sconosciuto';
-                const category = document.getElementById('category').value;
-
-                addLog('INFO', `Avvio generazione piano per ${clubName}...`);
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Generazione in corso...';
-
-                const formData = new FormData();
-                selectedFiles.forEach(f => formData.append('files', f));
-                formData.append('club_name', clubName);
-                formData.append('category', category);
-
+        async function pollAnalysisResults(projectId) {
+            const poll = setInterval(async () => {
                 try {
-                    const resp = await fetch('/api/generate-from-docx', {
-                        method: 'POST',
-                        body: formData
-                    });
+                    const resp = await fetch('/api/generation-status/' + projectId);
                     const data = await resp.json();
-
-                    if (data.success) {
-                        addLog('INFO', `Piano generato: ${data.plan_id}`);
-                        if (data.redirect_url) {
-                            setTimeout(() => window.location.href = data.redirect_url, 2000);
+                    
+                    if (data.status === 'processing') {
+                        // Aggiorna HUD
+                        loadingIndicator.querySelector('p').textContent = data.message;
+                        loadingIndicator.querySelector('small').textContent = 'Progresso: ' + data.progress + '%';
+                        
+                        // Effetto visivo sulla barra (opzionale se volessimo aggiungerla)
+                        if (data.progress > 0) {
+                             addLog('INFO', data.message + ' (' + data.progress + '%)');
                         }
-                    } else {
-                        addLog('ERROR', data.error || 'Errore generazione');
+                    } else if (data.status === 'completed') {
+                        clearInterval(poll);
+                        loadingIndicator.style.display = 'none';
+                        uploadResults.style.display = 'block';
+                        
+                        // Qui carichiamo i dati finali
+                        const finalResp = await fetch('/api/check-analysis/' + projectId);
+                        const finalData = await finalResp.json();
+                        
+                        dashboardContainer.innerHTML = finalData.alignment_dashboard;
+                        document.getElementById('stadiumConfirmed').value = finalData.extracted_data.stadium || document.getElementById('stadiumConfirmed').value;
+                        lastExtractedData = finalData.extracted_data;
+                        addLog('INFO', 'Analisi completata con successo!');
+                    } else if (data.status === 'error') {
+                        clearInterval(poll);
+                        alert(data.message);
+                        resetUI();
+                        addLog('ERROR', data.message);
                     }
-                } catch (err) {
-                    addLog('ERROR', err.message);
-                } finally {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Genera Piano';
+                } catch (e) { 
+                    console.error("Polling error:", e);
                 }
-            };
+            }, 2000);
         }
 
-        // Start
-        connectSSE();
+        function resetUI() {
+            loadingIndicator.style.display = 'none';
+            initialActions.style.display = 'block';
+            mainAnalyzeBtn.disabled = false;
+        }
+
+        finalGenerateBtn.onclick = async () => {
+            finalGenerateBtn.disabled = true;
+            finalGenerateBtn.textContent = 'Generazione...';
+            const resp = await fetch('/api/generate-from-webhook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    club_name: lastExtractedData.club_name,
+                    category: document.getElementById('category').value,
+                    project_id: lastExtractedData.project_id,
+                    stakeholders_inputs: lastExtractedData.stakeholders,
+                    stadium: document.getElementById('stadiumConfirmed').value,
+                    foundation_year: document.getElementById('foundationConfirmed').value,
+                    president: document.getElementById('presidentConfirmed').value,
+                    budget: document.getElementById('budgetConfirmed').value,
+                    request_mode: 'production'
+                })
+            });
+            const data = await resp.json();
+            if (data.success) window.location.href = '/success/' + data.plan_id;
+            else { alert(data.error); finalGenerateBtn.disabled = false; }
+        };
+
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/api/stream/logs');
+                const data = await resp.json();
+                if (data.success && data.logs) {
+                    data.logs.forEach(l => {
+                        const id = l.timestamp + l.message;
+                        if (!displayedLogs.has(id)) { addLog(l.level, l.message); displayedLogs.add(id); }
+                    });
+                }
+            } catch(e) { }
+        }, 2000);
     </script>
 </body>
 </html>

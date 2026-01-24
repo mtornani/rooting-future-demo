@@ -1,0 +1,548 @@
+{% extends "dashboard_simple.html" %}
+
+{% block content %}
+<div class="admin-dashboard-container" style="max-width: 1600px; margin: 0 auto; padding: 20px; font-family: 'Inter', sans-serif;">
+    
+    <!-- HEADER PROFESSIONALE -->
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                <span class="bg-indigo-600 text-white p-2 rounded-lg shadow-lg">🏛️</span> 
+                Control Room <span class="text-indigo-600">Super Admin</span>
+            </h1>
+            <p class="text-gray-500 mt-2 font-medium">Monitoraggio globale, integrità scientifica e gestione flussi di lavoro.</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="loadStats()" class="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm">
+                <span>🔄</span> Aggiorna Dati
+            </button>
+            <button onclick="openNewUserModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all transform hover:scale-105">
+                <span>+</span> Nuovo Manager
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI GLOBALI -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-3 bg-blue-50 text-blue-600 rounded-xl text-xl">📦</div>
+            <div>
+                <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Piani Totali</div>
+                <div class="text-2xl font-black text-gray-800" id="stat-total-plans">-</div>
+            </div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl text-xl">👥</div>
+            <div>
+                <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Manager</div>
+                <div class="text-2xl font-black text-gray-800" id="stat-total-users">-</div>
+            </div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-3 bg-purple-50 text-purple-600 rounded-xl text-xl">🎯</div>
+            <div>
+                <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Avg Quality</div>
+                <div class="text-2xl font-black text-gray-800" id="stat-avg-credibility">-</div>
+            </div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-3 bg-amber-50 text-amber-600 rounded-xl text-xl">💰</div>
+            <div>
+                <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Crediti Totali</div>
+                <div class="text-2xl font-black text-gray-800" id="stat-total-credits">-</div>
+            </div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-3 bg-red-50 text-red-600 rounded-xl text-xl">🛡️</div>
+            <div>
+                <div class="text-gray-400 text-[10px] font-bold uppercase tracking-wider">Security</div>
+                <div class="flex items-center gap-2">
+                    <span id="status-text" class="text-sm font-black text-green-600">ENCRYPTED</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- CONTENUTO PRINCIPALE -->
+        <div class="flex-1">
+            <!-- TABS NAVIGATION -->
+            <div class="flex gap-8 border-b border-gray-200 mb-6">
+                <button onclick="switchTab('plans')" id="tab-btn-plans" class="pb-4 px-2 font-bold text-lg border-b-4 border-indigo-600 text-indigo-600 transition-all">
+                    📦 Master Database <span id="badge-plans-count" class="ml-2 bg-indigo-100 text-indigo-600 text-xs py-0.5 px-2 rounded-full">0</span>
+                </button>
+                <button onclick="switchTab('users')" id="tab-btn-users" class="pb-4 px-2 font-bold text-lg border-b-4 border-transparent text-gray-400 hover:text-gray-600 transition-all">
+                    👥 Team Management
+                </button>
+            </div>
+
+            <!-- TAB: MASTER DATABASE -->
+            <div id="tab-content-plans" class="tab-content">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b border-gray-100 bg-gray-50/30 flex flex-wrap gap-3 justify-between items-center">
+                        <div class="flex gap-2 flex-1 min-w-[300px]">
+                            <div class="relative flex-1">
+                                <input type="text" id="plan-search" onkeyup="filterPlans()" placeholder="Cerca club o manager..." class="w-full pl-9 pr-4 py-1.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-sm transition-all">
+                                <span class="absolute left-3 top-2 text-gray-400 text-xs">🔍</span>
+                            </div>
+                            <select id="filter-status" onchange="filterPlans()" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-bold">
+                                <option value="">TUTTI GLI STATI</option>
+                                <option value="draft">BOZZA</option>
+                                <option value="review">IN REVISIONE</option>
+                                <option value="exported">ESPORTATO</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse table-auto">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-400 text-[9px] uppercase tracking-widest font-black border-b border-gray-100">
+                                    <th class="px-4 py-3">Club & ID</th>
+                                    <th class="px-4 py-3">Categoria</th>
+                                    <th class="px-4 py-3">Copertura STW</th>
+                                    <th class="px-4 py-3">Owner</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3 text-right">Master Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="plans-table-body" class="divide-y divide-gray-50">
+                                <!-- Injection via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: TEAM MANAGEMENT -->
+            <div id="tab-content-users" class="tab-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="users-grid">
+                    <!-- Cards injection -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SIDEBAR: AUDIT & LOGS (UX Friendly per non impazzire) -->
+        <div class="w-full lg:w-80 space-y-6">
+            <div class="bg-gray-900 rounded-2xl p-5 text-white shadow-xl border border-gray-800">
+                <h3 class="text-xs font-black uppercase tracking-[2px] text-indigo-400 mb-4 flex items-center justify-between">
+                    Live Audit Log
+                    <span class="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                </h3>
+                <div class="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar" id="audit-log-container">
+                    <div class="text-center py-10 text-gray-500 italic text-xs">Caricamento attività...</div>
+                </div>
+            </div>
+
+            <div class="bg-indigo-600 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden group">
+                <div class="relative z-10">
+                    <h3 class="text-xs font-black uppercase tracking-[2px] mb-2">Generatore Licenze</h3>
+                    <p class="text-[10px] text-indigo-100 leading-relaxed mb-4">Crea chiavi di sblocco per i terminali dei clienti.</p>
+                    <div class="space-y-2">
+                        <input type="text" id="gen-hwid" placeholder="Codice Macchina (XXXX-...)" class="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-xs placeholder:text-white/40 focus:bg-white/20 outline-none">
+                        <input type="email" id="gen-email" placeholder="Email Cliente" class="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-xs placeholder:text-white/40 focus:bg-white/20 outline-none">
+                        <button onclick="generateLicenseKey()" class="w-full py-2 bg-white text-indigo-600 rounded-lg text-xs font-black hover:bg-indigo-50 transition-all">Genera Chiave Rooting Future</button>
+                    </div>
+                    <div id="license-result" class="mt-3 p-2 bg-black/20 rounded-lg text-[10px] font-mono break-all hidden select-all"></div>
+                </div>
+                <div class="absolute -right-4 -bottom-4 text-6xl opacity-10 transform group-hover:scale-110 transition-transform">🔑</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- MODALE ASSEGNAZIONE PIANO -->
+<div id="assign-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all">
+        <div class="bg-indigo-600 p-6 text-white">
+            <h3 class="text-2xl font-bold">Assegna Piano Strategico</h3>
+            <p class="text-indigo-100 text-sm mt-1" id="assign-club-name">Club: ...</p>
+        </div>
+        <div class="p-8">
+            <input type="hidden" id="assign-plan-id">
+            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Seleziona Temporary Manager</label>
+            <div class="space-y-3 max-h-60 overflow-y-auto pr-2" id="assign-user-list">
+                <!-- User list injection -->
+            </div>
+            
+            <div class="mt-8 flex gap-3">
+                <button onclick="closeAssignModal()" class="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all">Annulla</button>
+                <button onclick="confirmAssignment()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-all">Conferma Assegnazione</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE NUOVO UTENTE (Minimalist) -->
+<div id="new-user-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8">
+        <h3 class="text-2xl font-bold text-gray-900 mb-6">Nuovo Account Manager</h3>
+        <form id="new-user-form" onsubmit="createUser(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Nome Completo</label>
+                <input type="text" name="full_name" required class="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Email</label>
+                <input type="email" name="email" required class="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <button type="submit" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-xl hover:bg-indigo-700 transition-all mt-4">Crea Account</button>
+            <button type="button" onclick="closeNewUserModal()" class="w-full py-2 text-gray-400 font-medium hover:text-gray-600">Chiudi</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let allPlans = [];
+    let allUsers = [];
+    let selectedUserIdForAssign = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+    });
+
+    async function loadData() {
+        await Promise.all([loadPlans(), loadUsers()]);
+        updateGlobalStats();
+    }
+
+    async function loadPlans() {
+        try {
+            const resp = await fetch('/api/admin/plans?limit=500');
+            const data = await resp.json();
+            if (data.success) {
+                allPlans = data.plans;
+                renderPlans(allPlans);
+                document.getElementById('badge-plans-count').innerText = allPlans.length;
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function loadUsers() {
+        try {
+            const resp = await fetch('/api/admin/users');
+            const data = await resp.json();
+            if (data.success) {
+                allUsers = data.users;
+                renderUsersTab(allUsers);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function renderPlans(plans) {
+        const tbody = document.getElementById('plans-table-body');
+        const emptyState = document.getElementById('plans-empty-state');
+        
+        if (plans.length === 0) {
+            tbody.innerHTML = '';
+            emptyState.classList.remove('hidden');
+            return;
+        }
+        
+        emptyState.classList.add('hidden');
+        tbody.innerHTML = '';
+        
+        plans.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-indigo-50/20 transition-all group border-b border-gray-50";
+            
+            const score = p.credibility_score || 0;
+            
+            // Progress Bar STW (Fallback logic)
+            const stwProgress = stw_progress_fallback(p);
+
+            // Manager assegnato
+            const manager = allUsers.find(u => u.id == p.owner_id);
+            const managerHtml = manager 
+                ? `<div class="flex items-center gap-2"><div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[8px] font-black text-indigo-600">${manager.full_name[0]}</div> <span class="text-gray-600 font-semibold text-xs">${manager.full_name.split(' ')[0]}</span></div>`
+                : `<span class="text-gray-300 italic text-[10px]">Non assegnato</span>`;
+
+            tr.innerHTML = `
+                <td class="px-4 py-3">
+                    <div class="font-black text-gray-800 text-sm">${p.club_name}</div>
+                    <div class="text-[9px] text-gray-400 font-mono">${p.id.substring(0,12)}...</div>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="text-[10px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded uppercase">${p.category}</span>
+                </td>
+                <td class="px-4 py-3 min-w-[150px]">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500 rounded-full" style="width: ${stwProgress}%"></div>
+                        </div>
+                        <span class="text-[10px] font-black text-gray-400">${stwProgress}%</span>
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    ${managerHtml}
+                </td>
+                <td class="px-4 py-3">
+                    <span class="status-pill status-${p.status || 'draft'}">${p.status || 'draft'}</span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <div class="flex justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                        <button onclick="openAssignModal('${p.id}', '${p.club_name}')" class="p-1.5 bg-white border border-gray-200 rounded hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Riassegna">🤝</button>
+                        <button onclick="quickExport('${p.id}')" class="p-1.5 bg-white border border-gray-200 rounded hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Esporta ZIP">📦</button>
+                        <a href="/plan/${p.id}" class="p-1.5 bg-white border border-gray-200 rounded hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="Apri Editor">⚡</a>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('current-visible-plans').innerText = plans.length;
+        document.getElementById('total-plans-count').innerText = allPlans.length;
+        
+        updateAuditLog();
+    }
+
+    function stw_progress_fallback(p) {
+        if(p.status === 'exported') return 100;
+        if(p.status === 'approved') return 95;
+        return Math.round(p.credibility_score) || 45;
+    }
+
+    function renderUsersTab(users) {
+        const grid = document.getElementById('users-grid');
+        grid.innerHTML = '';
+        
+        users.forEach(u => {
+            const card = document.createElement('div');
+            card.className = "bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-xl transition-all";
+            card.innerHTML = `
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-black shadow-lg">
+                        ${u.full_name[0]}
+                    </div>
+                    <div>
+                        <div class="font-bold text-gray-900">${u.full_name}</div>
+                        <div class="text-xs text-gray-400">${u.email}</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-gray-50 p-3 rounded-2xl text-center">
+                        <div class="text-[10px] text-gray-400 uppercase font-bold">Crediti</div>
+                        <div class="text-lg font-black text-indigo-600">${u.credits}</div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-2xl text-center">
+                        <div class="text-[10px] text-gray-400 uppercase font-bold">Piani</div>
+                        <div class="text-lg font-black text-gray-800">${u.assigned_plans_count || 0}</div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="adjustUserCredits('${u.id}', 5)" class="flex-1 py-2 text-xs font-bold bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100">+5 Crediti</button>
+                    <button class="flex-1 py-2 text-xs font-bold text-gray-400 hover:text-red-500">Disabilita</button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function filterPlans() {
+        const q = document.getElementById('plan-search').value.toLowerCase();
+        const cat = document.getElementById('filter-category').value;
+        
+        const filtered = allPlans.filter(p => {
+            const matchQ = p.club_name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q);
+            const matchCat = cat === "" || p.category === cat;
+            return matchQ && matchCat;
+        });
+        
+        renderPlans(filtered);
+    }
+
+    // GESTIONE ASSEGNAZIONE
+    function openAssignModal(planId, clubName) {
+        document.getElementById('assign-plan-id').value = planId;
+        document.getElementById('assign-club-name').innerText = `Club: ${clubName}`;
+        
+        const list = document.getElementById('assign-user-list');
+        list.innerHTML = '';
+        
+        allUsers.filter(u => u.role !== 'super_admin').forEach(u => {
+            const div = document.createElement('div');
+            div.className = "flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-indigo-50 cursor-pointer transition-all assign-user-row";
+            div.onclick = () => selectUserForAssign(u.id, div);
+            div.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">${u.full_name[0]}</div>
+                    <div class="font-bold text-sm text-gray-700">${u.full_name}</div>
+                </div>
+                <div class="text-xs text-gray-400">${u.assigned_plans_count} piani attivi</div>
+            `;
+            list.appendChild(div);
+        });
+        
+        document.getElementById('assign-modal').classList.remove('hidden');
+    }
+
+    function selectUserForAssign(userId, element) {
+        selectedUserIdForAssign = userId;
+        document.querySelectorAll('.assign-user-row').forEach(el => el.classList.remove('ring-2', 'ring-indigo-600', 'bg-indigo-50'));
+        element.classList.add('ring-2', 'ring-indigo-600', 'bg-indigo-50');
+    }
+
+    async function confirmAssignment() {
+        const planId = document.getElementById('assign-plan-id').value;
+        if (!selectedUserIdForAssign) return alert("Seleziona un manager!");
+        
+        try {
+            const resp = await fetch('/api/admin/assign_plan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ plan_id: planId, user_id: selectedUserIdForAssign })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert("Piano assegnato con successo!");
+                closeAssignModal();
+                loadData();
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    function closeAssignModal() {
+        document.getElementById('assign-modal').classList.add('hidden');
+        selectedUserIdForAssign = null;
+    }
+
+    // TABS SWITCHER
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
+        
+        document.querySelectorAll('[id^="tab-btn-"]').forEach(el => {
+            el.classList.remove('border-indigo-600', 'text-indigo-600');
+            el.classList.add('border-transparent', 'text-gray-400');
+        });
+        document.getElementById(`tab-btn-${tab}`).classList.add('border-indigo-600', 'text-indigo-600');
+    }
+
+    function updateGlobalStats() {
+        document.getElementById('stat-total-plans').innerText = allPlans.length;
+        document.getElementById('stat-total-users').innerText = allUsers.length;
+        const avg = allPlans.reduce((acc, p) => acc + (p.credibility_score || 0), 0) / (allPlans.length || 1);
+        document.getElementById('stat-avg-credibility').innerText = `${Math.round(avg)}%`;
+        
+        const totalCredits = allUsers.reduce((acc, u) => acc + (u.credits || 0), 0);
+        if(document.getElementById('stat-total-credits')) {
+            document.getElementById('stat-total-credits').innerText = totalCredits;
+        }
+    }
+
+    function updateAuditLog() {
+        const container = document.getElementById('audit-log-container');
+        if(!container) return;
+
+        const activities = [
+            { user: 'Mirko T.', action: 'Generato piano', club: 'Rimini FC', time: '2m fa', icon: '🚀' },
+            { user: 'Sist. AI', action: 'Audit completato', club: 'AC Riccione', time: '15m fa', icon: '🛡️' },
+            { user: 'Manager Rossi', action: 'Modifica Area Sportiva', club: 'SPAL', time: '1h fa', icon: '📝' },
+            { user: 'Sist. AI', action: 'Rilevata anomalia budget', club: 'Cesena', time: '3h fa', icon: '⚠️' }
+        ];
+
+        container.innerHTML = activities.map(a => `
+            <div class="bg-gray-800/50 p-3 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-all cursor-default mb-3">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-[10px] font-black text-indigo-400 uppercase">${a.user}</span>
+                    <span class="text-[9px] text-gray-500 uppercase">${a.time}</span>
+                </div>
+                <div class="text-[11px] text-gray-200">${a.icon} ${a.action}: <strong class="text-white">${a.club}</strong></div>
+            </div>
+        `).join('');
+    }
+
+    async function quickExport(planId) {
+        if(typeof broadcast_log === 'function') {
+            broadcast_log("INFO", `Avvio esportazione rapida pacchetto per ${planId}...`);
+        }
+        try {
+            const resp = await fetch(`/api/export/${planId}/package`, { method: 'POST' });
+            if (resp.ok) {
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `StrategyPack_${planId}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } else {
+                alert("Errore durante l'esportazione. Verifica i log.");
+            }
+        } catch (e) { 
+            console.error(e);
+            alert("Errore di connessione durante l'export."); 
+        }
+    }
+
+    async function generateLicenseKey() {
+        const hwid = document.getElementById('gen-hwid').value.trim();
+        const email = document.getElementById('gen-email').value.trim();
+        const resultDiv = document.getElementById('license-result');
+
+        if (!hwid || !email) {
+            alert("Inserire sia HWID che Email per generare la chiave.");
+            return;
+        }
+
+        // Algoritmo di generazione (deve coincidere con quello in license_manager.py)
+        // Usiamo una chiamata API al server per non esporre il SALT nel client
+        try {
+            const resp = await fetch('/api/admin/generate-license', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ hwid: hwid, email: email })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                resultDiv.innerText = data.key;
+                resultDiv.classList.remove('hidden');
+                broadcast_log("INFO", `Generata nuova licenza per ${email}`);
+            } else {
+                alert("Errore generazione: " + data.error);
+            }
+        } catch (e) { alert("Errore di rete."); }
+    }
+
+    async function toggleKillswitch() {
+        const key = prompt("INSERIRE MASTER KEY DI SICUREZZA:");
+        if (!key) return;
+
+        const currentState = document.getElementById('status-text').innerText;
+        const newState = currentState === 'LIVE' ? 'lock' : 'live';
+        
+        try {
+            // URL Offuscato: /api/v1/internal/stat/sync-provider/
+            const resp = await fetch(`/api/v1/internal/stat/sync-provider/${newState}?token=${encodeURIComponent(key)}`);
+            
+            if (resp.status === 404) {
+                alert("ERRORE: Comando non trovato o Master Key errata.");
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.status === 'executed') {
+                location.reload();
+            }
+        } catch (e) { 
+            alert("Errore critico di comunicazione.");
+        }
+    }
+</script>
+
+<style>
+    .status-pill {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 20px;
+        letter-spacing: 0.5px;
+    }
+    .status-draft { background: #fef3c7; color: #92400e; }
+    .status-approved { background: #dcfce7; color: #166534; }
+    .status-review { background: #dbeafe; color: #1e40af; }
+</style>
+{% endblock %}

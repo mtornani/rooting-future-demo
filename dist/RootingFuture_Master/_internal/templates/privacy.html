@@ -1,0 +1,25 @@
+{% extends "dashboard_simple.html" %}
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 2rem auto; line-height: 1.8; color: #cbd5e1;">
+    <h1 style="color: #10b981; margin-bottom: 1.5rem;">Privacy Policy</h1>
+    <p>Ultimo aggiornamento: {{ now().strftime('%d/%m/%Y') }}</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">1. Raccolta dei Dati</h2>
+    <p>Rooting Future Strategy Engine raccoglie dati necessari alla generazione di piani strategici calcistici, inclusi nomi di club, dati finanziari e informazioni tecniche fornite dagli utenti.</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">2. Utilizzo dei Dati</h2>
+    <p>I dati vengono elaborati tramite modelli di intelligenza artificiale (Google Gemini) e memorizzati nel nostro database sicuro e nel sistema RAG (Retrieval-Augmented Generation) per migliorare la precisione delle analisi.</p>
+    
+    <h2 style="color: #fff; margin-top: 2rem;">3. Diritti dell'Interessato (GDPR)</h2>
+    <p>In conformità al GDPR, hai il diritto di:</p>
+    <ul>
+        <li>Accedere ai tuoi dati personali.</li>
+        <li>Richiedere la rettifica o la cancellazione ("Diritto all'oblio").</li>
+        <li>Esportare i tuoi dati in formato strutturato.</li>
+    </ul>
+    
+    <div style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #334155;">
+        <a href="/" class="btn btn-secondary">Torna alla Dashboard</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future - Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .logo { font-size: 1.25rem; font-weight: 700; color: #10b981; }
+        .nav a { color: #94a3b8; text-decoration: none; margin-left: 1.5rem; }
+        .nav a:hover { color: #fff; }
+
+        .main { display: flex; height: calc(100vh - 60px); }
+
+        /* Panels */
+        .left-panel { width: 50%; padding: 1.5rem; overflow-y: auto; border-right: 1px solid #334155; }
+        .right-panel { width: 50%; display: flex; flex-direction: column; background: #0a0f1a; }
+
+        /* Console */
+        .console-header { padding: 1rem; background: #1e293b; display: flex; justify-content: space-between; align-items: center; }
+        .console-title { color: #10b981; font-weight: 600; }
+        .console-body { flex: 1; overflow-y: auto; padding: 1rem; font-family: 'Consolas', monospace; font-size: 0.85rem; }
+        .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; }
+        .log-time { color: #64748b; margin-right: 0.5rem; }
+        .log-level { padding: 0.1rem 0.4rem; border-radius: 3px; margin-right: 0.5rem; font-size: 0.75rem; }
+        .log-level.INFO { background: #3b82f6; }
+        .log-level.WARNING { background: #f59e0b; }
+        .log-level.ERROR { background: #ef4444; }
+        .connection-status { padding: 0.5rem 1rem; background: #1e293b; font-size: 0.8rem; }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem; }
+        .connected .status-dot { background: #22c55e; }
+        .disconnected .status-dot { background: #ef4444; }
+
+        /* Cards & Forms */
+        .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+        .card h3 { color: #10b981; margin-bottom: 1rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #1e293b; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
+        .stat-label { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
+
+        .upload-zone { border: 2px dashed #334155; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover, .upload-zone.dragover { border-color: #10b981; background: #1e293b; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #334155; border-radius: 4px; margin-bottom: 0.5rem; }
+        .file-remove { background: #ef4444; border: none; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #94a3b8; }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #f1f5f9; }
+        
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background: #10b981; color: white; }
+        .btn-primary:disabled { background: #475569; cursor: not-allowed; opacity: 0.7; }
+        .btn-secondary { background: #334155; color: #f1f5f9; }
+
+        .alert { padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+        .alert-warning { background: #78350f; border-left: 4px solid #f59e0b; }
+        .plan-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #334155; border-radius: 6px; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">Rooting Future v5.4.9</div>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            {% if user.role != 'user' %}
+            <a href="{{ url_for('new_plan') }}">Nuovo</a>
+            <a href="{{ url_for('review_queue') }}">Review</a>
+            {% endif %}
+            {% if user.role == 'super_admin' %}
+            <a href="{{ url_for('admin_dashboard') }}" style="color: #818cf8; font-weight: 700;">🏛️ Admin</a>
+            {% endif %}
+            {% if user and user.is_authenticated %}
+                <span style="background: #10b981; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 0.8rem; margin-left: 1.5rem;">
+                    🪙 {{ user.credits }} CREDITI
+                </span>
+                <span style="color: #64748b; margin-left: 1rem; font-size: 0.9rem;">{{ user.email }}</span>
+                <a href="{{ url_for('auth.logout') }}" style="color: #ef4444;">Esci</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <div class="main">
+        {% if user.first_login %}
+        <!-- Onboarding Modal -->
+        <div id="onboardingModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;">
+            <div class="card" style="max-width:500px;text-align:center;padding:3rem;border:2px solid #10b981;">
+                <div style="font-size:3rem;margin-bottom:1rem;">🚀</div>
+                <h2 style="color:#fff;margin-bottom:1rem;">Benvenuto su Rooting Future!</h2>
+                <p style="color:#94a3b8;margin-bottom:2rem;">Siamo pronti a generare il tuo primo piano strategico. Hai ricevuto 10 crediti omaggio per iniziare.</p>
+                <button class="btn btn-primary" onclick="closeOnboarding()">Inizia Ora</button>
+            </div>
+        </div>
+        <script>
+            async function closeOnboarding() {
+                document.getElementById('onboardingModal').style.display = 'none';
+                await fetch('/api/user/complete-onboarding', { method: 'POST' });
+            }
+        </script>
+        {% endif %}
+
+        <div class="left-panel">
+            {% block content %}
+            <!-- Credits & Payments -->
+            <div class="card" style="border-left: 4px solid #10b981;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin:0;">Il Tuo Portafoglio</h3>
+                        <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 5px;">Hai <strong>{{ user.credits }}</strong> piani strategici rimanenti.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="buyCredits(1)">+ Compra Credito</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                {% if user.role == 'user' %}
+                <div class="stat-card" style="grid-column: span 2;"><div class="stat-value">{{ stats.total_plans }}</div><div class="stat-label">I Tuoi Piani Assegnati</div></div>
+                <div class="stat-card" style="grid-column: span 2;"><div class="stat-value">{{ user.credits }}</div><div class="stat-label">Crediti Disponibili</div></div>
+                {% else %}
+                <div class="stat-card"><div class="stat-value">{{ stats.total_plans }}</div><div class="stat-label">Piani Totali</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div><div class="stat-label">Bozze</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.sections_needing_review }}</div><div class="stat-label">Review</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.average_credibility }}%</div><div class="stat-label">Credibilità</div></div>
+                {% endif %}
+            </div>
+
+            {% if user.role != 'user' %}
+            <!-- Ingestion Card (Solo per Admin/Super Admin) -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin:0;">Ingestion Stakeholder</h3>
+                    <button type="button" id="toggleModeBtn" class="btn btn-secondary" style="font-size: 0.7rem; padding: 4px 8px;">
+                        Passa a Technical Mode
+                    </button>
+                </div>
+
+                {% if docx_available %}
+                <form id="uploadForm">
+                    <!-- Standard Mode -->
+                    <div id="standardUpload">
+                        <div class="upload-zone" id="dropZone">
+                            <div class="upload-icon">📁</div>
+                            <div>Trascina i file DOCX qui</div>
+                            <input type="file" id="fileInput" accept=".docx" multiple hidden>
+                        </div>
+                    </div>
+
+                    <!-- Technical Mode -->
+                    <div id="technicalUpload" style="display:none;">
+                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; padding: 15px; border-radius: 8px;">
+                            <div class="form-group">
+                                <label>Percorso Cartella Locale</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="localPathInput" placeholder="C:\Users\...\BOARD RICCIONE">
+                                    <button type="button" class="btn btn-secondary" id="browseBtn">Sfoglia</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="file-list" id="fileList" style="margin-top:10px;"></div>
+
+                    <!-- Step 1: Analyze -->
+                    <div id="initialActions" style="margin-top:1rem;">
+                        <div class="form-group">
+                            <label>Nome Club (opzionale)</label>
+                            <input type="text" id="clubName" placeholder="Es: AC Rimini 1912">
+                        </div>
+                        <div class="form-group">
+                            <label>🏆 Categoria / Campionato</label>
+                            <select id="category" style="border-left: 4px solid #10b981;">
+                                <option value="">-- Seleziona Categoria --</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                            <small style="color: #64748b;">Indica il livello del club per i benchmark finanziari.</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="mainAnalyzeBtn" style="width: 100%; height: 50px;">
+                            🚀 Avvia Analisi Scientifica
+                        </button>
+                    </div>
+
+                    <!-- Step 2: Results -->
+                    <div id="uploadResults" style="display:none; margin-top: 20px;">
+                        <div id="alignmentDashboardContainer"></div>
+                        <div class="form-group" style="margin-top:20px;">
+                            <label>Nome Club (Confermato)</label>
+                            <input type="text" id="clubNameConfirmed">
+                        </div>
+                        <button type="button" class="btn btn-primary" id="finalGenerateBtn" style="width: 100%;">
+                            Conferma e Genera Piano
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Recent -->
+            <div class="card">
+                <h3>Piani Recenti</h3>
+                {% for plan in stats.recent_plans[:5] %}
+                <div class="plan-item">
+                    <span>{{ plan.club_name }}</span>
+                    <a href="{{ url_for('plan_detail', plan_id=plan.plan_id) }}" class="btn btn-secondary">Apri</a>
+                </div>
+                {% endfor %}
+            </div>
+
+            <footer style="margin-top: 2rem; padding: 1rem; text-align: center; font-size: 0.8rem; color: #64748b; border-top: 1px solid #334155;">
+                &copy; 2026 Rooting Future Strategy Engine v5.4.9 | 
+                <a href="/legal/privacy" style="color: #64748b; text-decoration: underline;">Privacy</a> | 
+                <a href="/legal/terms" style="color: #64748b; text-decoration: underline;">Termini</a> |
+                <a href="/api/user/export-data" style="color: #64748b; text-decoration: underline;">I Miei Dati</a>
+            </footer>
+            {% endblock %}
+        </div>
+
+        <!-- Console -->
+        <div class="right-panel">
+            <div class="console-header"><div class="console-title">Live Console</div></div>
+            <div class="console-body" id="logConsole"></div>
+            <div class="connection-status connected" id="connectionStatus"><span class="status-dot"></span><span id="connectionText">Polling Attivo</span></div>
+        </div>
+    </div>
+
+    {% block scripts %}
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        const stripe = Stripe('{{ stripe_public_key }}');
+
+        async function buyCredits(qty) {
+            try {
+                const response = await fetch('/api/payments/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quantity: qty })
+                });
+                const session = await response.json();
+                if (session.sessionId) {
+                    await stripe.redirectToCheckout({ sessionId: session.sessionId });
+                } else {
+                    alert('Errore durante la creazione della sessione: ' + session.error);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Errore di sistema');
+            }
+        }
+
+        const logConsole = document.getElementById('logConsole');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const mainAnalyzeBtn = document.getElementById('mainAnalyzeBtn');
+        const finalGenerateBtn = document.getElementById('finalGenerateBtn');
+        const uploadResults = document.getElementById('uploadResults');
+        const initialActions = document.getElementById('initialActions');
+        const dashboardContainer = document.getElementById('alignmentDashboardContainer');
+        const clubNameConfirmed = document.getElementById('clubNameConfirmed');
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const standardUpload = document.getElementById('standardUpload');
+        const technicalUpload = document.getElementById('technicalUpload');
+        const localPathInput = document.getElementById('localPathInput');
+        const browseBtn = document.getElementById('browseBtn');
+
+        let selectedFiles = [];
+        let lastExtractedData = null;
+        let isTechnicalMode = false;
+
+        if (toggleModeBtn) {
+            toggleModeBtn.onclick = () => {
+                isTechnicalMode = !isTechnicalMode;
+                standardUpload.style.display = isTechnicalMode ? 'none' : 'block';
+                technicalUpload.style.display = isTechnicalMode ? 'block' : 'none';
+                toggleModeBtn.textContent = isTechnicalMode ? 'Standard Mode' : 'Technical Mode';
+                renderFiles();
+            };
+        }
+
+        if (browseBtn) {
+            browseBtn.onclick = async () => {
+                const resp = await fetch('/api/browse-folder', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) { localPathInput.value = data.path; renderFiles(); }
+            };
+        }
+
+        function addLog(level, message) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString()}</span><span class="log-level ${level}">${level}</span><span>${message}</span>`;
+            logConsole.appendChild(div);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        if (dropZone) {
+            dropZone.onclick = () => fileInput.click();
+            dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+            dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+            dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); };
+            fileInput.onchange = (e) => handleFiles(e.target.files);
+        }
+
+        function handleFiles(files) {
+            for (const f of files) { if (f.name.endsWith('.docx')) selectedFiles.push(f); }
+            renderFiles();
+        }
+
+        function renderFiles() {
+            if (fileList) {
+                fileList.innerHTML = selectedFiles.map((f, i) => `<div class="file-item"><span>${f.name}</span><button type="button" onclick="selectedFiles.splice(${i},1);renderFiles();">X</button></div>`).join('');
+            }
+            if (mainAnalyzeBtn) {
+                mainAnalyzeBtn.disabled = isTechnicalMode ? (localPathInput.value === '') : (selectedFiles.length === 0);
+            }
+        }
+
+        if (mainAnalyzeBtn) {
+            mainAnalyzeBtn.onclick = async () => {
+                mainAnalyzeBtn.disabled = true;
+                mainAnalyzeBtn.textContent = 'Analisi...';
+                try {
+                    let data;
+                    if (isTechnicalMode) {
+                        const resp = await fetch('/api/ingest-local', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: localPathInput.value, club_name: document.getElementById('clubName').value })
+                        });
+                        data = await resp.json();
+                    } else {
+                        const formData = new FormData();
+                        selectedFiles.forEach(f => formData.append('files[]', f));
+                        formData.append('club_name', document.getElementById('clubName').value);
+                        const resp = await fetch('/api/upload-docx', { method: 'POST', body: formData });
+                        data = await resp.json();
+                    }
+                    
+                    if (data.success) {
+                        dashboardContainer.innerHTML = data.alignment_dashboard;
+                        uploadResults.style.display = 'block';
+                        initialActions.style.display = 'none';
+                        standardUpload.style.display = 'none';
+                        technicalUpload.style.display = 'none';
+                        clubNameConfirmed.value = data.extracted_data.club_name || document.getElementById('clubName').value;
+                        lastExtractedData = data.extracted_data;
+                    } else { alert(data.error); }
+                } catch (e) { addLog('ERROR', e.message); }
+                finally { mainAnalyzeBtn.disabled = false; mainAnalyzeBtn.textContent = '🚀 Avvia Analisi Scientifica'; }
+            };
+        }
+
+        if (finalGenerateBtn) {
+            finalGenerateBtn.onclick = async () => {
+                finalGenerateBtn.disabled = true;
+                finalGenerateBtn.textContent = 'Generazione...';
+                const resp = await fetch('/api/generate-from-webhook', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        club_name: clubNameConfirmed.value,
+                        category: document.getElementById('category').value,
+                        project_id: lastExtractedData.project_id,
+                        stakeholders_inputs: lastExtractedData.stakeholders,
+                        request_mode: 'production'
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) window.location.href = '/view/' + data.plan_id;
+                else { alert(data.error); finalGenerateBtn.disabled = false; }
+            };
+        }
+
+        // Polling logs every 2 seconds
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/api/stream/logs');
+                const data = await resp.json();
+                if (data.success && data.logs) {
+                    logConsole.innerHTML = '';
+                    data.logs.forEach(l => addLog(l.level, l.message));
+                }
+            } catch(e) { console.error('Log poll error', e); }
+        }, 2000);
+    </script>
+    {% endblock %}

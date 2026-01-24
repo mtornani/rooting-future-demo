@@ -18,6 +18,7 @@ from enum import Enum
 from pathlib import Path
 import logging
 import hashlib
+import threading
 
 from config import OUTPUT_DIR, KNOWLEDGE_DIR
 from knowledge_store import SQLiteKnowledgeStore, PlanRecord
@@ -103,9 +104,12 @@ class PlanReview:
     assigned_to: str = ""
     approval_notes: str = ""
     export_count: int = 0
+    owner_id: Optional[int] = None
     # Branding del club (opzionale - se None usa auto-detect da club_identity)
     primary_color: str = None
     secondary_color: str = None
+    # Variabili che tracciano se il piano è sincronizzato con i dati club attuali
+    sync_variables: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
         d = asdict(self)
@@ -126,6 +130,8 @@ class PostProductionEditor:
 
     def __init__(self):
         self.store = SQLiteKnowledgeStore()
+        # Lock per accesso al file JSON delle review
+        self.review_lock = threading.Lock()
         # Usa File Search per RAG
         self.file_search_manager = FileSearchManager()
         self.orchestrator = MultiAgentOrchestrator(
@@ -134,24 +140,60 @@ class PostProductionEditor:
         self.reviews: Dict[str, PlanReview] = {}
         self._load_reviews()
 
+    def mark_sections_for_resync(self, plan_id: str, changed_vars: List[str]):
+        """
+        Segna le sezioni che dipendono da variabili cambiate come 'NEEDS_REVIEW'.
+        """
+        review = self.reviews.get(plan_id)
+        if not review: return
+
+        # Mapping dipendenze variabili -> sezioni
+        dependencies = {
+            'category': ['technical_sporting', 'youth_development', 'financial', 'executive_summary'],
+            'budget': ['financial', 'marketing_commercial', 'infrastructure', 'executive_summary'],
+            'city': ['infrastructure', 'marketing_commercial', 'social_sustainability'],
+            'vision': ['executive_summary', 'governance']
+        }
+
+        affected_sections = set()
+        for var in changed_vars:
+            if var in dependencies:
+                affected_sections.update(dependencies[var])
+
+        var_str = ", ".join(changed_vars)
+        for sec_id in affected_sections:
+            if sec_id in review.sections:
+                review.sections[sec_id].status = SectionStatus.NEEDS_REVIEW
+                review.sections[sec_id].notes += f"\n[{datetime.now().strftime('%Y-%m-%d')}] SISTEMA: Variabili '{var_str}' cambiate. Verificare coerenza contenuto."
+        
+        review.last_modified = datetime.now().isoformat()
+        self._save_reviews()
+
     def _load_reviews(self):
-        """Carica review salvate"""
+        """Carica review salvate con lock di sicurezza"""
         reviews_file = KNOWLEDGE_DIR / "plan_reviews.json"
         if reviews_file.exists():
-            try:
-                with open(reviews_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for plan_id, review_data in data.items():
-                        self.reviews[plan_id] = self._dict_to_review(review_data)
-            except Exception as e:
-                logger.warning(f"Error loading reviews: {e}")
+            with self.review_lock:
+                try:
+                    with open(reviews_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        for plan_id, review_data in data.items():
+                            self.reviews[plan_id] = self._dict_to_review(review_data)
+                except Exception as e:
+                    logger.warning(f"Error loading reviews: {e}")
 
     def _save_reviews(self):
-        """Salva review su disco"""
+        """Salva review su disco con lock di sicurezza"""
         reviews_file = KNOWLEDGE_DIR / "plan_reviews.json"
-        data = {k: v.to_dict() for k, v in self.reviews.items()}
-        with open(reviews_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with self.review_lock:
+            # Rileggi file per evitare di perdere review salvate da altri processi (se presenti)
+            # ma qui siamo nello stesso processo Flask, quindi review_lock basta per i thread.
+            data = {k: v.to_dict() for k, v in self.reviews.items()}
+            try:
+                with open(reviews_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.error(f"Error saving reviews: {e}")
 
     def _dict_to_review(self, data: Dict) -> PlanReview:
         """Converte dict in PlanReview"""
@@ -179,6 +221,9 @@ class PostProductionEditor:
             created_at=data.get('created_at', ''),
             last_modified=data.get('last_modified', ''),
             assigned_to=data.get('assigned_to', ''),
+            owner_id=data.get('owner_id'),
+            primary_color=data.get('primary_color'),
+            secondary_color=data.get('secondary_color'),
         )
 
     # =========================================================================
@@ -190,7 +235,8 @@ class PostProductionEditor:
         plan_data: Dict,
         club_name: str,
         sources: List[Dict] = None,
-        metadata: Dict = None
+        metadata: Dict = None,
+        owner_id: int = None
     ) -> PlanReview:
         """
         Crea review da piano generato.
@@ -200,6 +246,7 @@ class PostProductionEditor:
             club_name: Nome club
             sources: Fonti raccolte
             metadata: Metadati generazione
+            owner_id: ID utente proprietario
 
         Returns:
             PlanReview pronto per editing
@@ -209,6 +256,7 @@ class PostProductionEditor:
 
         sections = {}
         section_titles = {
+            # Legacy keys (keep for backward compatibility)
             'executive_summary': 'Executive Summary',
             'technical_sporting': 'Area Tecnico-Sportiva',
             'youth_development': 'Sviluppo Settore Giovanile',
@@ -217,6 +265,13 @@ class PostProductionEditor:
             'social_sustainability': 'Sostenibilità Sociale',
             'governance': 'Governance e Organizzazione',
             'financial': 'Piano Economico-Finanziario',
+            'financial_plan': 'Piano Economico-Finanziario', # Alias
+
+            # NEW STW KEYS (Orchestrator output)
+            'stw_sportivi': 'Area Sportiva (STW)',
+            'stw_strutturali': 'Infrastrutture & HR (STW)',
+            'stw_marketing': 'Marketing & Commerciale (STW)',
+            'stw_sociali': 'Sostenibilità Sociale (STW)',
         }
 
         # Analizza ogni sezione
@@ -272,6 +327,7 @@ class PostProductionEditor:
             sections=sections,
             created_at=now,
             last_modified=now,
+            owner_id=owner_id,
             primary_color=primary_color,
             secondary_color=secondary_color,
         )

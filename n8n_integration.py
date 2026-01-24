@@ -639,10 +639,10 @@ def register_n8n_routes(app):
         })
 
 
-    @app.route('/api/admin/clubs', methods=['GET'])
+    @app.route('/api/n8n/admin/clubs', methods=['GET'])
     @require_auth
     @require_role('super_admin')
-    def admin_list_clubs():
+    def n8n_admin_list_clubs():
         """Lista tutti i club (solo super admin)."""
         return jsonify({
             'success': True,
@@ -650,10 +650,10 @@ def register_n8n_routes(app):
         })
 
 
-    @app.route('/api/admin/users', methods=['GET'])
+    @app.route('/api/n8n/admin/users', methods=['GET'])
     @require_auth
     @require_role('super_admin')
-    def admin_list_users():
+    def n8n_admin_list_users():
         """Lista tutti gli utenti (solo super admin)."""
         users = [{k: v for k, v in u.items() if k != 'password_hash'} for u in _users_store.values()]
         return jsonify({

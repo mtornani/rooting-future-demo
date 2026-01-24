@@ -1,0 +1,362 @@
+# PROMPT PER GEMINI CLI - OPT-002: Real Async Execution
+
+Ciao Gemini! Lavoro su Rooting Future, sistema AI per piani strategici calcistici.
+
+## CONTEXT
+
+Il sistema usa 6 agenti AI specializzati che generano diverse sezioni del piano:
+1. STW Sportivi
+2. STW Strutturali
+3. STW Marketing
+4. STW Sociali
+5. Financial
+6. Coordinator
+
+**Problema Attuale**: Gli agenti lavorano UNO ALLA VOLTA (sequenziale) anche se il codice usa `asyncio.gather()`.
+**Perché**: Le chiamate a Gemini API sono sincrone (bloccanti), quindi `asyncio` non aiuta.
+
+**Risultato**: Generazione piano = 60 secondi (6 agenti × 10s ciascuno)
+
+**Soluzione**: Usare ThreadPoolExecutor per vero parallelismo.
+
+**Risultato Atteso**: Generazione piano = 15-20 secondi (tutti i 6 agenti lavorano insieme)
+
+## TECH STACK
+
+- Python 3.11+
+- Gemini 2.0 Flash API (google-generativeai 0.8.5)
+- File da modificare: `agents.py`, `structured_agent.py`
+
+## TASK: OPT-002 - Real Async Execution with ThreadPoolExecutor
+
+### STEP 1: Crea AsyncGeminiClient Wrapper
+
+Nel file `agents.py`, aggiungi questa nuova classe PRIMA della classe `StrategicAgent`:
+
+```python
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+
+class AsyncGeminiClient:
+    """
+    Wrapper per esecuzione parallela reale di chiamate Gemini.
+    Usa ThreadPoolExecutor per vero parallelismo (non fake asyncio).
+    """
+
+    def __init__(self, api_key: str, max_workers: int = 6):
+        """
+        Args:
+            api_key: Gemini API key
+            max_workers: Numero massimo di workers paralleli (default: 6 per 6 agenti)
+        """
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+
+        # Rate limiting (60 requests/min = 1 request/second)
+        self._last_request_time = 0
+        self._rate_lock = Lock()
+        self._min_interval = 1.0  # secondi tra richieste
+
+    def _rate_limit(self):
+        """Implementa rate limiting semplice"""
+        with self._rate_lock:
+            now = time.time()
+            elapsed = now - self._last_request_time
+
+            if elapsed < self._min_interval:
+                wait_time = self._min_interval - elapsed
+                time.sleep(wait_time)
+
+            self._last_request_time = time.time()
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        """
+        Genera contenuto con rate limiting.
+
+        Args:
+            prompt: Prompt per Gemini
+            **kwargs: Parametri aggiuntivi per generate_content
+
+        Returns:
+            Testo generato
+        """
+        self._rate_limit()
+
+        # Retry logic con exponential backoff
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=kwargs.get('temperature', MODEL_CONFIG.temperature),
+                        max_output_tokens=kwargs.get('max_tokens', MODEL_CONFIG.max_tokens),
+                    )
+                )
+                return response.text
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    logger.warning(f"Retry {attempt + 1}/{max_retries} after {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"All retries failed: {e}")
+                    raise
+
+    def generate_parallel(self, prompts: List[Tuple[str, Dict]]) -> Dict[str, str]:
+        """
+        Genera contenuti in parallelo per più agenti.
+
+        Args:
+            prompts: Lista di tuple (agent_id, prompt_data)
+
+        Returns:
+            Dict con {agent_id: generated_text}
+        """
+        futures = {}
+
+        # Submit tutti i task al pool
+        for agent_id, prompt_data in prompts:
+            future = self.executor.submit(
+                self.generate,
+                prompt_data['prompt'],
+                **prompt_data.get('kwargs', {})
+            )
+            futures[future] = agent_id
+
+        # Raccogli risultati man mano che finiscono
+        results = {}
+        for future in as_completed(futures):
+            agent_id = futures[future]
+            try:
+                results[agent_id] = future.result()
+                logger.info(f"✓ Agent {agent_id} completed")
+            except Exception as e:
+                logger.error(f"✗ Agent {agent_id} failed: {e}")
+                results[agent_id] = None
+
+        return results
+
+    def shutdown(self):
+        """Chiudi il pool di thread"""
+        self.executor.shutdown(wait=True)
+```
+
+### STEP 2: Modifica MultiAgentOrchestrator
+
+Nel file `agents.py`, trova la classe `MultiAgentOrchestrator` e modifica il metodo `_generate_parallel`:
+
+**RIMUOVI** (cerca e cancella questo metodo):
+```python
+def _generate_parallel(self, club_data: Dict, research_data: Dict = None):
+    # Tutto il contenuto attuale con asyncio.gather
+    ...
+```
+
+**SOSTITUISCI CON**:
+```python
+def _generate_parallel(self, club_data: Dict, research_data: Dict = None) -> Dict[str, Any]:
+    """
+    Esegue agenti in VERO parallelo usando ThreadPoolExecutor.
+    """
+    import time
+
+    agent_timings = {}
+    parallel_start = time.time()
+
+    # Inizializza AsyncGeminiClient
+    api_key = GEMINI_API_KEY or os.environ.get("GOOGLE_API_KEY")
+    async_client = AsyncGeminiClient(api_key=api_key, max_workers=6)
+
+    try:
+        # Prepara prompts per tutti gli agenti (escluso coordinator)
+        agent_prompts = []
+        for role, agent in self.agents.items():
+            if role != AgentRole.COORDINATOR:
+                # Fetch RAG context
+                rag_context = []
+                if self.knowledge_store:
+                    try:
+                        category = club_data.get('category', 'Eccellenza')
+                        section_keyword = agent.spec.name.split()[0]
+                        rag_context = self.knowledge_store.get_context_for_generation(
+                            club_category=category,
+                            section_type=section_keyword
+                        )
+                    except Exception as e:
+                        logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
+
+                # Build prompt
+                prompt = agent._build_simple_prompt(club_data, research_data, rag_context=rag_context)
+
+                agent_prompts.append((
+                    role.value,
+                    {
+                        'prompt': prompt,
+                        'kwargs': {
+                            'temperature': MODEL_CONFIG.temperature,
+                            'max_tokens': MODEL_CONFIG.max_tokens
+                        }
+                    }
+                ))
+
+        # Esegui in parallelo (VERO parallelismo con ThreadPoolExecutor)
+        logger.info(f"Starting parallel execution of {len(agent_prompts)} agents...")
+        raw_results = async_client.generate_parallel(agent_prompts)
+
+        parallel_time = time.time() - parallel_start
+        logger.info(f"Parallel execution completed in {parallel_time:.2f}s")
+
+        # Post-process results
+        plan = {}
+        all_sources = []
+        all_unverified = []
+
+        for role_value, raw_content in raw_results.items():
+            if raw_content is None:
+                plan[role_value] = "Error generating content"
+                continue
+
+            # Post-process
+            role = AgentRole(role_value)
+            agent = self.agents[role]
+
+            cleaned = agent._post_process(raw_content)
+            content, sources, unverified = agent.sourcer.process_content(
+                cleaned,
+                context=club_data.get('club_name', '')
+            )
+
+            plan[role_value] = content
+            all_sources.extend(sources)
+            all_unverified.extend(unverified)
+
+            agent_timings[agent.spec.name] = f"part of {parallel_time:.2f}s parallel batch"
+
+        # Coordinator (sequenziale dopo gli altri)
+        coord_start = time.time()
+        coordinator = self.agents[AgentRole.COORDINATOR]
+        coord_prompt = coordinator._build_simple_prompt(club_data, research_data, context=plan)
+        coord_output = async_client.generate(coord_prompt)
+        coord_time = time.time() - coord_start
+
+        cleaned_coord = coordinator._post_process(coord_output)
+        content_coord, sources_coord, _ = coordinator.sourcer.process_content(
+            cleaned_coord,
+            context=club_data.get('club_name', '')
+        )
+
+        plan['executive_summary'] = content_coord
+        all_sources.extend(sources_coord)
+        agent_timings['Coordinator'] = round(coord_time, 2)
+
+        logger.info(f"Coordinator completed in {coord_time:.2f}s")
+
+    finally:
+        # Cleanup
+        async_client.shutdown()
+
+    # Financial estimates (unchanged)
+    category = club_data.get('category', 'Eccellenza')
+    financial_estimates = estimate_missing_financials(club_data, category)
+
+    estimates_dict = {}
+    estimated_fields = {}
+    for key, est in financial_estimates.items():
+        estimates_dict[key] = {
+            'value': est.value,
+            'tier': est.tier.value,
+            'confidence': est.confidence,
+            'source': est.source
+        }
+        estimated_fields[key] = est.tier.value
+
+    return {
+        'plan': plan,
+        'sources': self._deduplicate_sources(all_sources),
+        'unverified_claims': list(set(all_unverified)),
+        'metadata': {
+            'generated_at': datetime.now().isoformat(),
+            'club_name': club_data.get('club_name', ''),
+            'category': category,
+            'agents_count': len(self.agents),
+            'parallel_execution': True,
+            'financial_estimates': estimates_dict,
+            'estimated_fields': estimated_fields,
+            'primary_color': club_data.get('primary_color', '#1a365d'),
+            'secondary_color': club_data.get('secondary_color', '#ffffff'),
+            'agent_timings': agent_timings,
+        }
+    }
+```
+
+### STEP 3: (Opzionale) Applica lo stesso a structured_agent.py
+
+Se vuoi applicare lo stesso pattern a `structured_agent.py`, usa lo stesso `AsyncGeminiClient`.
+
+## REGOLE IMPORTANTI
+
+1. ✅ Aggiungi imports necessari in cima al file:
+   ```python
+   from concurrent.futures import ThreadPoolExecutor, as_completed
+   from threading import Lock
+   ```
+
+2. ✅ Mantieni tutto il codice esistente (non cancellare altro)
+
+3. ✅ Testa compilazione: `python -m py_compile agents.py`
+
+4. ✅ Testa app: `python app.py` (deve partire)
+
+5. ✅ Misura performance: Genera un piano e verifica che sia <20s
+
+## VERIFICATION STEPS
+
+### Test 1: Syntax check
+```bash
+python -m py_compile agents.py
+```
+
+### Test 2: App starts
+```bash
+python app.py
+# Deve partire senza errori
+```
+
+### Test 3: Performance test
+```bash
+# Genera un piano di test
+# Misura tempo: dovrebbe essere 15-20s (non più 60s)
+```
+
+### Test 4: Check logs
+Nei log dovresti vedere:
+```
+Starting parallel execution of 5 agents...
+✓ Agent stw_sportivi completed
+✓ Agent stw_strutturali completed
+✓ Agent stw_marketing completed
+✓ Agent stw_sociali completed
+✓ Agent financial completed
+Parallel execution completed in 12.34s
+```
+
+## OUTPUT ATTESO
+
+Mostrami:
+1. La nuova classe `AsyncGeminiClient` completa
+2. Il metodo `_generate_parallel` modificato
+3. Gli imports aggiunti
+
+Poi implementerò e testerò.
+
+## NOTE
+
+- Questo è un refactor MEDIO-GRANDE (tocca logica critica)
+- Testa BENE prima di committare
+- Se qualcosa non è chiaro, chiedi prima di procedere
+
+Inizia analizzando il file `agents.py` e proponendomi le modifiche dettagliate.

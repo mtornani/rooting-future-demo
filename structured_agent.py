@@ -16,9 +16,21 @@ from enum import Enum
 try:
     import google.generativeai as genai
     GENAI_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logging.error(f"GENAI IMPORT ERROR (structured): {e}")
     GENAI_AVAILABLE = False
     genai = None
+except Exception as e:
+    logging.error(f"GENAI UNEXPECTED ERROR (structured): {e}")
+    GENAI_AVAILABLE = False
+    genai = None
+
+from config import (
+    GEMINI_API_KEY,
+    MODEL_CONFIG,
+    KNOWLEDGE_DIR,
+    OUTPUT_DIR,
+)
 
 from data_models import (
     DataPoint, StructuredSection, StructuredPlan,
@@ -114,17 +126,22 @@ class StructuredAgent:
         if GENAI_AVAILABLE and api_key:
             try:
                 genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                # Inizializza il modello senza tool di ricerca Google
+                # (l'API non supporta più google_search come tool)
+                self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+                self.available = True
             except Exception as e:
-                logger.error(f"Error configuring Gemini: {e}")
-                self.model = None
+                logger.error(f"Errore inizializzazione StructuredAgent: {e}")
+                self.available = False
         else:
+            self.available = False
             logger.warning("No Gemini API key or genai not available - agent will use mock data")
 
     def generate(
         self,
         club_data: Dict,
-        research_data: Dict = None
+        research_data: Dict = None,
+        rag_context: List[Any] = None
     ) -> StructuredSection:
         """
         Genera sezione strutturata.
@@ -142,7 +159,8 @@ class StructuredAgent:
         summary, findings, recommendations = self._generate_analysis(
             club_data,
             research_data,
-            data_points
+            data_points,
+            rag_context=rag_context
         )
 
         # Costruisci sezione
@@ -306,7 +324,8 @@ class StructuredAgent:
         self,
         club_data: Dict,
         research_data: Dict,
-        data_points: List[DataPoint]
+        data_points: List[DataPoint],
+        rag_context: List[Any] = None
     ) -> Tuple[str, List[str], List[Dict]]:
         """
         Genera analisi testuale con Gemini.
@@ -319,7 +338,24 @@ class StructuredAgent:
         category = club_data.get('category', 'Serie C')
         club_name = club_data.get('club_name', 'Club')
 
+        # === RAG CONTEXT (BEST PRACTICES) ===
+        rag_info = ""
+        if rag_context:
+            rag_info = "\n--- \n## 🧠 MEMORIA STORICA E BEST PRACTICE (RAG)\n"
+            rag_info += "Il sistema ha recuperato i seguenti esempi da piani di successo simili per questa sezione. "
+            rag_info += "Usa questi contenuti come ispirazione per tono, struttura e qualità, ma ADATTA rigorosamente al club attuale.\n\n"
+            
+            for idx, doc in enumerate(rag_context[:2]): # Max 2 docs
+                content = doc.content if hasattr(doc, 'content') else doc.get('content', '')
+                club = doc.club_name if hasattr(doc, 'club_name') else doc.get('club_name', 'Altro Club')
+                preview = content[:1500] + "..." if len(content) > 1500 else content
+                rag_info += f"**ESEMPIO {idx+1} (da {club}):**\n{preview}\n\n"
+            
+            rag_info += "---\n"
+
         prompt = f'''Sei un consulente strategico senior specializzato in societa calcistiche.
+
+{rag_info}
 
 Analizza i seguenti dati per la sezione "{self.template.get('title')}" del piano strategico di {club_name} ({category}).
 
@@ -376,7 +412,29 @@ REGOLE CRITICHE:
                     result.get('recommendations', [])
                 )
         except Exception as e:
-            logger.error(f"Error generating analysis: {e}")
+            # Fallback: Se la generazione con strumenti fallisce, riprova senza
+            logger.warning(f"Errore generazione analisi con tool ({type(e).__name__}: {e}). Riprova senza tool...")
+            try:
+                # Riprova SENZA tools
+                fallback_model = genai.GenerativeModel(MODEL_CONFIG.name) # No tools
+                response = fallback_model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(temperature=0.3)
+                )
+                text = response.text.strip()
+
+                # Estrai JSON dalla risposta
+                json_match = re.search(r'\{[\s\S]*\}', text)
+                if json_match:
+                    result = json.loads(json_match.group())
+                    return (
+                        result.get('summary', ''),
+                        result.get('key_findings', []),
+                        result.get('recommendations', [])
+                    )
+            except Exception as fallback_e:
+                logger.error(f"Fallback generation failed: {fallback_e}")
+                return self._generate_mock_analysis(data_points)
 
         return self._generate_mock_analysis(data_points)
 
@@ -461,9 +519,10 @@ class StructuredOrchestrator:
     Coordina tutti gli agenti e assembla il piano finale.
     """
 
-    def __init__(self, api_key: str = None, file_search_store_name: str = None):
+    def __init__(self, api_key: str = None, file_search_store_name: str = None, knowledge_store: Any = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.file_search_store_name = file_search_store_name
+        self.knowledge_store = knowledge_store
         self.agents = {}
         self._init_agents()
 
@@ -494,7 +553,20 @@ class StructuredOrchestrator:
         # Genera ogni sezione
         for section_key, agent in self.agents.items():
             try:
-                section = agent.generate(club_data, research_data)
+                # --- RAG CONTEXT FETCHING ---
+                rag_context = []
+                if self.knowledge_store:
+                    try:
+                        category = club_data.get('category', 'Serie C')
+                        # Usa la chiave sezione come filtro
+                        rag_context = self.knowledge_store.get_context_for_generation(
+                            club_category=category,
+                            section_type=section_key
+                        )
+                    except Exception as e:
+                        logger.warning(f"RAG fetch failed for structured section {section_key}: {e}")
+                
+                section = agent.generate(club_data, research_data, rag_context=rag_context)
                 plan.add_section(section)
                 logger.info(f"Generated section: {section_key}")
             except Exception as e:

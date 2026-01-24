@@ -38,3 +38,6 @@
 [2026-01-23 22:35] COMPLETED OPT-003: Export Layer Unification - Centralized core export logic in export_core.py. Refactored 6 exporters to use inheritance. Reduced code duplication by ~500 LOC.
 [2026-01-23 22:45] COMPLETED FIX-001: Knowledge Store Bug Fixes - Fixed sqlite3.Row attribute error in RAG fetch and defined missing 'full_content' variable in upload logic.
 [2026-01-23 22:50] COMPLETED FIX-002: PDF Export Optimization - Optimized CSS in export_pdf_server.py to prevent WeasyPrint infinite loops (reduced cover height, stabilized column breaks).
+[2026-01-23 23:05] COMPLETED FIX-003: Success Page Restoration - Added missing /api/plan-export-status endpoint and fixed file path persistence in api_generate_from_docx to enable download buttons on success page.
+[2026-01-24] Fixed duplicate /api/plan-export-status route in app.py; consolidated to a single endpoint. Server started and responding. Next: run end-to-end demo via scripts/demo_end_to_end.py and scripts/run_demo.bat to showcase full generation + exports for video.
+[2026-01-24] Added end-to-end demo scaffolding: scripts/demo_end_to_end.py and scripts/run_demo.bat. This enables a repeatable video-demo run (plan generation + exports) without manual steps.

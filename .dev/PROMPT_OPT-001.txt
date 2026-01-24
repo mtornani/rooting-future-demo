@@ -1,0 +1,121 @@
+# PROMPT PER GEMINI CLI - OPT-001: SQLite Indexing
+
+Ciao Gemini! Lavoro su Rooting Future, un sistema AI per generare piani strategici per società calcistiche.
+
+## CONTEXT
+
+Il sistema usa SQLite come database per memorizzare piani strategici.
+Attualmente le query sono lente perché non ci sono indici.
+
+**Problema**: Quando cerchiamo piani per categoria o data, il database scansiona tutti i 200+ record uno per uno (scan lineare = lento).
+
+**Soluzione**: Aggiungere indici per velocizzare le query del 70%.
+
+## TECH STACK
+
+- Python 3.11+
+- SQLite 3 (database in knowledge_base/rooting_future.db)
+- File da modificare: knowledge_store.py
+
+## TASK: OPT-001 - SQLite Indexing & WAL Mode
+
+### Modifiche Richieste
+
+Nel file `knowledge_store.py`, dentro il metodo `_init_db()` (cerca questa funzione):
+
+1. **Aggiungi index su documents table**:
+   ```sql
+   CREATE INDEX IF NOT EXISTS idx_documents_category_section
+   ON documents(category, section_type)
+   ```
+
+2. **Aggiungi index su plans table**:
+   ```sql
+   CREATE INDEX IF NOT EXISTS idx_plans_created
+   ON plans(created_at DESC)
+   ```
+
+3. **Abilita WAL mode** (Write-Ahead Logging per concurrent access):
+   ```sql
+   PRAGMA journal_mode=WAL
+   ```
+
+4. **Ottimizza performance**:
+   ```sql
+   PRAGMA synchronous=NORMAL
+   ```
+
+### Dove Inserire il Codice
+
+Cerca nel file `knowledge_store.py` il metodo `_init_db()`.
+Dopo le istruzioni `CREATE TABLE`, aggiungi gli indici.
+
+**Esempio**:
+```python
+def _init_db(self):
+    cursor = self.conn.cursor()
+
+    # Existing CREATE TABLE statements...
+    cursor.execute('''CREATE TABLE IF NOT EXISTS documents ...''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS plans ...''')
+
+    # ⬇️ AGGIUNGI QUI GLI INDICI (dopo le CREATE TABLE)
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_documents_category_section
+                      ON documents(category, section_type)''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_plans_created
+                      ON plans(created_at DESC)''')
+
+    # ⬇️ AGGIUNGI QUI I PRAGMA
+    cursor.execute('PRAGMA journal_mode=WAL')
+    cursor.execute('PRAGMA synchronous=NORMAL')
+
+    self.conn.commit()
+```
+
+## REGOLE IMPORTANTI
+
+1. ✅ Usa `IF NOT EXISTS` per evitare errori se indici già esistono
+2. ✅ Mantieni il codice esistente (non cancellare nulla)
+3. ✅ Usa `cursor.execute()` per ogni statement SQL
+4. ✅ Testa che il file compili: `python -m py_compile knowledge_store.py`
+5. ✅ Testa che l'app parta: `python app.py` (dovrebbe avviarsi senza errori)
+
+## VERIFICATION STEPS
+
+Dopo le modifiche, esegui questi test:
+
+### Test 1: Verifica indici creati
+```bash
+sqlite3 knowledge_base\rooting_future.db ".indices documents"
+# Dovrebbe mostrare: idx_documents_category_section
+
+sqlite3 knowledge_base\rooting_future.db ".indices plans"
+# Dovrebbe mostrare: idx_plans_created
+```
+
+### Test 2: Verifica WAL mode abilitato
+```bash
+sqlite3 knowledge_base\rooting_future.db "PRAGMA journal_mode;"
+# Dovrebbe restituire: wal
+```
+
+### Test 3: App starts
+```bash
+python app.py
+# Dovrebbe avviarsi su http://127.0.0.1:5000 senza errori
+# Premi Ctrl+C per fermare
+```
+
+## OUTPUT ATTESO
+
+Mostrami:
+1. Le modifiche esatte che farai a `knowledge_store.py` (con numero di riga)
+2. Il codice modificato completo del metodo `_init_db()`
+
+Poi implementerò le modifiche e testerò.
+
+## DOMANDE?
+
+Se il metodo `_init_db()` non esiste o è strutturato diversamente, descrivimi la struttura attuale del file e ti dirò come procedere.
+
+Inizia analizzando il file `knowledge_store.py` e proponendomi le modifiche.

@@ -181,16 +181,21 @@ class DataSourcer:
 
         # Cerca fonti
         search_query = f"{context} {claim}".strip() if context else claim
-        research_result = self.researcher.search(search_query, num_results=10)
+        try:
+            research_result = self.researcher.search(search_query, num_results=10)
+        except Exception as e:
+            logger.error(f"Error during search execution: {e}")
+            research_result = None
 
-        if research_result.error:
+        if research_result is None or research_result.error:
+            error_msg = research_result.error if research_result else "Ricerca fallita (Unknown Error)"
             return SourcedData(
                 value=claim,
                 description="Errore nella verifica",
                 data_type=data_type,
                 confidence=SourceConfidence.UNVERIFIED,
                 original_claim=claim,
-                notes=f"Errore ricerca: {research_result.error}"
+                notes=f"Errore ricerca: {error_msg}"
             )
 
         # Analizza risultati

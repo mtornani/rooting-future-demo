@@ -1046,7 +1046,75 @@ body {
         gap: 10px;
     }
 
-    .form-row {
-        grid-template-columns: 1fr;
+/* ============================================================================
+   GLOBAL RESPONSIVE FIX (Mobile & Tablet)
+   ============================================================================ */
+
+@media screen and (max-width: 1024px) {
+    /* Layout Reset */
+    .container {
+        padding: 15px 10px;
+    }
+
+    .main-container {
+        display: flex !important;
+        flex-direction: column !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    /* Force Hide technical consoles/sidebars on mobile */
+    .right-panel, 
+    .console-panel, 
+    #logConsole, 
+    .live-console {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
+    }
+
+    .left-panel {
+        width: 100% !important;
+        padding: 10px !important;
+        overflow: visible !important;
+    }
+
+    /* Grids to Single Column */
+    .stats-grid, 
+    .actions-grid, 
+    .form-row, 
+    .workload-cards {
+        grid-template-columns: 1fr !important;
+        gap: 15px !important;
+    }
+
+    /* Tables responsiveness */
+    .data-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    /* Header & Nav */
+    .navbar, .header {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 10px !important;
+    }
+
+    .nav-links, .header-nav {
+        margin-top: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px !important;
+    }
+
+    /* Typography adjustment */
+    h1 { font-size: 1.5rem !important; }
+    h2 { font-size: 1.25rem !important; }
+    
+    .stat-card {
+        padding: 15px !important;
     }
 }

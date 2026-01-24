@@ -350,8 +350,8 @@ def validate_estimates(
     category: str
 ) -> List[Dict]:
     """
-    Valida le stime cercando anomalie.
-    Usato dal Reviewer Agent per anti-hallucination.
+    Valida le stime cercando anomalie e conflitti tra dati club e realtà di mercato.
+    Usato per garantire la veridicità inattaccabile del piano.
     """
     anomalies = []
     category = _normalize_category(category)
@@ -361,7 +361,33 @@ def validate_estimates(
         if not isinstance(estimate, EstimatedValue):
             continue
 
-        # Check: valore troppo alto rispetto a categoria superiore
+        # 1. VERIDICITÀ: Dato club troppo alto/basso vs Benchmark (Soglia 300%)
+        if estimate.tier in [DataTier.TIER_1_FACT, DataTier.TIER_2_DEDUCED]:
+            bench_val = benchmarks.get(f"{field}_medio") or benchmarks.get('fatturato_medio', 0)
+            if bench_val > 0:
+                deviation = (estimate.value / bench_val) * 100
+                if deviation > 300 or deviation < 20:
+                    anomalies.append({
+                        'field': field,
+                        'value': estimate.value,
+                        'issue': f"Conflitto di Veridicità: Il dato fornito ({estimate.value:,.0f}) devia del {deviation:.0f}% rispetto al benchmark di categoria.",
+                        'severity': 'critical',
+                        'type': 'verification_conflict'
+                    })
+
+        # 2. COERENZA INTERNA: Monte ingaggi > fatturato (insostenibile)
+        if field == 'monte_ingaggi':
+            fatturato = estimates.get('fatturato')
+            if fatturato and estimate.value > fatturato.value * 0.8:
+                anomalies.append({
+                    'field': field,
+                    'value': estimate.value,
+                    'issue': f"Anomalia di Sostenibilità: Il monte ingaggi assorbe l'80%+ del fatturato stimato.",
+                    'severity': 'high',
+                    'type': 'sustainability_risk'
+                })
+
+        # 3. GERARCHIA: Valore troppo alto rispetto a categoria superiore
         if field == 'fatturato' and category != "Serie A":
             upper_cat = _get_upper_category(category)
             if upper_cat:
@@ -371,20 +397,10 @@ def validate_estimates(
                     anomalies.append({
                         'field': field,
                         'value': estimate.value,
-                        'issue': f"Valore superiore alla media {upper_cat} (€{upper_avg:,.0f})",
-                        'severity': 'high'
+                        'issue': f"Incoerenza Strategica: Il fatturato dichiarato è superiore alla media della {upper_cat}.",
+                        'severity': 'medium',
+                        'type': 'market_outlier'
                     })
-
-        # Check: monte ingaggi > fatturato (insostenibile)
-        if field == 'monte_ingaggi':
-            fatturato = estimates.get('fatturato')
-            if fatturato and estimate.value > fatturato.value * 0.8:
-                anomalies.append({
-                    'field': field,
-                    'value': estimate.value,
-                    'issue': f"Monte ingaggi troppo alto rispetto al fatturato ({estimate.value/fatturato.value:.0%})",
-                    'severity': 'medium'
-                })
 
     return anomalies
 

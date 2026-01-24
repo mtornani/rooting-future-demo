@@ -32,6 +32,9 @@
                         {{ review.status.value }}
                     </span>
                     <div class="export-buttons">
+                        <button onclick="launchPitchMode()" class="btn btn-primary" title="Avvia Presentazione Live (Pitch Mode)">
+                            🎤 Pitch Mode
+                        </button>
                         <button onclick="viewExecutive()" class="btn btn-success" title="Executive Report A4 (sintesi per stampa)">
                             📋 Executive
                         </button>
@@ -184,9 +187,29 @@
         </div>
     </div>
 
+    <!-- Regenerate Modal -->
+    <div id="regenerateModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Rigenera Sezione con AI</h2>
+                <button onclick="closeRegenerateModal()" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Inserisci istruzioni specifiche per l'AI (es. "Aggiorna il budget a 500k", "Sii più sintetico").</p>
+                <p class="text-muted"><small>Il contenuto attuale verrà sovrascritto.</small></p>
+                <textarea id="regenerateContext" rows="4" placeholder="Istruzioni per la rigenerazione..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button onclick="confirmRegenerate()" class="btn btn-primary">🔄 Avvia Rigenerazione</button>
+                <button onclick="closeRegenerateModal()" class="btn btn-secondary">Annulla</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const planId = '{{ review.plan_id }}';
         let currentEditSection = null;
+        let currentRegenSection = null;
 
         function toggleContent(sectionId) {
             const preview = document.querySelector(`#content-${sectionId} .content-preview`);
@@ -240,8 +263,12 @@
 
                 const data = await resp.json();
                 if (data.success) {
-                    alert('Sezione aggiornata');
-                    location.reload();
+                    // Update DOM directly without reload
+                    const fullContentDiv = document.querySelector(`#content-${currentEditSection} .content-full`);
+                    if (fullContentDiv) fullContentDiv.innerHTML = content;
+                    
+                    closeEditModal();
+                    showToast('Sezione aggiornata con successo!', 'success');
                 } else {
                     alert('Errore: ' + (data.error || 'Sconosciuto'));
                 }
@@ -250,10 +277,26 @@
             }
         }
 
-        async function regenerateSection(sectionId) {
-            if (!confirm('Rigenerare questa sezione? Il contenuto attuale verrà sostituito.')) return;
+        function regenerateSection(sectionId) {
+            currentRegenSection = sectionId;
+            document.getElementById('regenerateContext').value = '';
+            document.getElementById('regenerateModal').style.display = 'flex';
+        }
 
-            const context = prompt('Contesto aggiuntivo per la rigenerazione (opzionale):');
+        function closeRegenerateModal() {
+            document.getElementById('regenerateModal').style.display = 'none';
+            currentRegenSection = null;
+        }
+
+        async function confirmRegenerate() {
+            if (!currentRegenSection) return;
+            
+            const context = document.getElementById('regenerateContext').value;
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Elaborazione AI...';
 
             try {
                 const resp = await fetch('/api/regenerate-section', {
@@ -261,20 +304,24 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         plan_id: planId,
-                        section_id: sectionId,
+                        section_id: currentRegenSection,
                         context: context || ''
                     })
                 });
 
                 const data = await resp.json();
                 if (data.success) {
-                    alert('Sezione rigenerata');
+                    closeRegenerateModal();
+                    alert('Sezione rigenerata! La pagina verrà ricaricata.');
                     location.reload();
                 } else {
                     alert('Errore: ' + (data.error || 'Sconosciuto'));
                 }
             } catch (e) {
                 alert('Errore: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         }
 
@@ -287,10 +334,22 @@
                 });
 
                 const data = await resp.json();
-                if (data.success && !skipReload) {
-                    location.reload();
+                if (data.success) {
+                    if (!skipReload) {
+                        // Update UI to reflect approval
+                        const badge = document.querySelector(`#section-${sectionId} .status-badge`);
+                        if (badge) {
+                            badge.className = 'status-badge status-approved';
+                            badge.innerText = 'approved';
+                        }
+                        const approveBtn = document.querySelector(`#section-${sectionId} .btn-success`);
+                        if (approveBtn) approveBtn.remove();
+                        
+                        if(!skipReload) showToast('Sezione approvata', 'success');
+                    }
+                    return true;
                 }
-                return data.success;
+                return false;
             } catch (e) {
                 if (!skipReload) {
                     alert('Errore: ' + e.message);
@@ -298,6 +357,7 @@
                 return false;
             }
         }
+
 
         async function approveAll() {
             if (!confirm('Approvare tutte le sezioni?')) return;
@@ -351,6 +411,11 @@
         // Apre Executive Report A4 nel browser (sintesi ottimizzata per stampa)
         function viewExecutive() {
             window.open(`/view/${planId}/executive`, '_blank');
+        }
+
+        // Avvia la Pitch Mode in una nuova finestra/tab
+        function launchPitchMode() {
+            window.open(`/plan/${planId}/pitch`, '_blank');
         }
 
         // Scarica Executive Report HTML

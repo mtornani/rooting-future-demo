@@ -11,12 +11,14 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import requests
 import logging
+import os
 
 from config import (
     SERPER_API_KEY,
+    TAVILY_API_KEY,
     SOURCE_CONFIG,
     TRUSTED_SOURCES,
     SOURCE_WEIGHTS,
@@ -25,144 +27,107 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# DATA STRUCTURES
-# =============================================================================
-
-
 @dataclass
 class SearchResult:
     """Singolo risultato di ricerca"""
-
     title: str
     url: str
     snippet: str
-    position: int
+    source: str = "web"
+    date: Optional[str] = None
+    position: int = 0
     is_trusted: bool = False
     trust_weight: float = 0.5
     date_extracted: Optional[str] = None
 
-    def to_dict(self) -> Dict:
-        return {
-            "title": self.title,
-            "url": self.url,
-            "snippet": self.snippet,
-            "position": self.position,
-            "is_trusted": self.is_trusted,
-            "trust_weight": self.trust_weight,
-            "date_extracted": self.date_extracted,
-        }
-
 
 @dataclass
 class ResearchResult:
-    """Risultato completo di una ricerca"""
-
+    """Insieme di risultati per una query"""
     query: str
-    timestamp: str
     results: List[SearchResult] = field(default_factory=list)
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    error: Optional[str] = None
     trusted_count: int = 0
     total_count: int = 0
-    error: Optional[str] = None
 
     def to_dict(self) -> Dict:
-        return {
-            "query": self.query,
-            "timestamp": self.timestamp,
-            "results": [r.to_dict() for r in self.results],
-            "trusted_count": self.trusted_count,
-            "total_count": self.total_count,
-            "error": self.error,
-        }
+        # Convert list of SearchResult objects to dicts manually to avoid recursion issues
+        data = asdict(self)
+        return data
 
-
-# =============================================================================
-# CACHE SYSTEM
-# =============================================================================
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'ResearchResult':
+        if "results" in data:
+            results_list = []
+            for r in data["results"]:
+                if isinstance(r, dict):
+                    # Gestione compatibilità nomi campi (weight vs trust_weight)
+                    if 'weight' in r and 'trust_weight' not in r:
+                        r['trust_weight'] = r.pop('weight')
+                    results_list.append(SearchResult(**r))
+                else:
+                    results_list.append(r)
+            data["results"] = results_list
+        return cls(**data)
 
 
 class SearchCache:
-    """Cache per risultati ricerca"""
-
-    def __init__(self, cache_dir: Path = KNOWLEDGE_DIR / "search_cache"):
-        self.cache_dir = cache_dir
-        self.cache_dir.mkdir(exist_ok=True)
-        self.ttl_hours = SOURCE_CONFIG.cache_ttl_hours
-
-    def _get_cache_key(self, query: str) -> str:
-        """Genera chiave cache da query"""
-        return hashlib.md5(query.lower().strip().encode()).hexdigest()
+    """Cache su file system per ricerche web"""
+    
+    def __init__(self):
+        self.cache_dir = KNOWLEDGE_DIR / "search_cache"
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+        
+    def _get_path(self, query: str) -> Path:
+        query_hash = hashlib.md5(query.encode("utf-8")).hexdigest()
+        return self.cache_dir / f"{query_hash}.json"
 
     def get(self, query: str) -> Optional[ResearchResult]:
-        """Recupera risultato dalla cache se valido"""
-        if not SOURCE_CONFIG.cache_enabled:
+        path = self._get_path(query)
+        if not path.exists():
             return None
-
-        cache_key = self._get_cache_key(query)
-        cache_file = self.cache_dir / f"{cache_key}.json"
-
-        if not cache_file.exists():
-            return None
-
+            
         try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Verifica TTL
-            cached_time = datetime.fromisoformat(data["timestamp"])
-            if datetime.now() - cached_time > timedelta(hours=self.ttl_hours):
-                cache_file.unlink()  # Elimina cache scaduta
+            # Check TTL
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+            if datetime.now() - mtime > timedelta(hours=SOURCE_CONFIG.cache_ttl_hours):
                 return None
-
-            # Ricostruisci oggetto
-            results = [SearchResult(**r) for r in data.get("results", [])]
-            return ResearchResult(
-                query=data["query"],
-                timestamp=data["timestamp"],
-                results=results,
-                trusted_count=data.get("trusted_count", 0),
-                total_count=data.get("total_count", 0),
-            )
+                
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return ResearchResult.from_dict(data)
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
             return None
 
-    def set(self, result: ResearchResult) -> None:
-        """Salva risultato in cache"""
-        if not SOURCE_CONFIG.cache_enabled:
-            return
-
-        cache_key = self._get_cache_key(result.query)
-        cache_file = self.cache_dir / f"{cache_key}.json"
-
+    def set(self, result: ResearchResult):
+        path = self._get_path(result.query)
         try:
-            with open(cache_file, "w", encoding="utf-8") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(result.to_dict(), f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"Cache write error: {e}")
 
 
-# =============================================================================
-# WEB RESEARCHER
-# =============================================================================
-
-
 class WebResearcher:
     """
-    Ricerca web via Serper.dev API.
-    Specializzato per ricerche su calcio italiano.
+    Gestisce le ricerche web su Google usando Serper.dev o Tavily.
+    Include meccaniche di caching, fallback e circuit breaker globale.
     """
+    
+    # CIRCUIT BREAKER GLOBALE (Condiviso tra tutte le istanze/agenti)
+    _global_serper_disabled = False
 
     SERPER_URL = "https://google.serper.dev/search"
+    TAVILY_URL = "https://api.tavily.com/search"
 
     def __init__(self):
-        self.api_key = SERPER_API_KEY
+        # Priorità a variabili d'ambiente dirette (per hot-reload .env)
+        self.serper_key = os.environ.get("SERPER_API_KEY", SERPER_API_KEY)
+        self.tavily_key = os.environ.get("TAVILY_API_KEY", TAVILY_API_KEY)
         self.cache = SearchCache()
         self.session = requests.Session()
-        self.session.headers.update(
-            {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
-        )
 
     def search(
         self,
@@ -173,86 +138,115 @@ class WebResearcher:
         use_cache: bool = True,
     ) -> ResearchResult:
         """
-        Esegue ricerca web.
-
-        Args:
-            query: Stringa di ricerca
-            num_results: Numero risultati (max 100)
-            country: Codice paese (it = Italia)
-            language: Lingua risultati
-            use_cache: Se usare cache
-
-        Returns:
-            ResearchResult con lista risultati
+        Esegue ricerca web con fallback automatico, circuit breaker e Virtual Gemini Fallback.
         """
-        # Check cache
         if use_cache:
             cached = self.cache.get(query)
             if cached:
                 logger.info(f"Cache hit for: {query[:50]}...")
                 return cached
 
-        # Prepara richiesta
-        payload = {
-            "q": query,
-            "gl": country,
-            "hl": language,
-            "num": min(num_results, SOURCE_CONFIG.max_search_results),
-        }
+        # Prova prima Serper (se non disabilitato globalmente)
+        if self.serper_key and not WebResearcher._global_serper_disabled:
+            try:
+                result = self._search_serper(query, num_results, country, language)
+                if not result.error:
+                    return result
+                logger.warning(f"Serper error (fallback): {result.error}")
+            except requests.exceptions.HTTPError as e:
+                status_code = e.response.status_code if e.response else 0
+                if status_code in [401, 403]:
+                    if not WebResearcher._global_serper_disabled:
+                        logger.error(f"⛔ Serper API Key Error ({status_code}). Circuit breaker ON.")
+                    WebResearcher._global_serper_disabled = True
+                else:
+                    logger.error(f"Serper HTTP error: {e}")
+            except Exception as e:
+                logger.error(f"Serper generic exception: {e}")
 
+        # Fallback su Tavily
+        if self.tavily_key:
+            try:
+                result = self._search_tavily(query, num_results)
+                if not result.error:
+                    return result
+            except Exception as e:
+                logger.error(f"Tavily fallback failure: {e}")
+
+        # ULTIMA SPIAGGIA: Segnaliamo che la ricerca esterna è fallita.
+        # Gli agenti che hanno accesso a genai.Client() useranno il loro tool interno.
+        logger.warning(f"⚠️ Tutti i motori di ricerca esterni falliti per: {query[:30]}")
+        return ResearchResult(
+            query=query, 
+            timestamp=datetime.now().isoformat(), 
+            error="EXTERNAL_SEARCH_FAILED"
+        )
+    def _search_serper(self, query, num_results, country, language) -> ResearchResult:
+        """Logica originale Serper"""
+        headers = {"X-API-KEY": self.serper_key, "Content-Type": "application/json"}
+        payload = {"q": query, "gl": country, "hl": language, "num": min(num_results, 20)}
+        
+        response = self.session.post(self.SERPER_URL, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        results = []
+        for i, item in enumerate(data.get("organic", [])):
+            url = item.get("link", "")
+            is_trusted, weight = self._evaluate_source(url)
+            results.append(SearchResult(
+                title=item.get("title", ""),
+                url=url,
+                snippet=item.get("snippet", ""),
+                position=i + 1,
+                is_trusted=is_trusted,
+                trust_weight=weight,
+                date_extracted=self._extract_date(item.get("snippet", ""))
+            ))
+
+        res = ResearchResult(query=query, timestamp=datetime.now().isoformat(), results=results, 
+                             trusted_count=sum(1 for r in results if r.is_trusted), total_count=len(results))
+        self.cache.set(res)
+        return res
+
+    def _search_tavily(self, query, num_results) -> ResearchResult:
+        """Integrazione Tavily AI Search"""
+        logger.info(f"🔍 Tavily Search: {query}")
+        payload = {
+            "api_key": self.tavily_key,
+            "query": query,
+            "search_depth": "smart",
+            "max_results": min(num_results, 10),
+            "include_answer": False
+        }
+        
         try:
-            response = self.session.post(
-                self.SERPER_URL,
-                json=payload,
-                timeout=SOURCE_CONFIG.search_timeout_seconds,
-            )
+            response = self.session.post(self.TAVILY_URL, json=payload, timeout=15)
             response.raise_for_status()
             data = response.json()
 
-            # Processa risultati
             results = []
-            organic = data.get("organic", [])
-
-            for i, item in enumerate(organic):
-                url = item.get("link", "")
+            for i, item in enumerate(data.get("results", [])):
+                url = item.get("url", "")
                 is_trusted, weight = self._evaluate_source(url)
-
-                result = SearchResult(
+                results.append(SearchResult(
                     title=item.get("title", ""),
                     url=url,
-                    snippet=item.get("snippet", ""),
+                    snippet=item.get("content", ""),
                     position=i + 1,
                     is_trusted=is_trusted,
                     trust_weight=weight,
-                    date_extracted=self._extract_date(item.get("snippet", "")),
-                )
-                results.append(result)
+                    date_extracted=self._extract_date(item.get("content", ""))
+                ))
 
-            research_result = ResearchResult(
-                query=query,
-                timestamp=datetime.now().isoformat(),
-                results=results,
-                trusted_count=sum(1 for r in results if r.is_trusted),
-                total_count=len(results),
-            )
+            res = ResearchResult(query=query, timestamp=datetime.now().isoformat(), results=results, 
+                                 trusted_count=sum(1 for r in results if r.is_trusted), total_count=len(results))
+            self.cache.set(res)
+            return res
+        except Exception as e:
+            logger.error(f"Tavily critical error: {e}")
+            return ResearchResult(query=query, timestamp=datetime.now().isoformat(), error=str(e))
 
-            # Salva in cache
-            self.cache.set(research_result)
-
-            return research_result
-
-        except requests.exceptions.Timeout:
-            logger.error(f"Search timeout for: {query}")
-            return ResearchResult(
-                query=query,
-                timestamp=datetime.now().isoformat(),
-                error="Timeout nella ricerca",
-            )
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Search error: {e}")
-            return ResearchResult(
-                query=query, timestamp=datetime.now().isoformat(), error=str(e)
-            )
 
     def _evaluate_source(self, url: str) -> tuple[bool, float]:
         """

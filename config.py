@@ -22,7 +22,7 @@ def load_dotenv():
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
-                line = line.strip()
+                line = line.strip().lstrip('\ufeff')
                 if line and not line.startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
                     key = key.strip()
@@ -66,6 +66,13 @@ ASSETS_DIR.mkdir(exist_ok=True)
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_KEY = GOOGLE_API_KEY  # Alias per retrocompatibilità
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
+
+# STRIPE PAYMENTS
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_placeholder")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "sk_test_placeholder")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+CREDIT_PRICE_ID = os.environ.get("STRIPE_CREDIT_PRICE_ID", "price_placeholder") # ID del prodotto "1 Piano Strategico"
 
 # Assicura che GOOGLE_API_KEY sia settata nell'ambiente
 if GOOGLE_API_KEY:
@@ -79,7 +86,7 @@ if GOOGLE_API_KEY:
 @dataclass
 class ModelConfig:
     """Configurazione modello AI"""
-    name: str = "gemini-2.5-flash"  # Richiesto per File Search
+    name: str = "gemini-2.0-flash"  # Versione stabile e veloce
     temperature: float = 0.7
     max_tokens: int = 8192
     top_p: float = 0.95

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuovo Piano Strategico - Rooting Future</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">RF</span>
+            <span class="brand-text">Rooting Future</span>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('new_plan') }}" class="active">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}">Coda Review</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="page-header">
+            <h1>Nuovo Piano Strategico</h1>
+            <p class="subtitle">Inserisci i dati del club per generare il piano strategico</p>
+        </header>
+
+        <form id="planForm" class="form-card">
+            <div class="form-section">
+                <h3>Informazioni Club</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="club_name">Nome Club *</label>
+                        <input type="text" id="club_name" name="club_name" required
+                               placeholder="es. AC Riccione 1926">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="city">Citta *</label>
+                        <input type="text" id="city" name="city" required
+                               placeholder="es. Riccione">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="country">Paese *</label>
+                        <select id="country" name="country" required>
+                            <option value="">Seleziona paese</option>
+                            {% for country in countries %}
+                            <option value="{{ country }}"{% if country == 'Italy' %} selected{% endif %}>{{ country }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="league">Campionato/Categoria *</label>
+                        <select id="league" name="category" required>
+                            <option value="">Seleziona campionato</option>
+                            <!-- Popolato via JavaScript in base al paese -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="region">Regione/Stato (opzionale)</label>
+                        <input type="text" id="region" name="region"
+                               placeholder="es. Emilia-Romagna">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tier">Livello</label>
+                        <select id="tier" name="tier">
+                            <option value="">Auto-rileva dal campionato</option>
+                            {% for tier in tiers %}
+                            <option value="{{ tier }}">{{ tier }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="foundation_year">Anno Fondazione</label>
+                        <input type="number" id="foundation_year" name="foundation_year"
+                               min="1800" max="2024" placeholder="es. 1926">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stadium">Stadio</label>
+                        <input type="text" id="stadium" name="stadium"
+                               placeholder="es. Stadio Nicoletti">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="primary_color">Colore Principale</label>
+                        <div class="color-input-wrapper">
+                            <input type="color" id="primary_color" name="primary_color" value="#1a365d">
+                            <input type="text" id="primary_color_hex" placeholder="#1a365d" maxlength="7">
+                        </div>
+                        <small>Il colore principale del club (maglia, stemma)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="secondary_color">Colore Secondario</label>
+                        <div class="color-input-wrapper">
+                            <input type="color" id="secondary_color" name="secondary_color" value="#ffffff">
+                            <input type="text" id="secondary_color_hex" placeholder="#ffffff" maxlength="7">
+                        </div>
+                        <small>Il colore secondario (contrasto)</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Dati Aggiuntivi (opzionali)</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="president">Presidente</label>
+                        <input type="text" id="president" name="president"
+                               placeholder="Nome e cognome">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="budget">Budget Annuale</label>
+                        <input type="text" id="budget" name="budget"
+                               placeholder="es. 500000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="tesserati">Numero Tesserati</label>
+                    <input type="number" id="tesserati" name="tesserati"
+                           placeholder="es. 350">
+                </div>
+
+                <div class="form-group">
+                    <label for="competitors">Club Competitor (uno per riga)</label>
+                    <textarea id="competitors" name="competitors" rows="3"
+                              placeholder="Bellaria&#10;Cattolica&#10;Misano"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Note Aggiuntive</label>
+                    <textarea id="notes" name="notes" rows="3"
+                              placeholder="Informazioni aggiuntive utili per la generazione..."></textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Opzioni Generazione</h3>
+
+                <div class="form-check">
+                    <input type="checkbox" id="enable_research" name="enable_research" checked>
+                    <label for="enable_research">
+                        Abilita ricerca web automatica
+                        <small>(raccoglie dati aggiornati dal web)</small>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                    <span class="btn-text">Genera Piano Strategico</span>
+                    <span class="btn-loading" style="display:none;">Generazione in corso...</span>
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">Annulla</a>
+            </div>
+        </form>
+
+        <!-- Progress Modal -->
+        <div id="progressModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h2>Generazione in corso...</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">Inizializzazione...</p>
+                <div class="progress-steps">
+                    <div class="step" id="step1">Ricerca Web</div>
+                    <div class="step" id="step2">Agenti AI</div>
+                    <div class="step" id="step3">Verifica Dati</div>
+                    <div class="step" id="step4">Assemblaggio</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Dati paesi e campionati dal server
+        const countriesLeagues = {{ countries_leagues | tojson }};
+
+        // Aggiorna dropdown campionati quando cambia il paese
+        function updateLeagues() {
+            const country = document.getElementById('country').value;
+            const leagueSelect = document.getElementById('league');
+
+            // Pulisci opzioni correnti
+            leagueSelect.innerHTML = '<option value="">Seleziona campionato</option>';
+
+            if (country && countriesLeagues[country]) {
+                countriesLeagues[country].forEach(league => {
+                    const option = document.createElement('option');
+                    option.value = league;
+                    option.textContent = league;
+                    leagueSelect.appendChild(option);
+                });
+            }
+
+            // Aggiungi opzione custom per "Other"
+            if (country === 'Other') {
+                const customInput = document.createElement('option');
+                customInput.value = 'custom';
+                customInput.textContent = 'Inserisci campionato personalizzato...';
+                leagueSelect.appendChild(customInput);
+            }
+        }
+
+        document.getElementById('country').addEventListener('change', updateLeagues);
+
+        // Inizializza campionati per Italy (default selezionato)
+        updateLeagues();
+
+        // Sincronizza color picker con input text
+        function setupColorSync(colorId, hexId) {
+            const colorInput = document.getElementById(colorId);
+            const hexInput = document.getElementById(hexId);
+
+            colorInput.addEventListener('input', () => {
+                hexInput.value = colorInput.value;
+            });
+
+            hexInput.addEventListener('input', () => {
+                if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+                    colorInput.value = hexInput.value;
+                }
+            });
+
+            // Inizializza
+            hexInput.value = colorInput.value;
+        }
+
+        setupColorSync('primary_color', 'primary_color_hex');
+        setupColorSync('secondary_color', 'secondary_color_hex');
+
+        // Invio form
+        document.getElementById('planForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const btnLoading = submitBtn.querySelector('.btn-loading');
+            const modal = document.getElementById('progressModal');
+
+            // Disabilita form
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline';
+            modal.style.display = 'flex';
+
+            // Raccogli dati
+            const formData = new FormData(this);
+            const data = {
+                club_name: formData.get('club_name'),
+                city: formData.get('city'),
+                country: formData.get('country'),
+                region: formData.get('region'),
+                category: formData.get('category'),
+                tier: formData.get('tier'),
+                foundation_year: formData.get('foundation_year') ? parseInt(formData.get('foundation_year')) : null,
+                stadium: formData.get('stadium'),
+                president: formData.get('president'),
+                budget: formData.get('budget'),
+                tesserati: formData.get('tesserati') ? parseInt(formData.get('tesserati')) : null,
+                competitors: formData.get('competitors')
+                    ? formData.get('competitors').split('\n').filter(c => c.trim())
+                    : [],
+                notes: formData.get('notes'),
+                enable_research: formData.get('enable_research') === 'on',
+                // Colori club per branding documenti
+                primary_color: formData.get('primary_color') || '#1a365d',
+                secondary_color: formData.get('secondary_color') || '#ffffff',
+            };
+
+            // Simula progress
+            let progress = 0;
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 95) progress = 95;
+                progressFill.style.width = progress + '%';
+
+                // Aggiorna steps
+                if (progress > 20) document.getElementById('step1').classList.add('active');
+                if (progress > 40) document.getElementById('step2').classList.add('active');
+                if (progress > 60) document.getElementById('step3').classList.add('active');
+                if (progress > 80) document.getElementById('step4').classList.add('active');
+
+                const texts = [
+                    'Ricerca informazioni sul club...',
+                    'Analisi competitor e benchmark...',
+                    'Generazione contenuti strategici...',
+                    'Verifica fonti e dati...',
+                    'Assemblaggio documento finale...',
+                ];
+                progressText.textContent = texts[Math.floor(progress / 20)] || texts[0];
+            }, 500);
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+
+                const result = await response.json();
+
+                if (result.success) {
+                    progressText.textContent = 'Piano generato con successo!';
+                    setTimeout(() => {
+                        window.location.href = '/plan/' + result.plan_id;
+                    }, 1000);
+                } else {
+                    throw new Error(result.error || 'Errore sconosciuto');
+                }
+            } catch (error) {
+                clearInterval(progressInterval);
+                modal.style.display = 'none';
+                alert('Errore durante la generazione: ' + error.message);
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

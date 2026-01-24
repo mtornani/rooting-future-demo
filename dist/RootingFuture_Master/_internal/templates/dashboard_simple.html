@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future - Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .logo { font-size: 1.25rem; font-weight: 700; color: #10b981; }
+        .nav a { color: #94a3b8; text-decoration: none; margin-left: 1.5rem; }
+        .nav a:hover { color: #fff; }
+        .main { display: flex; height: calc(100vh - 60px); }
+        .left-panel { width: 50%; padding: 1.5rem; overflow-y: auto; border-right: 1px solid #334155; }
+        .right-panel { width: 50%; display: flex; flex-direction: column; background: #0a0f1a; }
+        .console-header { padding: 1rem; background: #1e293b; display: flex; justify-content: space-between; align-items: center; }
+        .console-title { color: #10b981; font-weight: 600; }
+        .console-body { flex: 1; overflow-y: auto; padding: 1rem; font-family: 'Consolas', monospace; font-size: 0.85rem; }
+        .log-entry { padding: 0.25rem 0; border-bottom: 1px solid #1e293b; }
+        .log-time { color: #64748b; margin-right: 0.5rem; }
+        .log-level { padding: 0.1rem 0.4rem; border-radius: 3px; margin-right: 0.5rem; font-size: 0.75rem; }
+        .log-level.INFO { background: #3b82f6; }
+        .log-level.WARNING { background: #f59e0b; }
+        .log-level.ERROR { background: #ef4444; }
+        .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+        .card h3 { color: #10b981; margin-bottom: 1rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #1e293b; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #10b981; }
+        .upload-zone { border: 2px dashed #334155; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover, .upload-zone.dragover { border-color: #10b981; background: #1e293b; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #334155; border-radius: 4px; margin-bottom: 0.5rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #94a3b8; }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #f1f5f9; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background: #10b981; color: white; }
+        .btn-primary:disabled { background: #475569; cursor: not-allowed; opacity: 0.7; }
+        .btn-secondary { background: #334155; color: #f1f5f9; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">Rooting Future v5.4.9</div>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            {% if user.role != 'user' %}
+            <a href="{{ url_for('new_plan') }}">Nuovo</a>
+            <a href="{{ url_for('review_queue') }}">Review</a>
+            {% endif %}
+            {% if user and user.is_authenticated %}
+                <span style="color: #64748b; margin-left: 1rem; font-size: 0.9rem;">{{ user.email }}</span>
+                <a href="{{ url_for('auth.logout') }}" style="color: #ef4444;">Esci</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <div class="main">
+        <div class="left-panel">
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-value">{{ stats.total_plans }}</div><div class="stat-label">Piani Totali</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div><div class="stat-label">Bozze</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.sections_needing_review }}</div><div class="stat-label">Review</div></div>
+                <div class="stat-card"><div class="stat-value">{{ stats.average_credibility }}%</div><div class="stat-label">Credibilità</div></div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin:0;">Ingestion Stakeholder</h3>
+                    <button type="button" id="toggleModeBtn" class="btn btn-secondary" style="font-size: 0.7rem; padding: 4px 8px;">
+                        Passa a Folder Mode
+                    </button>
+                </div>
+
+                <form id="uploadForm">
+                    <div id="standardUpload">
+                        <div class="upload-zone" id="dropZone">
+                            <div class="upload-icon">📁</div>
+                            <div>Trascina i file DOCX o uno <strong>ZIP</strong> qui</div>
+                            <input type="file" id="fileInput" accept=".docx,.zip" multiple hidden>
+                        </div>
+                    </div>
+
+                    <div id="technicalUpload" style="display:none;">
+                        <div class="upload-zone" id="folderDropZone" style="border-color: #818cf8;">
+                            <div class="upload-icon">📂</div>
+                            <div>Carica Intera Cartella (Technical)</div>
+                            <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+                        </div>
+                    </div>
+
+                    <div class="file-list" id="fileList" style="margin-top:10px;"></div>
+
+                    <div id="initialActions" style="margin-top:1rem;">
+                        <div class="form-group">
+                            <label>Nome Club / Azienda</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="clubName" placeholder="Es: AC Rimini 1912" style="flex: 1;">
+                                <button type="button" class="btn btn-secondary" id="searchWebBtn" style="white-space: nowrap;">🔍 Cerca sul Web</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>🏆 Categoria / Campionato</label>
+                            <select id="category" style="border-left: 4px solid #10b981;">
+                                <option value="">-- Seleziona Categoria --</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="mainAnalyzeBtn" style="width: 100%; height: 50px;">
+                            🚀 Carica Documenti ed Analizza
+                        </button>
+                    </div>
+
+                    <div id="loadingIndicator" style="display:none; text-align:center; padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; margin-top: 20px;">
+                        <div style="font-size: 2rem; animation: spin 2s linear infinite;">⏳</div>
+                        <p style="margin-top: 10px; color: #10b981; font-weight: bold;">Analisi in background...</p>
+                        <small style="color: #94a3b8;">Il sistema sta analizzando i file. Guarda i log a destra per i dettagli.</small>
+                    </div>
+
+                    <style> @keyframes spin { 100% { transform: rotate(360deg); } } </style>
+
+                    <div id="uploadResults" style="display:none; margin-top: 20px;">
+                        <div style='background:#1e293b; padding:20px; border-radius:12px; border: 1px solid #334155; margin-bottom: 20px;'>
+                            <h3 style='color:#10b981; margin-top:0; border-bottom:1px solid #334155; padding-bottom:10px;'>🏛️ Anagrafica Società</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+                                <div class="form-group"><label style="font-size:0.75rem;">Stadio</label><input type="text" id="stadiumConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Anno Fondazione</label><input type="number" id="foundationConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Presidente</label><input type="text" id="presidentConfirmed" style="background:#0f172a;"></div>
+                                <div class="form-group"><label style="font-size:0.75rem;">Budget Stimato</label><input type="text" id="budgetConfirmed" style="background:#0f172a;"></div>
+                            </div>
+                        </div>
+                        <div id="alignmentDashboardContainer"></div>
+                        <button type="button" class="btn btn-primary" id="finalGenerateBtn" style="width: 100%; margin-top: 20px; height: 60px; font-size: 1.1rem; background: linear-gradient(to right, #10b981, #059669);">
+                            💎 Conferma e Genera Progetto Finale
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="console-header"><div class="console-title">Live Console</div></div>
+            <div class="console-body" id="logConsole"></div>
+        </div>
+    </div>
+
+    <script>
+        const logConsole = document.getElementById('logConsole');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const folderDropZone = document.getElementById('folderDropZone');
+        const folderInput = document.getElementById('folderInput');
+        const fileList = document.getElementById('fileList');
+        const mainAnalyzeBtn = document.getElementById('mainAnalyzeBtn');
+        const finalGenerateBtn = document.getElementById('finalGenerateBtn');
+        const uploadResults = document.getElementById('uploadResults');
+        const initialActions = document.getElementById('initialActions');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const dashboardContainer = document.getElementById('alignmentDashboardContainer');
+        const toggleModeBtn = document.getElementById('toggleModeBtn');
+        const searchWebBtn = document.getElementById('searchWebBtn');
+        const standardUpload = document.getElementById('standardUpload');
+        const technicalUpload = document.getElementById('technicalUpload');
+
+        let selectedFiles = [];
+        let lastExtractedData = null;
+        let isTechnicalMode = false;
+        let displayedLogs = new Set();
+
+        toggleModeBtn.onclick = () => {
+            isTechnicalMode = !isTechnicalMode;
+            standardUpload.style.display = isTechnicalMode ? 'none' : 'block';
+            technicalUpload.style.display = isTechnicalMode ? 'block' : 'none';
+            toggleModeBtn.textContent = isTechnicalMode ? 'Standard Mode' : 'Folder Mode';
+            selectedFiles = [];
+            renderFiles();
+        };
+
+        if (searchWebBtn) {
+            searchWebBtn.onclick = async () => {
+                const name = document.getElementById('clubName').value;
+                if (!name) { alert("Inserisci il nome del club."); return; }
+                searchWebBtn.disabled = true;
+                searchWebBtn.textContent = "⏳ Cerco...";
+                try {
+                    const resp = await fetch('/api/research/basic-info', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ club_name: name }) });
+                    const data = await resp.json();
+                    if (data.success) {
+                        uploadResults.style.display = 'block';
+                        document.getElementById('stadiumConfirmed').value = data.info.stadium || "";
+                        document.getElementById('foundationConfirmed').value = data.info.foundation_year || "";
+                        document.getElementById('presidentConfirmed').value = data.info.president || "";
+                        document.getElementById('budgetConfirmed').value = data.info.budget || "";
+                    }
+                } catch (e) { } finally { searchWebBtn.disabled = false; searchWebBtn.textContent = "🔍 Cerca sul Web"; }
+            };
+        }
+
+        function addLog(level, message) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = '<span class="log-time">' + new Date().toLocaleTimeString() + '</span><span class="log-level ' + level + '">' + level + '</span><span>' + message + '</span>';
+            logConsole.appendChild(div);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        if (dropZone) dropZone.onclick = () => fileInput.click();
+        if (folderDropZone) folderDropZone.onclick = () => folderInput.click();
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+        folderInput.onchange = (e) => handleFiles(e.target.files);
+
+        function handleFiles(files) {
+            for (const f of files) { if (f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.zip')) { if (f.name.endsWith('.zip')) selectedFiles = [f]; else selectedFiles.push(f); } }
+            renderFiles();
+        }
+
+        function renderFiles() {
+            fileList.innerHTML = selectedFiles.map((f, i) => '<div class="file-item"><span>' + (f.webkitRelativePath || f.name) + '</span><button type="button" onclick="selectedFiles.splice(' + i + ',1);renderFiles();">X</button></div>').join('');
+            mainAnalyzeBtn.disabled = (selectedFiles.length === 0);
+        }
+
+        mainAnalyzeBtn.onclick = async () => {
+            mainAnalyzeBtn.disabled = true;
+            loadingIndicator.style.display = 'block';
+            initialActions.style.display = 'none';
+            standardUpload.style.display = 'none';
+            technicalUpload.style.display = 'none';
+            
+            const formData = new FormData();
+            selectedFiles.forEach(f => formData.append('files[]', f, f.webkitRelativePath || f.name));
+            formData.append('club_name', document.getElementById('clubName').value);
+
+            try {
+                const resp = await fetch('/api/upload-docx', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (data.success) {
+                    // Inizia il polling per i risultati dell'analisi
+                    pollAnalysisResults(data.project_id);
+                } else { alert(data.error); resetUI(); }
+            } catch (e) { resetUI(); }
+        };
+
+        async function pollAnalysisResults(projectId) {
+            const poll = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/generation-status/' + projectId);
+                    const data = await resp.json();
+                    
+                    if (data.status === 'processing') {
+                        // Aggiorna HUD
+                        loadingIndicator.querySelector('p').textContent = data.message;
+                        loadingIndicator.querySelector('small').textContent = 'Progresso: ' + data.progress + '%';
+                        
+                        // Effetto visivo sulla barra (opzionale se volessimo aggiungerla)
+                        if (data.progress > 0) {
+                             addLog('INFO', data.message + ' (' + data.progress + '%)');
+                        }
+                    } else if (data.status === 'completed') {
+                        clearInterval(poll);
+                        loadingIndicator.style.display = 'none';
+                        uploadResults.style.display = 'block';
+                        
+                        // Qui carichiamo i dati finali
+                        const finalResp = await fetch('/api/check-analysis/' + projectId);
+                        const finalData = await finalResp.json();
+                        
+                        dashboardContainer.innerHTML = finalData.alignment_dashboard;
+                        document.getElementById('stadiumConfirmed').value = finalData.extracted_data.stadium || document.getElementById('stadiumConfirmed').value;
+                        lastExtractedData = finalData.extracted_data;
+                        addLog('INFO', 'Analisi completata con successo!');
+                    } else if (data.status === 'error') {
+                        clearInterval(poll);
+                        alert(data.message);
+                        resetUI();
+                        addLog('ERROR', data.message);
+                    }
+                } catch (e) { 
+                    console.error("Polling error:", e);
+                }
+            }, 2000);
+        }
+
+        function resetUI() {
+            loadingIndicator.style.display = 'none';
+            initialActions.style.display = 'block';
+            mainAnalyzeBtn.disabled = false;
+        }
+
+        finalGenerateBtn.onclick = async () => {
+            finalGenerateBtn.disabled = true;
+            finalGenerateBtn.textContent = 'Generazione...';
+            const resp = await fetch('/api/generate-from-webhook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    club_name: lastExtractedData.club_name,
+                    category: document.getElementById('category').value,
+                    project_id: lastExtractedData.project_id,
+                    stakeholders_inputs: lastExtractedData.stakeholders,
+                    stadium: document.getElementById('stadiumConfirmed').value,
+                    foundation_year: document.getElementById('foundationConfirmed').value,
+                    president: document.getElementById('presidentConfirmed').value,
+                    budget: document.getElementById('budgetConfirmed').value,
+                    request_mode: 'production'
+                })
+            });
+            const data = await resp.json();
+            if (data.success) window.location.href = '/success/' + data.plan_id;
+            else { alert(data.error); finalGenerateBtn.disabled = false; }
+        };
+
+        setInterval(async () => {
+            try {
+                const resp = await fetch('/api/stream/logs');
+                const data = await resp.json();
+                if (data.success && data.logs) {
+                    data.logs.forEach(l => {
+                        const id = l.timestamp + l.message;
+                        if (!displayedLogs.has(id)) { addLog(l.level, l.message); displayedLogs.add(id); }
+                    });
+                }
+            } catch(e) { }
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -80,6 +80,16 @@ CLUB_COLORS_DB: Dict[str, Dict[str, str]] = {
     'triestina': {'primary': '#E30613', 'secondary': '#FFFFFF', 'accent': '#1D1D1B'},
     'vicenza': {'primary': '#C8102E', 'secondary': '#FFFFFF', 'accent': '#1D1D1B'},
 
+    # ----- CLUB LOCALI / DILETTANTI -----
+    'riccione': {'primary': '#FFFFFF', 'secondary': '#1D428A', 'accent': '#000000'}, # Bianco-Azzurro Riccione
+    'rimini': {'primary': '#E30613', 'secondary': '#FFFFFF', 'accent': '#000000'}, # Bianco-Rosso Rimini
+    'spal': {'primary': '#009CDE', 'secondary': '#FFFFFF', 'accent': '#000000'}, # Bianco-Azzurro SPAL
+    'ravenna': {'primary': '#E30613', 'secondary': '#FFDE00', 'accent': '#000000'}, # Giallo-Rosso Ravenna
+    'forli': {'primary': '#E30613', 'secondary': '#FFFFFF', 'accent': '#000000'},
+    'cesena': {'primary': '#000000', 'secondary': '#FFFFFF', 'accent': '#1D1D1B'},
+    'cattolica': {'primary': '#FFFF00', 'secondary': '#E30613', 'accent': '#000000'},
+    'misano': {'primary': '#FFFFFF', 'secondary': '#0000FF', 'accent': '#000000'},
+
     # ----- TOP EUROPEI -----
     'real madrid': {'primary': '#FFFFFF', 'secondary': '#00529F', 'accent': '#D4AF37'},
     'barcelona': {'primary': '#A50044', 'secondary': '#004D98', 'accent': '#FFED00'},
@@ -271,9 +281,62 @@ def get_club_colors(club_name: str) -> Dict[str, str]:
             logger.info(f"Club colors found (fuzzy): {club_name} -> {result['primary']} (matched: {common})")
             return result
 
+    # ----- FALLBACK: RICERCA AI -----
+    ai_colors = research_club_colors(club_name)
+    if ai_colors:
+        # Salva in DB runtime per non ripetere ricerca
+        add_club_colors(club_name, ai_colors['primary'], ai_colors['secondary'], ai_colors.get('accent'))
+        return ai_colors
+
     # Nessun match, usa default
-    logger.info(f"Club colors not found: '{club_name}' -> using default")
+    logger.info(f"Club colors not found in DB: '{club_name}' -> using default")
     return DEFAULT_COLORS.copy()
+
+
+def research_club_colors(club_name: str) -> Optional[Dict[str, str]]:
+    """
+    Esegue una ricerca web e usa AI per identificare i colori ufficiali di un club.
+    """
+    try:
+        from web_research import WebResearcher
+        from config import MODEL_CONFIG
+        import google.generativeai as genai
+        import json
+
+        researcher = WebResearcher()
+        query = f"colori ufficiali club calcio {club_name} hex code"
+        results = researcher.search(query, num_results=5)
+        
+        if not results.results:
+            return None
+
+        snippets = "\n".join([r.snippet for r in results.results])
+        
+        model = genai.GenerativeModel(MODEL_CONFIG.name)
+        prompt = f"""
+        Identifica i colori sociali ufficiali del club {club_name} basandoti su questi dati:
+        {snippets}
+        
+        Rispondi rigorosamente in JSON con codici HEX validi:
+        {{
+            "primary": "#HEX",
+            "secondary": "#HEX",
+            "accent": "#HEX"
+        }}
+        Se non sei sicuro, non inventare, ma cerca di dedurre i colori classici (es. Milan=Rosso/Nero).
+        """
+        
+        response = model.generate_content(prompt)
+        match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match:
+            colors = json.loads(match.group(0))
+            if all(k in colors for k in ['primary', 'secondary']):
+                logger.info(f"Deducted colors for {club_name} via AI: {colors['primary']}")
+                return colors
+    except Exception as e:
+        logger.error(f"Errore nella ricerca colori club: {e}")
+    
+    return None
 
 
 def get_club_identity(club_name: str, custom_primary: str = None, custom_secondary: str = None) -> Dict[str, str]:

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future - Dashboard Hybrid</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --secondary: #1e293b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            font-size: 1.5rem;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo-version {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+        }
+
+        .header-nav {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .header-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .header-nav a:hover {
+            background: var(--bg-input);
+            color: var(--text);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-input);
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 0;
+            height: calc(100vh - 65px);
+        }
+
+        /* Left Panel - Upload & Actions */
+        .left-panel {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-title-icon {
+            font-size: 1.25rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Upload Form */
+        .upload-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* File Drop Zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-input);
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone-text {
+            font-size: 1rem;
+            color: var(--text-muted);
+        }
+
+        .drop-zone-text strong {
+            color: var(--primary);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* File List */
+        .file-list {
+            margin-top: 1rem;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-input);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-item-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-item-remove {
+            background: none;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            font-size: 1.25rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        /* Right Panel - Live Console */
+        .right-panel {
+            background: #0d1117;
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console-header {
+            padding: 1rem 1.25rem;
+            background: var(--secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .console-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .console-btn {
+            background: var(--bg-input);
+            border: none;
+            color: var(--text-muted);
+            padding: 0.4rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .console-btn:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .console-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .log-timestamp {
+            color: #6b7280;
+            margin-right: 0.5rem;
+        }
+
+        .log-level {
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .log-level.INFO {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .log-level.WARNING {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+        }
+
+        .log-level.ERROR {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .log-level.DEBUG {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+
+        .log-message {
+            color: #e5e7eb;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .connection-status.connected .status-indicator {
+            background: var(--success);
+        }
+
+        .connection-status.disconnected .status-indicator {
+            background: var(--error);
+        }
+
+        .status-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        /* Recent Plans */
+        .recent-plans {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .plan-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-input);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .plan-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .plan-info h4 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .plan-info span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .plan-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .plan-status.draft {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+        }
+
+        .plan-status.ready {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        /* Progress indicator */
+        .progress-container {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+            animation: progress-indeterminate 1.5s infinite;
+        }
+
+        @keyframes progress-indeterminate {
+            0% { transform: translateX(-100%); width: 30%; }
+            50% { width: 50%; }
+            100% { transform: translateX(400%); width: 30%; }
+        }
+
+        .progress-text {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+
+            .right-panel {
+                height: 300px;
+                border-left: none;
+                border-top: 1px solid var(--border);
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">🌱</span>
+            <span class="logo-text">Rooting Future</span>
+            <span class="logo-version">v5.4</span>
+        </div>
+
+        <nav class="header-nav">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}">Review</a>
+        </nav>
+
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            <span id="systemStatus">Sistema Online</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Left Panel: Upload & Stats -->
+        <div class="left-panel">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.total_plans }}</div>
+                    <div class="stat-label">Piani Totali</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div>
+                    <div class="stat-label">In Bozza</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.sections_needing_review }}</div>
+                    <div class="stat-label">Da Revisionare</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ stats.average_credibility }}%</div>
+                    <div class="stat-label">Credibilita Media</div>
+                </div>
+            </div>
+
+            <!-- Upload Form -->
+            <div class="upload-card">
+                <h2 class="section-title">
+                    <span class="section-title-icon">📤</span>
+                    Caricamento Manuale
+                </h2>
+
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label class="form-label" for="companyName">Nome Club / Azienda *</label>
+                        <input
+                            type="text"
+                            id="companyName"
+                            name="club_name"
+                            class="form-input"
+                            placeholder="Es: AC Riccione 1926"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">File Word (.docx) *</label>
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-zone-icon">📄</div>
+                            <div class="drop-zone-text">
+                                Trascina qui i file o <strong>clicca per selezionare</strong>
+                            </div>
+                            <div class="drop-zone-text" style="font-size: 0.8rem; margin-top: 0.5rem;">
+                                Formati accettati: .docx (SWOT, PEST, Vision)
+                            </div>
+                            <input type="file" id="fileInput" name="files[]" class="file-input" multiple accept=".docx">
+                        </div>
+                        <div class="file-list" id="fileList"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="category">Categoria (opzionale)</label>
+                        <select id="category" name="category" class="form-input">
+                            <option value="">-- Seleziona --</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-full" id="submitBtn" disabled>
+                        <span>🚀</span>
+                        Genera Piano Strategico
+                    </button>
+
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">Elaborazione in corso...</div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Recent Plans -->
+            <div class="recent-plans">
+                <h3 class="section-title">
+                    <span class="section-title-icon">📋</span>
+                    Piani Recenti
+                </h3>
+
+                {% if stats.recent_plans %}
+                    {% for plan in stats.recent_plans[:5] %}
+                    <div class="plan-item">
+                        <div class="plan-info">
+                            <h4>{{ plan.club_name }}</h4>
+                            <span>{{ plan.last_modified[:10] if plan.last_modified else 'N/A' }}</span>
+                        </div>
+                        <a href="{{ url_for('plan_detail', plan_id=plan.plan_id) }}" class="btn btn-secondary">
+                            Apri
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <p>Nessun piano generato.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right Panel: Live Console -->
+        <div class="right-panel">
+            <div class="console-header">
+                <div class="console-title">
+                    <span>📡</span>
+                    Live Console
+                </div>
+                <div class="console-controls">
+                    <button class="console-btn" onclick="clearLogs()">Clear</button>
+                    <button class="console-btn" onclick="toggleAutoScroll()">Auto-scroll</button>
+                </div>
+            </div>
+
+            <div class="console-body" id="logConsole">
+                <div class="log-entry">
+                    <span class="log-timestamp">--:--:--</span>
+                    <span class="log-level INFO">INFO</span>
+                    <span class="log-message">Connessione al server in corso...</span>
+                </div>
+            </div>
+
+            <div class="connection-status disconnected" id="connectionStatus">
+                <span class="status-indicator"></span>
+                <span id="connectionText">Disconnesso</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // VARIABLES
+        // =================================================================
+        let selectedFiles = [];
+        let eventSource = null;
+        let autoScroll = true;
+        const logConsole = document.getElementById('logConsole');
+        const fileList = document.getElementById('fileList');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressContainer = document.getElementById('progressContainer');
+
+        // =================================================================
+        // SSE LOG STREAMING
+        // =================================================================
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/api/stream/logs');
+
+            eventSource.onopen = function() {
+                updateConnectionStatus(true);
+                addLogEntry({
+                    timestamp: new Date().toISOString(),
+                    level: 'INFO',
+                    message: 'Connesso al server - Streaming attivo'
+                });
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const logEntry = JSON.parse(event.data);
+                    addLogEntry(logEntry);
+                } catch (e) {
+                    console.error('Error parsing log:', e);
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                updateConnectionStatus(false);
+                console.error('SSE error:', error);
+
+                // Riconnetti dopo 3 secondi
+                setTimeout(() => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        connectSSE();
+                    }
+                }, 3000);
+            };
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                textEl.textContent = 'Connesso - Streaming attivo';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                textEl.textContent = 'Disconnesso - Riconnessione...';
+            }
+        }
+
+        function addLogEntry(entry) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+
+            const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '--:--:--';
+
+            div.innerHTML = `
+                <span class="log-timestamp">${time}</span>
+                <span class="log-level ${entry.level}">${entry.level}</span>
+                <span class="log-message">${escapeHtml(entry.message)}</span>
+            `;
+
+            logConsole.appendChild(div);
+
+            // Limite log visualizzati
+            while (logConsole.children.length > 200) {
+                logConsole.removeChild(logConsole.firstChild);
+            }
+
+            // Auto-scroll
+            if (autoScroll) {
+                logConsole.scrollTop = logConsole.scrollHeight;
+            }
+        }
+
+        function clearLogs() {
+            logConsole.innerHTML = '';
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'INFO',
+                message: 'Console svuotata'
+            });
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'INFO',
+                message: `Auto-scroll ${autoScroll ? 'attivato' : 'disattivato'}`
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // =================================================================
+        // FILE UPLOAD
+        // =================================================================
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file.name.endsWith('.docx')) {
+                    // Evita duplicati
+                    if (!selectedFiles.some(f => f.name === file.name)) {
+                        selectedFiles.push(file);
+                    }
+                }
+            }
+            renderFileList();
+            updateSubmitButton();
+        }
+
+        function renderFileList() {
+            fileList.innerHTML = selectedFiles.map((file, idx) => `
+                <div class="file-item">
+                    <div class="file-item-name">
+                        <span>📄</span>
+                        <span>${file.name}</span>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">
+                            (${(file.size / 1024).toFixed(1)} KB)
+                        </span>
+                    </div>
+                    <button class="file-item-remove" onclick="removeFile(${idx})">×</button>
+                </div>
+            `).join('');
+        }
+
+        function removeFile(idx) {
+            selectedFiles.splice(idx, 1);
+            renderFileList();
+            updateSubmitButton();
+        }
+
+        function updateSubmitButton() {
+            const companyName = document.getElementById('companyName').value.trim();
+            submitBtn.disabled = !(selectedFiles.length > 0 && companyName);
+        }
+
+        document.getElementById('companyName').addEventListener('input', updateSubmitButton);
+
+        // =================================================================
+        // FORM SUBMISSION
+        // =================================================================
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const companyName = document.getElementById('companyName').value.trim();
+            const category = document.getElementById('category').value;
+
+            if (!companyName || selectedFiles.length === 0) {
+                alert('Inserisci il nome del club e almeno un file .docx');
+                return;
+            }
+
+            // Show progress
+            progressContainer.classList.add('active');
+            submitBtn.disabled = true;
+            document.getElementById('progressText').textContent = 'Caricamento file...';
+
+            // Build FormData
+            const formData = new FormData();
+            formData.append('club_name', companyName);
+            formData.append('request_mode', 'production');
+
+            if (category) {
+                formData.append('hard_data', JSON.stringify({ category: category }));
+            }
+
+            selectedFiles.forEach(file => {
+                formData.append('files[]', file);
+            });
+
+            try {
+                document.getElementById('progressText').textContent = 'Elaborazione DOCX in corso...';
+
+                const response = await fetch('/api/generate-from-docx', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('progressText').textContent = 'Piano generato con successo!';
+
+                    // Redirect after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = result.edit_url || `/plan/${result.plan_id}`;
+                    }, 2000);
+                } else {
+                    throw new Error(result.error || 'Errore sconosciuto');
+                }
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById('progressText').textContent = `Errore: ${error.message}`;
+                progressContainer.classList.remove('active');
+                submitBtn.disabled = false;
+            }
+        });
+
+        // =================================================================
+        // INIT
+        // =================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            connectSSE();
+
+            // Update system status periodically
+            setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/system/status');
+                    const data = await resp.json();
+                    if (data.success) {
+                        document.getElementById('systemStatus').textContent =
+                            `Online | ${data.connected_clients} client`;
+                    }
+                } catch (e) {
+                    document.getElementById('systemStatus').textContent = 'Errore connessione';
+                }
+            }, 10000);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
