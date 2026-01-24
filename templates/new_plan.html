@@ -331,7 +331,7 @@
                 if (result.success) {
                     progressText.textContent = 'Piano generato con successo!';
                     setTimeout(() => {
-                        window.location.href = '/plan/' + result.plan_id;
+                        window.location.href = '/success/' + result.plan_id;
                     }, 1000);
                 } else {
                     throw new Error(result.error || 'Errore sconosciuto');

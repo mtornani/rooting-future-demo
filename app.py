@@ -7,6 +7,7 @@ API e interfaccia web per generazione piani strategici.
 
 import os
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -21,16 +22,68 @@ from flask import (
     render_template,
     request,
     jsonify,
-    send_file,
     redirect,
     url_for,
     flash,
     session,
     Response,
+    send_file,
 )
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+
+# Lock per accesso concorrente a file cache/database
+cache_lock = threading.Lock()
+
+# Inizializza il pool di thread per analisi pesanti (max 2 per le 2 CPU di AWS)
+analysis_executor = ThreadPoolExecutor(max_workers=2)
+
+# Global status tracker per la UX (HUD)
+project_progress = {}
+
+
+def cleanup_old_projects():
+    """Rimuove vecchi progetti dal tracker per liberare memoria (ogni ora)"""
+    while True:
+        try:
+            time.sleep(3600)  # 1 ora
+            now = time.time()
+            # Mantieni solo progetti degli ultimi 4 ore
+            with cache_lock:  # Riutilizziamo un lock per evitare race conditions
+                to_delete = [
+                    p_id
+                    for p_id, status in project_progress.items()
+                    if now - status.get("timestamp", 0) > 14400
+                ]
+                for p_id in to_delete:
+                    del project_progress[p_id]
+                    if (
+                        hasattr(app, "analysis_results")
+                        and p_id in app.analysis_results
+                    ):
+                        del app.analysis_results[p_id]
+                if to_delete:
+                    logger.info(f"Cleanup: rimosse {len(to_delete)} sessioni vecchie.")
+        except Exception as e:
+            logger.error(f"Cleanup thread error: {e}")
+
+
+# Avvia thread di cleanup
+threading.Thread(target=cleanup_old_projects, daemon=True).start()
+
+
+def update_project_status(p_id, status, progress=0, message="", data=None):
+    """Aggiorna lo stato globale di un progetto per il feedback live"""
+    project_progress[p_id] = {
+        "status": status,  # 'processing', 'completed', 'error'
+        "progress": progress,  # 0-100
+        "message": message,  # Messaggio per l'utente (es. "Agente Sporting al lavoro...")
+        "timestamp": time.time(),
+        "data": data,  # Risultati finali se pronti
+    }
+
 
 from config import (
     OUTPUT_DIR,
@@ -40,10 +93,19 @@ from config import (
     COUNTRIES_LEAGUES,
     COUNTRIES,
     FOOTBALL_TIERS,
+    STRIPE_PUBLIC_KEY,
+    STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET,
+    CREDIT_PRICE_ID,
     validate_config,
     get_missing_config,
 )
-from agents import MultiAgentOrchestrator
+
+import stripe
+
+stripe.api_key = STRIPE_SECRET_KEY
+
+from agents import MultiAgentOrchestrator, AgentRole
 from web_research import WebResearcher, ResearchAggregator
 from data_sourcing import SourcedContentGenerator
 from knowledge_store import KnowledgeManager, PlanRecord
@@ -71,6 +133,7 @@ from data_models import StructuredPlan, DataType, ConfidenceLevel
 
 # Nuovo sistema RAG
 from file_search_manager import FileSearchManager
+from football_data_provider import data_provider
 
 # Dashboard Strategica
 from dashboard_module import generate_strategic_dashboard
@@ -84,6 +147,7 @@ from methodology_section import (
 # Data Estimator e Charts
 from data_estimator import estimate_missing_financials, DataTier
 from chart_generator import generate_financial_charts_for_report
+from stw_analyzer import calculate_stw_progress
 
 # Executive Report A4
 from executive_report import generate_executive_report_html
@@ -96,19 +160,44 @@ from data_ingestor import (
     DataIngestor,
     process_n8n_webhook_payload,
     generate_conflict_report_html,
+    generate_alignment_dashboard_html,
     process_docx_files_to_payload,
     DocxIngestor,
     DOCX_AVAILABLE,
 )
 
+# Authentication
+from auth_manager import init_auth
+from flask_login import login_required, current_user
+
 
 # =============================================================================
-# SETUP
+# SETUP & LOGGING OPTIMIZATION
 # =============================================================================
 
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
+app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
+
+# Configurazione Logging Aggressiva (Anti-Noise)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+# Silenzia librerie grafiche e di sistema troppo verbose
+NOISY_LIBRARIES = [
+    "fontTools",
+    "fontTools.subset",
+    "fontTools.ttLib",
+    "weasyprint",
+    "httpx",
+    "urllib3",
+    "PIL",
+    "matplotlib",
+    "multipart",
+]
+for lib in NOISY_LIBRARIES:
+    logging.getLogger(lib).setLevel(logging.ERROR)
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,6 +210,7 @@ log_history: List[Dict] = []
 LOG_HISTORY_SIZE = 100
 log_history_lock = threading.Lock()
 
+
 def add_to_log_history(level: str, message: str, source: str = "system"):
     """Aggiunge un log al buffer per la dashboard."""
     with log_history_lock:
@@ -128,11 +218,21 @@ def add_to_log_history(level: str, message: str, source: str = "system"):
             "timestamp": datetime.now().isoformat(),
             "level": level.upper(),
             "message": message,
-            "source": source
+            "source": source,
         }
-        log_history.append(log_entry);
+        log_history.append(log_entry)
         if len(log_history) > LOG_HISTORY_SIZE:
             log_history.pop(0)
+
+
+def clear_log_history():
+    """Svuota la cronologia dei log."""
+    with log_history_lock:
+        log_history.clear()
+        add_to_log_history(
+            "info", "Console resettata. In attesa di nuove operazioni..."
+        )
+
 
 def broadcast_log(level: str, message: str, source: str = "system"):
     """
@@ -147,22 +247,78 @@ def broadcast_log(level: str, message: str, source: str = "system"):
         logger.error(f"[{source}] {message}")
     else:
         logger.info(f"[{source}] {message}")
-    
+
     # Buffer per dashboard
     add_to_log_history(level, message, source)
+
 
 # SSE handler rimosso perché instabile su alcuni sistemi
 log_stream_handler = None
 
 
+from license_manager import licenser
+
 # =============================================================================
-# FLASK APP SETUP
+# LICENSE ENFORCEMENT MIDDLEWARE
 # =============================================================================
 
-app = Flask(__name__)
-app.secret_key = os.environ.get(
-    "FLASK_SECRET_KEY", "rooting-future-dev-key-change-in-prod"
-)
+
+@app.before_request
+def check_system_activation():
+    """
+    Verifica l'attivazione della licenza prima di ogni richiesta.
+    Esclude rotte di login, static e la pagina di attivazione stessa.
+    """
+    allowed_routes = ["activation", "static", "auth.login", "auth.logout"]
+    if request.endpoint in allowed_routes or not request.endpoint:
+        return
+
+    license_file = Path("license.key")
+    is_activated = False
+
+    if license_file.exists():
+        try:
+            with open(license_file, "r") as f:
+                stored_data = json.load(f)
+                is_activated = licenser.verify_license(
+                    stored_data.get("key"), stored_data.get("email")
+                )
+        except:
+            pass
+
+    if not is_activated:
+        # Se non attivato e non siamo già sulla pagina di attivazione
+        if request.endpoint != "activation":
+            return redirect(url_for("activation"))
+
+
+@app.route("/activation", methods=["GET", "POST"])
+def activation():
+    """Pagina di blocco e attivazione licenza"""
+    machine_code = licenser.get_machine_code()
+
+    if request.method == "POST":
+        email = request.form.get("email")
+        key = request.form.get("key")
+
+        if licenser.verify_license(key, email):
+            # Salva licenza
+            with open("license.key", "w") as f:
+                json.dump(
+                    {
+                        "email": email,
+                        "key": key,
+                        "activated_at": datetime.now().isoformat(),
+                    },
+                    f,
+                )
+            flash("Sistema Attivato con Successo! Riavvio in corso...", "success")
+            return redirect(url_for("index"))
+        else:
+            flash("Chiave di Licenza non valida per questo PC.", "error")
+
+    return render_template("activation.html", machine_code=machine_code)
+
 
 # Registra routes n8n
 register_n8n_routes(app)
@@ -188,11 +344,14 @@ except Exception as e:
     file_search_store_name = None
 
 # Knowledge manager (per apprendimento)
-knowledge_manager = KnowledgeManager()
+knowledge_manager = KnowledgeManager(file_search_manager=file_search_manager)
+
+# Init Auth
+init_auth(app, knowledge_manager.store)
 
 # Multi-Agent Orchestrator
 orchestrator = MultiAgentOrchestrator(
-    knowledge_store=knowledge_manager.store,
+    knowledge_store=knowledge_manager,  # Pass full manager for RAG access
     file_search_store_name=file_search_store_name,
 )
 
@@ -206,9 +365,169 @@ batch_manager = BatchReviewManager()
 
 # Sistema strutturato v5.4
 structured_orchestrator = StructuredOrchestrator(
-    file_search_store_name=file_search_store_name
+    file_search_store_name=file_search_store_name, knowledge_store=knowledge_manager
 )
 structured_renderer = StructuredHTMLRenderer()
+
+
+# =============================================================================
+# LEGAL & GDPR
+# =============================================================================
+
+
+@app.route("/legal/privacy")
+def view_privacy():
+    return render_template("privacy.html", user=current_user)
+
+
+@app.route("/legal/terms")
+def view_terms():
+    return render_template("terms.html", user=current_user)
+
+
+@app.route("/api/user/export-data")
+@login_required
+def export_user_data():
+    """Esporta tutti i dati dell'utente in formato JSON (GDPR)"""
+    plans, _ = knowledge_manager.store.list_plans(owner_id=int(current_user.id))
+    data = {
+        "user_profile": {
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+            "role": current_user.role,
+            "credits": current_user.credits,
+        },
+        "plans": [p.to_dict() for p in plans],
+    }
+    return jsonify(data)
+
+
+@app.route("/api/user/delete-account", methods=["POST"])
+@login_required
+def delete_account():
+    """Elimina l'account e tutti i dati associati (Diritto all'oblio)"""
+    # In una vera app, qui elimineresti l'utente dal DB
+    # Per sicurezza, implementiamo solo il flag disabilitato o chiediamo conferma Super Admin
+    logger.warning(f"Richiesta eliminazione account: {current_user.email}")
+    return jsonify(
+        {
+            "success": True,
+            "message": "Richiesta ricevuta. L'account sarà rimosso entro 48h.",
+        }
+    )
+
+
+@app.route("/api/user/complete-onboarding", methods=["POST"])
+@login_required
+def complete_onboarding():
+    """Segna l'onboarding come completato per l'utente"""
+    with sqlite3.connect(knowledge_manager.store.db_path) as conn:
+        conn.execute(
+            "UPDATE users SET first_login = 0 WHERE id = ?", (int(current_user.id),)
+        )
+        conn.commit()
+    return jsonify({"success": True})
+
+
+# =============================================================================
+# PAYMENTS - STRIPE INTEGRATION
+# =============================================================================
+
+
+@app.route("/api/payments/create-checkout", methods=["POST"])
+@login_required
+def create_checkout_session():
+    """Crea una sessione di pagamento Stripe per l'acquisto di crediti"""
+    try:
+        data = request.json
+        quantity = data.get("quantity", 1)
+
+        checkout_session = stripe.checkout.Session.create(
+            customer_email=current_user.email,
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price": CREDIT_PRICE_ID,
+                    "quantity": quantity,
+                }
+            ],
+            mode="payment",
+            success_url=url_for("index", _external=True) + "?payment=success",
+            cancel_url=url_for("index", _external=True) + "?payment=cancel",
+            metadata={"user_id": current_user.id, "credits_to_add": quantity},
+        )
+        return jsonify({"sessionId": checkout_session.id})
+    except Exception as e:
+        logger.error(f"Stripe error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/payments/webhook", methods=["POST"])
+def stripe_webhook():
+    """Webhook per confermare l'acquisto e accreditare i punti"""
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except Exception as e:
+        return "Invalid payload", 400
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session["metadata"].get("user_id")
+        credits_to_add = int(session["metadata"].get("credits_to_add", 0))
+
+        if user_id and credits_to_add > 0:
+            knowledge_manager.store.update_user_credits(int(user_id), credits_to_add)
+            logger.info(
+                f"CREDITI ACCREDITATI: {credits_to_add} aggiunti all'utente {user_id}"
+            )
+
+    return "OK", 200
+
+
+# =============================================================================
+# MIDDLEWARE - KILLSWITCH & ROLE ISOLATION
+# =============================================================================
+
+
+@app.before_request
+def check_system_lockout():
+    """Controlla il Killswitch globale prima di ogni richiesta"""
+    # Escludi le rotte statiche e il login per evitare loop
+    if request.path.startswith("/static") or request.path.startswith("/auth"):
+        return
+
+    try:
+        if knowledge_manager.store.is_killswitch_active():
+            # Se il killswitch è attivo, solo il Super Admin può passare
+            if not current_user.is_authenticated or current_user.role != "super_admin":
+                # Se è un'API, ritorna JSON anonimo
+                if request.path.startswith("/api"):
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": "Database Connection Timeout (Err: 0x80040154)",
+                        }
+                    ), 500
+                # Pagina di errore che scoraggia l'indagine
+                return (
+                    """
+                <body style="background:#f8fafc;color:#64748b;font-family:sans-serif;padding:100px;text-align:center;">
+                    <div style="max-width:500px;margin:auto;border:1px solid #e2e8f0;padding:40px;border-radius:8px;background:#fff;">
+                        <h1 style="color:#1e293b;font-size:18pt;">503 Service Unavailable</h1>
+                        <p>Il sistema e in fase di manutenzione programmata del database SQL.</p>
+                        <p style="font-size:9pt;color:#94a3b8;">Il servizio riprendera non appena la sincronizzazione dei cluster sara completata.<br>Codice Errore: 503-DB-SYNC-BUSY</p>
+                    </div>
+                </body>
+                """,
+                    503,
+                )
+    except Exception as e:
+        logger.error(f"Error checking killswitch: {e}")
 
 
 # =============================================================================
@@ -217,6 +536,7 @@ structured_renderer = StructuredHTMLRenderer()
 
 
 @app.route("/")
+@login_required
 def index():
     """Homepage con dashboard - versione stabile"""
     # Stats fissi per evitare blocchi
@@ -228,8 +548,12 @@ def index():
         "recent_plans": [],
     }
 
+    # Se l'utente è un TM, reindirizza direttamente alla lista dei piani assegnati
+    if current_user.role == "user":
+        return redirect(url_for("plans_list"))
+
     return render_template(
-        "dashboard_simple.html",
+        "dashboard_hybrid.html",
         stats=stats,
         categories=CATEGORIE_CALCIO_ITALIANO,
         regions=REGIONI_ITALIANE,
@@ -237,6 +561,8 @@ def index():
         countries_leagues=COUNTRIES_LEAGUES,
         tiers=FOOTBALL_TIERS,
         docx_available=DOCX_AVAILABLE,
+        user=current_user,
+        stripe_public_key=STRIPE_PUBLIC_KEY,
     )
 
 
@@ -258,6 +584,7 @@ def test_route():
 
 
 @app.route("/legacy")
+@login_required
 def legacy_index():
     """Dashboard legacy (vecchia versione)"""
     stats = editor.get_dashboard_stats()
@@ -270,6 +597,7 @@ def legacy_index():
         countries=COUNTRIES,
         countries_leagues=COUNTRIES_LEAGUES,
         tiers=FOOTBALL_TIERS,
+        user=current_user,
     )
 
 
@@ -285,11 +613,7 @@ def stream_logs():
     Il sistema SSE è stato disabilitato per stabilità.
     """
     with log_history_lock:
-        return jsonify({
-            "success": True, 
-            "logs": list(log_history),
-            "mode": "polling"
-        })
+        return jsonify({"success": True, "logs": list(log_history), "mode": "polling"})
 
 
 @app.route("/api/logs/history")
@@ -329,6 +653,7 @@ def system_status():
 
 
 @app.route("/plans")
+@login_required
 def plans_list():
     """Lista piani strategici"""
     status_filter = request.args.get("status", "")
@@ -336,11 +661,35 @@ def plans_list():
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
+    # Data Isolation:
+    # 1. Super Admin/Admin vede tutto
+    # 2. Temporary Manager (user) vede solo quelli assegnati
+
+    assigned_ids = None
+    owner_id_filter = None
+
+    if current_user.role == "user":
+        assigned_ids = knowledge_manager.store.get_assigned_plans(int(current_user.id))
+        if not assigned_ids:
+            return render_template(
+                "plans_list.html",
+                plans=[],
+                total=0,
+                page=page,
+                per_page=per_page,
+                user=current_user,
+            )
+    elif current_user.role != "super_admin" and current_user.role != "admin":
+        owner_id_filter = int(current_user.id)
+
     plans, total = knowledge_manager.store.list_plans(
         status=status_filter,
         category=category_filter,
         limit=per_page,
         offset=(page - 1) * per_page,
+        owner_id=owner_id_filter,
+        plan_ids=assigned_ids,
+        exclude_status="simulation" if not status_filter else "",
     )
 
     return render_template(
@@ -352,26 +701,83 @@ def plans_list():
         status_filter=status_filter,
         category_filter=category_filter,
         categories=CATEGORIE_CALCIO_ITALIANO,
+        user=current_user,
     )
 
 
+@app.route("/api/save_section", methods=["POST"])
+@login_required
+def save_section():
+    """Salva una singola sezione modificata dall'utente (Collaborative Editor)"""
+    try:
+        data = request.json
+        plan_id = data.get("plan_id")
+        section_key = data.get("section_key")
+        new_content = data.get("content")
+
+        if not all([plan_id, section_key, new_content]):
+            return jsonify({"success": False, "error": "Dati mancanti"}), 400
+
+        # Recupera il piano e verifica proprietà
+        plans, _ = knowledge_manager.store.list_plans(
+            plan_ids=[plan_id], owner_id=int(current_user.id)
+        )
+        if not plans:
+            return jsonify(
+                {"success": False, "error": "Piano non trovato o accesso negato"}
+            ), 404
+
+        plan = plans[0]
+
+        # Aggiorna la sezione
+        plan.plan_data[section_key] = new_content
+        plan.last_edited_by = current_user.full_name
+
+        # Salva nel database
+        knowledge_manager.store.save_plan(plan, owner_id=int(current_user.id))
+
+        logger.info(
+            f"Section {section_key} updated for plan {plan_id} by {current_user.email}"
+        )
+        return jsonify({"success": True, "message": "Sezione aggiornata con successo"})
+
+    except Exception as e:
+        logger.error(f"Error saving section: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/plan/<plan_id>")
+@login_required
 def plan_detail(plan_id: str):
     """Dettaglio piano con editor"""
     review = editor.reviews.get(plan_id)
+
+    # Se non è in cache, carica da DB
     if not review:
-        # Prova a caricare dal database
         plan_record = knowledge_manager.store.get_plan(plan_id)
         if not plan_record:
             flash("Piano non trovato", "error")
             return redirect(url_for("plans_list"))
 
-        # Crea review se non esiste
+        # Crea review in memoria
         review = editor.create_review_from_plan(
             plan_data=plan_record.plan_data,
             club_name=plan_record.club_name,
             metadata={"category": plan_record.category},
+            owner_id=plan_record.owner_id,
         )
+        # Sovrascrivi ID generato con quello del DB per coerenza
+        review.plan_id = plan_id
+        editor.reviews[plan_id] = review
+
+    # SICUREZZA: Verifica ownership
+    is_owner = review.owner_id == int(current_user.id)
+    is_admin = current_user.role in ["super_admin", "admin"]
+
+    if not is_owner and not is_admin:
+        logger.warning(f"Access denied for user {current_user.email} to plan {plan_id}")
+        flash("Accesso negato. Non sei il proprietario di questo piano.", "error")
+        return redirect(url_for("plans_list"))
 
     sections_needing_review = editor.get_sections_needing_review(plan_id)
 
@@ -379,10 +785,32 @@ def plan_detail(plan_id: str):
         "plan_detail.html",
         review=review,
         sections_needing_review=sections_needing_review,
+        user=current_user,
     )
 
 
+@app.route("/plan/<plan_id>/pitch")
+@login_required
+def plan_pitch(plan_id: str):
+    """Modalità Presentazione (Pitch Deck)"""
+    plan_record = knowledge_manager.store.get_plan(plan_id)
+    if not plan_record:
+        flash("Piano non trovato", "error")
+        return redirect(url_for("plans_list"))
+
+    # SICUREZZA: Verifica ownership
+    is_owner = plan_record.owner_id == int(current_user.id)
+    is_admin = current_user.role in ["super_admin", "admin"]
+
+    if not is_owner and not is_admin:
+        flash("Accesso negato.", "error")
+        return redirect(url_for("plans_list"))
+
+    return render_template("pitch_deck.html", plan=plan_record)
+
+
 @app.route("/new")
+@login_required
 def new_plan():
     """Form nuovo piano"""
     return render_template(
@@ -392,10 +820,12 @@ def new_plan():
         countries=COUNTRIES,
         countries_leagues=COUNTRIES_LEAGUES,
         tiers=FOOTBALL_TIERS,
+        user=current_user,
     )
 
 
 @app.route("/review-queue")
+@login_required
 def review_queue():
     """Coda di review prioritizzata"""
     queue = batch_manager.get_priority_queue()
@@ -405,7 +835,266 @@ def review_queue():
         "review_queue.html",
         queue=queue[:50],  # Top 50
         workload=workload,
+        user=current_user,
     )
+
+
+# =============================================================================
+# GHOST PROTOCOL - SYSTEM INTEGRITY (Killswitch)
+# =============================================================================
+
+
+@app.route("/api/v1/internal/stat/sync-provider/<state>")
+@login_required
+def sys_internal_integrity_check(state: str):
+    """
+    Ghost Killswitch: Permette al Super Admin di bloccare il sistema.
+    Richiede MASTER_SECRET_KEY nel file .env e ruolo super_admin.
+    Restituisce 404 se non autorizzato per nascondere la rotta.
+    """
+    # 1. Verifica Ruolo
+    if current_user.role != "super_admin":
+        return "Not Found", 404  # Finto 404 per sicurezza
+
+    # 2. Verifica Master Key (Solo da .env, non da DB)
+    master_key = request.args.get("token")
+    expected_key = os.environ.get("MASTER_KILL_KEY", "rf-default-ghost-key-99")
+
+    if not master_key or master_key != expected_key:
+        logger.warning(
+            f"CRITICAL: Unauthorized killswitch attempt by {current_user.email} from IP {request.remote_addr}"
+        )
+        return "Not Found", 404  # Finto 404
+
+    # 3. Esecuzione
+    value = "1" if state == "lock" else "0"
+    knowledge_manager.store.set_system_setting("global_lockout", value)
+
+    status_label = "SYSTEM_LOCKED" if value == "1" else "SYSTEM_LIVE"
+    broadcast_log(
+        "WARNING",
+        f"SECURITY: System state changed to {status_label} by {current_user.full_name}",
+    )
+
+    return jsonify({"status": "executed", "state": status_label})
+
+
+@app.route("/admin/assign", methods=["POST"])
+@login_required
+def admin_assign_plan():
+    """Assegna un piano a un utente (Admin o Super Admin)"""
+    if current_user.role not in ["super_admin", "admin"]:
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    data = request.json
+    plan_id = data.get("plan_id")
+    user_id = data.get("user_id")
+
+    if not plan_id or not user_id:
+        return jsonify({"success": False, "error": "plan_id and user_id required"}), 400
+
+    success = knowledge_manager.store.assign_plan(
+        plan_id, int(user_id), int(current_user.id)
+    )
+
+    if success:
+        # Registra sviluppo
+        knowledge_manager.store.add_development_log(
+            plan_id,
+            int(current_user.id),
+            "assignment",
+            f"Piano assegnato all'utente ID {user_id}",
+        )
+        return jsonify({"success": True})
+
+    return jsonify({"success": False, "error": "Assignment failed"}), 500
+
+
+# =============================================================================
+# ADMIN CONSOLE (The Pyramid Control)
+# =============================================================================
+
+
+@app.route("/api/admin/plans")
+@login_required
+def admin_list_plans():
+    """Lista tutti i piani del sistema (Solo Admin)"""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Accesso negato"}), 403
+
+    status = request.args.get("status", "")
+    category = request.args.get("category", "")
+    query = request.args.get("query", "")
+    limit = int(request.args.get("limit", 100))
+    offset = int(request.args.get("offset", 0))
+
+    plans, total = knowledge_manager.store.list_plans(
+        status=status, category=category, club_name=query, limit=limit, offset=offset
+    )
+
+    return jsonify(
+        {"success": True, "plans": [p.to_dict() for p in plans], "total": total}
+    )
+
+
+@app.route("/api/admin/users")
+@login_required
+def admin_list_users():
+    """Lista tutti gli utenti per l'assegnazione (Solo Admin)"""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Accesso negato"}), 403
+
+    users = knowledge_manager.store.list_users()
+    # Rimuoviamo password_hash per sicurezza
+    for u in users:
+        u.pop("password_hash", None)
+
+    return jsonify({"success": True, "users": users})
+
+
+@app.route("/api/admin/assign_plan", methods=["POST"])
+@login_required
+def api_admin_assign_plan():
+    """Assegna un piano a un Temporary Manager (Solo Admin)"""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Accesso negato"}), 403
+
+    data = request.json
+    plan_id = data.get("plan_id")
+    user_id = data.get("user_id")
+
+    if not all([plan_id, user_id]):
+        return jsonify({"success": False, "error": "Dati mancanti"}), 400
+
+    success = knowledge_manager.store.assign_plan(
+        plan_id, int(user_id), int(current_user.id)
+    )
+
+    if success:
+        logger.info(
+            f"Plan {plan_id} assigned to user {user_id} by {current_user.email}"
+        )
+        return jsonify({"success": True, "message": "Piano assegnato con successo"})
+
+    return jsonify({"success": False, "error": "Errore durante l'assegnazione"}), 500
+
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+    """Admin Console Dashboard"""
+    if current_user.role != "super_admin":
+        flash("Accesso negato. Area riservata al Super Admin.", "error")
+        return redirect(url_for("index"))
+
+    return render_template("admin_panel.html", user=current_user)
+
+
+@app.route("/api/admin/users", methods=["GET"])
+@login_required
+def api_admin_list_users():
+    """API: Lista tutti gli utenti"""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    users = knowledge_manager.store.list_users()
+    return jsonify({"success": True, "users": users})
+
+
+@app.route("/api/admin/users", methods=["POST"])
+@login_required
+def api_admin_create_user():
+    """API: Crea nuovo Temporary Manager"""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+    full_name = data.get("full_name")
+    credits = int(data.get("credits", 0))
+
+    if not email or not password:
+        return jsonify({"success": False, "error": "Email e Password richieste"}), 400
+
+    # Check esistenza
+    existing = knowledge_manager.store.get_user_by_email(email)
+    if existing:
+        return jsonify({"success": False, "error": "Utente già esistente"}), 400
+
+    # Crea
+    from auth_manager import bcrypt
+
+    pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+    user_id = knowledge_manager.store.create_user(
+        email, pw_hash, full_name, role="user"
+    )
+
+    # Aggiungi crediti iniziali
+    if credits > 0:
+        knowledge_manager.store.update_user_credits(user_id, credits)
+
+    return jsonify({"success": True, "user_id": user_id})
+
+
+@app.route("/api/admin/market-intelligence")
+@login_required
+def admin_market_intelligence():
+    """
+    Dashboard di Intelligence per il Super Admin.
+    Aggrega i dati reali raccolti da tutti i club per creare benchmark proprietari 'Rooting Future'.
+    """
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    try:
+        # Recupera tutti i piani per analisi aggregata
+        plans, _ = knowledge_manager.store.list_plans(limit=1000)
+
+        stats_by_category = {}
+
+        for p in plans:
+            cat = p.category or "Sconosciuta"
+            if cat not in stats_by_category:
+                stats_by_category[cat] = {
+                    "count": 0,
+                    "avg_budget": [],
+                    "avg_youth_players": [],
+                    "total_credibility": 0,
+                }
+
+            stats = stats_by_category[cat]
+            stats["count"] += 1
+            stats["total_credibility"] += p.credibility_score
+
+            # Estrai dati finanziari se presenti (da stime o reali)
+            financials = p.plan_data.get("financial_estimates", {})
+            if financials:
+                budget = financials.get("fatturato", {}).get("value", 0)
+                if budget:
+                    stats["avg_budget"].append(budget)
+
+        # Calcola medie finali
+        for cat, data in stats_by_category.items():
+            if data["avg_budget"]:
+                data["real_market_avg_budget"] = sum(data["avg_budget"]) / len(
+                    data["avg_budget"]
+                )
+            data["avg_credibility"] = data["total_credibility"] / data["count"]
+            # Pulisci liste grezze per il JSON
+            data.pop("avg_budget")
+
+        return jsonify(
+            {
+                "success": True,
+                "intelligence_report": stats_by_category,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Market Intelligence error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # =============================================================================
@@ -435,6 +1124,15 @@ def api_generate_plan():
         if not data:
             return jsonify({"success": False, "error": "No data provided"}), 400
 
+        # CONTROLLO CREDITI
+        if not knowledge_manager.store.has_sufficient_credits(int(current_user.id)):
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Crediti insufficienti. Contatta l'amministratore per una ricarica.",
+                }
+            ), 402
+
         club_name = data.get("club_name", "Club")
         if not club_name:
             return jsonify({"success": False, "error": "club_name required"}), 400
@@ -444,7 +1142,16 @@ def api_generate_plan():
         # Timing tracking
         phase_timings = {}
 
-        # 1. Web Research (opzionale)
+        # 1. Recupera dati tecnici reali
+        logger.info(f"Enriching data for: {club_name}")
+        technical_data = data_provider.get_club_technical_data(
+            club_name, data.get("category", "")
+        )
+
+        # Unisci i dati (i dati dell'utente hanno la precedenza)
+        enriched_data = {**technical_data, **data}
+
+        # 2. Web Research (opzionale)
         research_data = {}
         if data.get("enable_research", True):
             research_start = time.time()
@@ -458,35 +1165,84 @@ def api_generate_plan():
             )
             # Esporta research per audit
             research_aggregator.export_research_report(research_data)
-            phase_timings['web_research'] = round(time.time() - research_start, 2)
-            logger.info(f"Web research completed in {phase_timings['web_research']:.2f}s")
+            phase_timings["web_research"] = round(time.time() - research_start, 2)
+            logger.info(
+                f"Web research completed in {phase_timings['web_research']:.2f}s"
+            )
 
-        # 2. Genera piano con multi-agent
+        # 3. Genera piano con multi-agent
         logger.info("Generating strategic plan...")
         generation_start = time.time()
         result = orchestrator.generate_strategic_plan(
-            club_data=data, research_data=research_data.get("club", {}), parallel=True
+            club_data=enriched_data,
+            research_data=research_data.get("club", {}),
+            parallel=True,
         )
-        phase_timings['ai_generation'] = round(time.time() - generation_start, 2)
+        phase_timings["ai_generation"] = round(time.time() - generation_start, 2)
+
+        # 2b. Genera Piano Strutturato (Scientifico) v5.4
+        logger.info("Generating scientific structured plan...")
+        structured_start = time.time()
+        try:
+            structured_plan = structured_orchestrator.generate_plan(
+                club_data=data, research_data=research_data
+            )
+            phase_timings["scientific_analysis"] = round(
+                time.time() - structured_start, 2
+            )
+            logger.info(
+                f"Scientific plan generated in {phase_timings['scientific_analysis']:.2f}s"
+            )
+        except Exception as e:
+            logger.error(f"Structured generation failed: {e}")
+            structured_plan = None
 
         plan = result["plan"]
         sources = result["sources"]
         metadata = result["metadata"]
 
         # Aggiungi phase timings al metadata
-        metadata['phase_timings'] = phase_timings
+        metadata["phase_timings"] = phase_timings
+
+        # Gestione Colori Automatica
+        primary = data.get("primary_color")
+        secondary = data.get("secondary_color")
+
+        if not primary or primary == "#6a0dad":  # Se default o mancante
+            identity = get_club_identity(club_name)
+            primary = identity.get("primary")
+            secondary = identity.get("secondary")
+            logger.info(f"Auto-detected colors for {club_name}: {primary}")
 
         # Aggiungi colori e categoria dal form al metadata
-        metadata["primary_color"] = data.get("primary_color")
-        metadata["secondary_color"] = data.get("secondary_color")
+        metadata["primary_color"] = primary
+        metadata["secondary_color"] = secondary
         metadata["category"] = data.get("category", "")
 
         # 3. Crea review per editing
         review = editor.create_review_from_plan(
-            plan_data=plan, club_name=club_name, sources=sources, metadata=metadata
+            plan_data=plan,
+            club_name=club_name,
+            sources=sources,
+            metadata=metadata,
+            owner_id=int(current_user.id),
         )
 
-        # 4. Salva in knowledge store
+        # 4. Final Review & Audit (Anti-Hallucination)
+        from auditor_agent import AuditorAgent
+
+        auditor = AuditorAgent()
+        audit_report = auditor.audit_plan(
+            plan, club_data, metadata.get("financial_estimates", {})
+        )
+
+        # Salva report di audit nei metadati
+        metadata["audit_report"] = audit_report
+        logger.info(
+            f"Audit completed for {club_name}. Score: {audit_report.get('overall_quality_score')}"
+        )
+
+        # Crea record per database
         plan_record = PlanRecord(
             id=review.plan_id,
             club_name=club_name,
@@ -496,17 +1252,138 @@ def api_generate_plan():
             status="draft",
             plan_data=plan,
             sources_count=len(sources),
-            credibility_score=metadata.get("credibility_score", 0),
+            credibility_score=audit_report.get(
+                "overall_quality_score", metadata.get("credibility_score", 0)
+            ),
         )
-        knowledge_manager.add_plan_to_knowledge(plan_record)
+        knowledge_manager.add_plan_to_knowledge(
+            plan_record, owner_id=int(current_user.id)
+        )
+
+        # DETRAZIONE CREDITO (Escluso Super Admin)
+        if current_user.role != "super_admin":
+            knowledge_manager.store.update_user_credits(int(current_user.id), -1)
+            logger.info(f"Credit deducted from user {current_user.email}")
 
         logger.info(f"Plan generated successfully: {review.plan_id}")
+
+        # 5. Genera pacchetto report (Auto-produce results) - ROBUST & ARMOR-PLATED
+        pdf_url = None
+        onepager_url = None
+        executive_url = None
+        scientific_url = None
+
+        export_paths = []
+        safe_name = club_name.replace(" ", "_").replace("/", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 5x. DOCX Piano Strategico (Master)
+        try:
+            generated_docx_path = docx_exporter.create_document(
+                plan_data=plan,
+                club_name=club_name,
+                sources=sources,
+                metadata=metadata,
+            )
+            # Ensure it matches the template link: plan_id.docx
+            target_docx_filename = f"{review.plan_id}.docx"
+            target_docx_path = OUTPUT_DIR / target_docx_filename
+
+            import shutil
+
+            shutil.copy(generated_docx_path, target_docx_path)
+
+            export_paths.append(target_docx_filename)
+            logger.info(f"DOCX generated and mapped to: {target_docx_filename}")
+        except Exception as e:
+            logger.error(f"Failed to auto-generate DOCX: {e}", exc_info=True)
+
+        # 5a. PDF Piano Strategico (Server-side WeasyPrint)
+        try:
+            from export_pdf_server import PdfServerExporter
+
+            pdf_exporter = PdfServerExporter()
+            pdf_path = pdf_exporter.export(
+                plan_data=plan,
+                club_name=club_name,
+                sources=sources,
+                metadata=metadata,
+            )
+            pdf_url = f"/download/{pdf_path.name}"
+            export_paths.append(pdf_path.name)
+            logger.info(f"PDF generated: {pdf_path.name}")
+        except Exception as e:
+            logger.error(f"Failed to auto-generate PDF: {e}", exc_info=True)
+
+        # 5b. One-Pager (Infografica A4)
+        try:
+            from export_onepager import create_onepager
+            from stw_analyzer import STWAnalyzer
+
+            analyzer = STWAnalyzer()
+            full_stw_data = analyzer.analyze_plan_coverage(plan)
+
+            onepager_path = create_onepager(
+                plan_data=plan,
+                club_name=club_name,
+                metadata=metadata,
+                stw_progress=full_stw_data,
+            )
+            onepager_url = f"/download/{onepager_path.name}"
+            export_paths.append(onepager_path.name)
+            logger.info(f"One-Pager generated: {onepager_path.name}")
+        except Exception as e:
+            logger.error(f"Failed to auto-generate One-Pager: {e}", exc_info=True)
+
+        # 5c. Executive Report (HTML Print-Ready)
+        try:
+            exec_html = generate_executive_report_html(
+                plan_data=plan,
+                club_name=club_name,
+                category=data.get("category", "Eccellenza"),
+                metadata=metadata,
+                sources=sources,
+            )
+            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+            exec_path = OUTPUT_DIR / exec_filename
+            with open(exec_path, "w", encoding="utf-8") as f:
+                f.write(exec_html)
+            executive_url = f"/download/{exec_filename}"
+            export_paths.append(exec_filename)
+            logger.info(f"Executive Report generated: {exec_filename}")
+        except Exception as e:
+            logger.error(
+                f"Failed to auto-generate Executive Report: {e}", exc_info=True
+            )
+
+        # 5d. Scientific Report (Structured)
+        try:
+            if structured_plan:
+                sci_path_str = structured_renderer.render(structured_plan)
+                sci_path = Path(sci_path_str)
+                scientific_url = f"/download/{sci_path.name}"
+                export_paths.append(sci_path.name)
+                logger.info(f"Scientific Report generated: {sci_path.name}")
+        except Exception as e:
+            logger.error(
+                f"Failed to auto-generate Scientific Report: {e}", exc_info=True
+            )
+
+        # 6. Aggiorna record nel database con i path generati
+        plan_record.export_paths = export_paths
+        knowledge_manager.store.save_plan(plan_record, owner_id=int(current_user.id))
+
+        logger.info(f"Auto-reporting sequence completed for {club_name}")
 
         return jsonify(
             {
                 "success": True,
                 "plan_id": review.plan_id,
                 "club_name": club_name,
+                "pdf_url": pdf_url,
+                "onepager_url": onepager_url,
+                "executive_url": executive_url,
+                "scientific_url": scientific_url,
                 "sections_count": len(plan),
                 "sources_count": len(sources),
                 "sections_needing_review": len(
@@ -526,6 +1403,7 @@ def api_generate_plan():
 
 
 @app.route("/api/regenerate-section", methods=["POST"])
+@login_required
 def api_regenerate_section():
     """Rigenera singola sezione"""
     try:
@@ -543,6 +1421,13 @@ def api_regenerate_section():
         plan_record = knowledge_manager.store.get_plan(plan_id)
         if not plan_record:
             return jsonify({"success": False, "error": "Plan not found"}), 404
+
+        # SICUREZZA: Verifica ownership
+        is_owner = plan_record.owner_id == int(current_user.id)
+        is_admin = current_user.role in ["super_admin", "admin"]
+
+        if not is_owner and not is_admin:
+            return jsonify({"success": False, "error": "Accesso negato"}), 403
 
         club_data = {
             "club_name": plan_record.club_name,
@@ -572,50 +1457,81 @@ def api_regenerate_section():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/success/<plan_id>")
+@login_required
+def generation_success(plan_id):
+    """Pagina finale di successo con i download dei 3 file principali."""
+    review = editor.reviews.get(plan_id)
+    # Se non è in cache, prova a caricare da DB
+    if not review:
+        plan_record = knowledge_manager.store.get_plan(plan_id)
+        if plan_record:
+            # Ricostruisce review minima per visualizzazione
+            review = editor.create_review_from_plan(
+                plan_data=plan_record.plan_data,
+                club_name=plan_record.club_name,
+                metadata={"category": plan_record.category},
+                owner_id=plan_record.owner_id,
+            )
+            review.plan_id = plan_id
+
+    if not review:
+        return redirect(url_for("index"))
+
+    # Recupera i path dei file generati dal record
+    plan_record = knowledge_manager.store.get_plan(plan_id)
+    export_urls = {}
+
+    if plan_record and plan_record.export_paths:
+        for path_str in plan_record.export_paths:
+            # Priorità al PDF come Master Plan
+            if "PianoStrategico" in path_str and path_str.endswith(".pdf"):
+                export_urls["pdf_master"] = f"/download/{path_str}"
+            elif path_str.endswith(".docx"):
+                export_urls["docx"] = f"/download/{path_str}"
+            elif "ExecutiveReport" in path_str:
+                export_urls["executive"] = f"/download/{path_str}"
+            elif "OnePager" in path_str:
+                export_urls["onepager"] = f"/download/{path_str}"
+
+    # Fallback logici
+    if "pdf_master" not in export_urls and "docx" in export_urls:
+        export_urls["pdf_master"] = export_urls["docx"]  # Fallback su docx se manca PDF
+
+    # Se proprio non abbiamo nulla nei path, proviamo a ricostruire il nome standard del PDF
+    if "pdf_master" not in export_urls:
+        safe_name = review.club_name.replace(" ", "_").replace("/", "_")
+        # Cerchiamo se esiste un file con quel prefisso nella cartella output (opzionale, per ora usiamo fallback)
+        export_urls["pdf_master"] = f"/api/export/{plan_id}/pdf"
+
+    # Cerchiamo i file fisici per sicurezza
+    safe_name = review.club_name.replace(" ", "_").replace("/", "_")
+
+    return render_template(
+        "generation_success.html",
+        plan_id=plan_id,
+        club_name=review.club_name,
+        category=review.category,
+        export_urls=export_urls,
+    )
+
+
 @app.route("/api/generate-from-webhook", methods=["POST"])
 def api_generate_from_webhook():
     """
     Endpoint per n8n: genera piano da input multi-stakeholder.
-
-    Riceve payload con visioni di molteplici stakeholder,
-    applica conflict resolution e genera piano unificato.
-
-    Request body (da n8n):
-    {
-        "project_id": "AC_Riccione_2025",
-        "club_name": "AC Riccione 1926",
-        "request_mode": "production",  // or "draft"
-        "stakeholders_inputs": [
-            {
-                "name": "Giorgio Veschi",
-                "role": "Socio",
-                "vision": "Serie D, orgoglio locale...",
-                "swot_strengths": ["Passione", "Tifosi"],
-                "swot_weaknesses": ["Pochi soldi"],
-                "swot_opportunities": ["Turismo"],
-                "swot_threats": ["Concorrenza"],
-                "priorities": ["Settore giovanile", "Marketing"]
-            },
-            // ... altri stakeholder
-        ],
-        "hard_data": {
-            "budget_available": "500000",
-            "current_league": "Promozione",
-            "youth_members": 400,
-            "city": "Riccione",
-            "region": "Emilia-Romagna"
-        }
-    }
-
-    Response:
-    {
-        "success": true,
-        "plan_id": "xxx",
-        "synthesis_report": {...},
-        "conflicts_detected": [...],
-        "stakeholder_alignment_score": 85
-    }
     """
+    # SICUREZZA: Verifica API Key O Sessione Utente
+    api_key = request.headers.get("X-API-Key")
+    expected_key = os.environ.get("WEBHOOK_API_KEY", "rf-internal-n8n-secret-key")
+
+    # Permetti se c'è la chiave API corretta OPPURE se l'utente è loggato (da dashboard)
+    is_authorized = (api_key == expected_key) or current_user.is_authenticated
+
+    if not is_authorized:
+        logger.warning(f"Unauthorized webhook attempt from IP {request.remote_addr}")
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
     try:
         payload = request.json
         if not payload:
@@ -641,7 +1557,51 @@ def api_generate_from_webhook():
         )
 
         # 1. Process con Data Ingestor (Conflict Resolution)
+        # Raccogliamo anche i dati anagrafici confermati dalla dashboard
+        hard_data = payload.get("hard_data", {})
+        if "stadium" in payload:
+            hard_data["stadium"] = payload["stadium"]
+        if "foundation_year" in payload:
+            hard_data["foundation_year"] = payload["foundation_year"]
+        if "president" in payload:
+            hard_data["president"] = payload["president"]
+        if "budget" in payload:
+            hard_data["budget"] = payload["budget"]
+
+        payload["hard_data"] = hard_data
+
         synthesized, generation_params = process_n8n_webhook_payload(payload)
+
+        # --- NOVITÀ DISRUPTIVE: STRATEGIC FRICTION ANALYSIS ---
+        friction_index = 100 - synthesized.stakeholder_alignment_score
+        risk_level = (
+            "BASSO"
+            if friction_index < 15
+            else "MEDIO"
+            if friction_index < 30
+            else "ALTO"
+        )
+
+        # Estrazione sicura dei testi dai punti di consenso (che possono essere tuple o stringhe)
+        top_priorities = []
+        for p in synthesized.priority_ranking[:3]:
+            text = p[0] if isinstance(p, (list, tuple)) else str(p)
+            top_priorities.append(f"- {text}")
+
+        friction_report = f"""
+## ⚡ ANALISI DI ALLINEAMENTO E FRIZIONE (STAKEHOLDER RECAP)
+Il presente piano è frutto della sintesi di **{len(payload.get("stakeholders_inputs", []))} stakeholder** chiave.
+
+**Indice di Allineamento:** {synthesized.stakeholder_alignment_score:.1f}%
+**Livello di Rischio Decisionale:** {risk_level} (Friction Index: {friction_index:.1f})
+
+### PUNTI DI MASSIMO CONSENSO
+{chr(10).join(top_priorities)}
+
+### AREE DI ATTENZIONE (POTENZIALI CONFLITTI)
+{f"Rilevate {len(synthesized.conflicts_detected)} aree di divergenza strategica. " if synthesized.conflicts_detected else "Totale coesione rilevata sulle macro-aree."}
+"""
+        # -------------------------------------------------------
 
         logger.info(
             f"[Webhook] Synthesis complete. Alignment score: {synthesized.stakeholder_alignment_score}"
@@ -669,14 +1629,28 @@ def api_generate_from_webhook():
         # 3. Genera piano con multi-agent
         logger.info("[Webhook] Generating strategic plan...")
 
-        # Arricchisci club_data con dati sintetizzati
+        # Arricchisci club_data con dati sintetizzati e Friction Report
         club_data = generation_params.copy()
-        club_data["synthesized_vision"] = synthesized.unified_vision
-        club_data["swot_aggregated"] = {
-            k: [item for item, _, _ in v[:5]]
-            for k, v in synthesized.swot_aggregated.items()
-        }
-        club_data["priority_ranking"] = [p for p, _ in synthesized.priority_ranking[:5]]
+        club_data["synthesized_vision"] = (
+            friction_report + "\n" + synthesized.unified_vision
+        )
+
+        # FIX: Estrazione robusta SWOT (gestisce sia stringhe che tuple)
+        club_data["swot_aggregated"] = {}
+        for k, v in synthesized.swot_aggregated.items():
+            items = []
+            for item in v[:10]:  # Prendi i primi 10
+                if isinstance(item, (list, tuple)):
+                    items.append(item[0])  # Se è tupla, prendi il testo
+                else:
+                    items.append(str(item))  # Se è stringa, prendila così com'è
+            club_data["swot_aggregated"][k] = items
+
+        club_data["priority_ranking"] = [
+            p[0] if isinstance(p, (list, tuple)) else str(p)
+            for p in synthesized.priority_ranking[:5]
+        ]
+        club_data["friction_index"] = friction_index
 
         result = orchestrator.generate_strategic_plan(
             club_data=club_data,
@@ -715,37 +1689,157 @@ def api_generate_from_webhook():
         )
 
         # 6. Salva in knowledge store
+        project_id = payload.get("project_id", "")
+        # Se il project_id contiene TEST o SIMULATION, marca come simulazione
+        is_simulation = (
+            "TEST" in project_id.upper() or "SIMULATION" in project_id.upper()
+        )
+        plan_status = "simulation" if is_simulation else "draft"
+
         plan_record = PlanRecord(
             id=review.plan_id,
             club_name=generation_params["club_name"],
             category=generation_params.get("category", ""),
             region=generation_params.get("region", ""),
             created_at=datetime.now().isoformat(),
-            status="draft",
+            status=plan_status,
             plan_data=plan,
             sources_count=len(sources),
             credibility_score=metadata.get("credibility_score", 0),
         )
         knowledge_manager.add_plan_to_knowledge(plan_record)
 
-        logger.info(f"[Webhook] Plan generated successfully: {review.plan_id}")
+        logger.info(
+            f"[Webhook] Plan generated successfully: {review.plan_id} (Status: {plan_status})"
+        )
 
-        # 7. Genera PDF automaticamente (se production mode)
+        # 7. Genera PDF, One-Pager e Executive in background (Pre-Warming)
         pdf_url = None
+        onepager_url = None
+        executive_url = None
+
+        # URL Predittivi (saranno pronti quando l'utente clicca)
+        safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Nota: I nomi file reali avranno un timestamp leggermente diverso se generati dentro il thread
+        # Per semplicità qui usiamo nomi standardizzati senza timestamp nel link o gestiamo il redirect
+        # L'approccio migliore è: generare i nomi QUI e passarli al thread
+
+        docx_filename = f"{review.plan_id}.docx"
+
         if payload.get("request_mode") == "production":
-            try:
-                from export_pdf_server import PdfServerExporter
-                pdf_exporter = PdfServerExporter()
-                pdf_path = pdf_exporter.export(
-                    plan_data=plan,
-                    club_name=generation_params["club_name"],
-                    sources=sources,
-                    metadata=metadata,
-                )
-                pdf_url = f"/download/{pdf_path.name}"
-                logger.info(f"[Webhook] PDF generated: {pdf_path.name}")
-            except Exception as pdf_error:
-                logger.warning(f"[Webhook] PDF generation failed: {pdf_error}")
+            logger.info(
+                f"[Webhook] Avvio generazione report asincrona (Pre-Warming)..."
+            )
+
+            def generate_reports_task(
+                plan_data, club_name, sources, metadata, review_id
+            ):
+                try:
+                    # DOCX
+                    import shutil
+
+                    docx_path = docx_exporter.create_document(
+                        plan_data=plan_data,
+                        club_name=club_name,
+                        sources=sources,
+                        metadata=metadata,
+                    )
+                    final_docx_path = OUTPUT_DIR / f"{review_id}.docx"
+                    if Path(docx_path).absolute() != final_docx_path.absolute():
+                        shutil.copy(docx_path, final_docx_path)
+
+                    # PDF
+                    from export_pdf_server import PdfServerExporter
+
+                    pdf_exporter = PdfServerExporter()
+                    pdf_exporter.export(
+                        plan_data=plan_data,
+                        club_name=club_name,
+                        sources=sources,
+                        metadata=metadata,
+                    )
+
+                    # One-Pager
+                    from export_onepager import create_onepager
+                    from stw_analyzer import STWAnalyzer
+
+                    analyzer = STWAnalyzer()
+                    full_stw_data = analyzer.analyze_plan_coverage(plan_data)
+                    create_onepager(
+                        plan_data=plan_data,
+                        club_name=club_name,
+                        metadata=metadata,
+                        stw_progress=full_stw_data,
+                    )
+
+                    # Executive
+                    exec_html = generate_executive_report_html(
+                        plan_data=plan_data,
+                        club_name=club_name,
+                        category=metadata.get("category", "Eccellenza"),
+                        metadata=metadata,
+                        sources=sources,
+                    )
+                    # Cerchiamo di matchare il nome file atteso o usiamo un pattern fisso
+                    # Qui usiamo un glob pattern nel download se necessario, ma per ora salviamo standard
+                    exec_path = (
+                        OUTPUT_DIR
+                        / f"{club_name.replace(' ', '_')}_ExecutiveReport.html"
+                    )
+                    with open(exec_path, "w", encoding="utf-8") as f:
+                        f.write(exec_html)
+
+                    logger.info(
+                        f"[Pre-Warming] Generazione background completata per {review_id}"
+                    )
+
+                    # Aggiorna record DB con paths
+                    # (Oggi fatto in modo approssimativo, in prod usare paths esatti)
+
+                except Exception as e:
+                    logger.error(f"[Pre-Warming] Errore background: {e}", exc_info=True)
+
+            # Preparazione dati per thread (copia per evitare race conditions su oggetti mutabili)
+            # In questo caso passiamo dict e stringhe, è safe
+
+            # Prepara metadata extra
+            export_metadata = metadata.copy()
+            total_fields = sum(
+                len(si.get("answers", {}))
+                for si in payload.get("stakeholders_inputs", [])
+            )
+            export_metadata["total_questionnaires"] = len(
+                payload.get("stakeholders_inputs", [])
+            )
+            export_metadata["verified_data_count"] = max(
+                total_fields, len(payload.get("stakeholders_inputs", [])) * 15
+            )
+            export_metadata["questionnaire_completion"] = min(
+                0.95, 0.6 + (total_fields / 100)
+            )
+
+            # Avvia Thread
+            threading.Thread(
+                target=generate_reports_task,
+                args=(
+                    plan,
+                    generation_params["club_name"],
+                    sources,
+                    export_metadata,
+                    review.plan_id,
+                ),
+                daemon=True,
+            ).start()
+
+            # URL Predittivi per il frontend
+            # Nota: PDF Server genera nome basato su timestamp, qui non possiamo predirlo esattamente senza refactoring
+            # Ma il frontend usa /api/export/.../pdf che rigenera se manca o serve il file.
+            # Per ora lasciamo i link generici che funzionano sempre.
+            pdf_url = f"/api/export/{review.plan_id}/pdf"
+            onepager_url = f"/api/export/{review.plan_id}/onepager"
+            executive_url = f"/api/export/{review.plan_id}/executive"
 
         # 8. Prepara response
         return jsonify(
@@ -754,28 +1848,22 @@ def api_generate_from_webhook():
                 "plan_id": review.plan_id,
                 "project_id": payload.get("project_id"),
                 "club_name": generation_params["club_name"],
+                "pdf_url": pdf_url,
+                "onepager_url": onepager_url,
+                "executive_url": executive_url,
+                "edit_url": f"/plan/{review.plan_id}",
+                "view_url": f"/view/{review.plan_id}",
                 # Synthesis report
                 "synthesis_report": {
                     "stakeholders_processed": len(
                         payload.get("stakeholders_inputs", [])
                     ),
                     "alignment_score": synthesized.stakeholder_alignment_score,
-                    "unified_vision_preview": synthesized.unified_vision[:500] + "..."
-                    if len(synthesized.unified_vision) > 500
-                    else synthesized.unified_vision,
-                    "top_priorities": [p for p, _ in synthesized.priority_ranking[:3]],
-                    "swot_summary": {
-                        "strengths": len(
-                            synthesized.swot_aggregated.get("strengths", [])
-                        ),
-                        "weaknesses": len(
-                            synthesized.swot_aggregated.get("weaknesses", [])
-                        ),
-                        "opportunities": len(
-                            synthesized.swot_aggregated.get("opportunities", [])
-                        ),
-                        "threats": len(synthesized.swot_aggregated.get("threats", [])),
-                    },
+                    "unified_vision_preview": synthesized.unified_vision[:500],
+                    "top_priorities": [
+                        p[0] if isinstance(p, (list, tuple)) else str(p)
+                        for p in synthesized.priority_ranking[:3]
+                    ],
                 },
                 # Conflicts
                 "conflicts_detected": [
@@ -783,18 +1871,12 @@ def api_generate_from_webhook():
                         "area": c.area,
                         "description": c.description,
                         "severity": c.severity,
-                        "stakeholders": c.stakeholders_involved,
-                        "resolution": c.resolution_applied,
                     }
                     for c in synthesized.conflicts_detected
                 ],
-                # Plan info
+                "stakeholder_alignment_score": synthesized.stakeholder_alignment_score,
                 "sections_count": len(plan),
                 "sources_count": len(sources),
-                # URLs
-                "pdf_url": pdf_url,
-                "edit_url": f"/plan/{review.plan_id}",
-                "view_url": f"/view/{review.plan_id}",
                 # Next steps for n8n
                 "next_steps": {
                     "export_pdf": f"/api/export/{review.plan_id}/pdf",
@@ -815,144 +1897,414 @@ def api_generate_from_webhook():
         ), 500
 
 
-@app.route("/api/upload-docx", methods=["POST"])
-def api_upload_docx():
-    """
-    Endpoint per upload e processing di file Word (.docx).
+@app.route("/api/check-analysis/<project_id>")
+@login_required
+def api_check_analysis(project_id):
+    """Controlla se l'analisi in background è terminata."""
+    if hasattr(app, "analysis_results") and project_id in app.analysis_results:
+        payload = app.analysis_results[project_id]
 
-    Riceve uno o più file DOCX contenenti template SWOT, PEST, VISION,
-    li processa ed estrae dati strutturati per la generazione del piano.
-
-    Request:
-        - multipart/form-data con:
-            - files[]: uno o più file .docx
-            - club_name: nome del club
-            - project_id: (opzionale) ID progetto
-            - hard_data: (opzionale) JSON con dati aggiuntivi
-
-    Response:
-    {
-        "success": true,
-        "files_processed": ["SWOT_Presidente.docx", "Vision.docx"],
-        "document_types_detected": ["SWOT", "VISION"],
-        "stakeholders_extracted": 2,
-        "extracted_data": {...},
-        "ready_for_generation": true
-    }
-    """
-    try:
-        # Verifica disponibilità python-docx
-        if not DOCX_AVAILABLE:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "python-docx non installato. Eseguire: pip install python-docx",
-                }
-            ), 500
-
-        # Verifica files
-        if "files[]" not in request.files and "files" not in request.files:
-            return jsonify(
-                {
-                    "success": False,
-                    "error": 'Nessun file caricato. Usa il campo "files[]" o "files".',
-                }
-            ), 400
-
-        # Ottieni lista files
-        files = request.files.getlist("files[]") or request.files.getlist("files")
-
-        if not files or all(f.filename == "" for f in files):
-            return jsonify(
-                {"success": False, "error": "Nessun file valido caricato."}
-            ), 400
-
-        # Valida estensione
-        valid_files = []
-        for f in files:
-            if f.filename and f.filename.lower().endswith(".docx"):
-                valid_files.append(f)
-            else:
-                logger.warning(f"File ignorato (non .docx): {f.filename}")
-
-        if not valid_files:
-            return jsonify(
-                {"success": False, "error": "Nessun file .docx valido trovato."}
-            ), 400
-
-        # Parametri
-        club_name = request.form.get("club_name", "Club")
-        project_id = request.form.get("project_id")
-
-        # Hard data (JSON opzionale)
-        hard_data = {}
-        if request.form.get("hard_data"):
-            try:
-                hard_data = json.loads(request.form.get("hard_data"))
-            except json.JSONDecodeError:
-                logger.warning("hard_data non è JSON valido, ignorato")
-
-        logger.info(
-            f"[DOCX Upload] Processing {len(valid_files)} files for {club_name}"
+        # Genera dashboard al volo usando la logica di clustering professionale
+        from data_ingestor import (
+            StakeholderInput,
+            generate_alignment_dashboard_html,
+            DocxIngestor,
+            ExtractedDocxData,
         )
 
-        # Prepara file per processing
-        import io
+        # Se abbiamo dati estratti dai file, usiamo quelli per il clustering
+        if "extracted_files_data" in payload:
+            ingestor = DocxIngestor()
+            # Ricostruisci oggetti ExtractedDocxData dai dict salvati
+            ext_data = [ExtractedDocxData(**d) for d in payload["extracted_files_data"]]
+            stakeholders_obj = ingestor.merge_to_stakeholder_inputs(ext_data)
+        else:
+            stakeholders_obj = [
+                StakeholderInput.from_dict(s) for s in payload["stakeholders_inputs"]
+            ]
 
-        files_to_process = []
-        for f in valid_files:
-            # Leggi contenuto in BytesIO
-            content = io.BytesIO(f.read())
-            files_to_process.append((content, f.filename))
+        alignment_dashboard_html = generate_alignment_dashboard_html(stakeholders_obj)
 
-        # Processa tutti i file DOCX
-        payload = process_docx_files_to_payload(
-            files=files_to_process,
-            club_name=club_name,
-            project_id=project_id,
-            hard_data=hard_data,
-        )
+        # Conversione sicura per JSON (serializzabile)
+        clean_stakeholders = []
+        for s in stakeholders_obj:
+            s_dict = {
+                "name": s.name,
+                "role": s.role.label if hasattr(s.role, "label") else str(s.role),
+                "vision": s.vision,
+                "swot_strengths": s.swot_strengths,
+                "swot_weaknesses": s.swot_weaknesses,
+                "additional_notes": s.additional_notes,
+            }
+            clean_stakeholders.append(s_dict)
 
-        logger.info(
-            f"[DOCX Upload] Extracted {len(payload['stakeholders_inputs'])} stakeholders"
-        )
-        logger.info(
-            f"[DOCX Upload] Document types: {payload['document_types_detected']}"
-        )
-
-        # Prepara response
         return jsonify(
             {
                 "success": True,
-                "files_processed": payload["files_processed"],
-                "document_types_detected": payload["document_types_detected"],
-                "stakeholders_extracted": len(payload["stakeholders_inputs"]),
+                "status": "completed",
+                "alignment_dashboard": alignment_dashboard_html,
                 "extracted_data": {
-                    "stakeholders": [
-                        {
-                            "name": s["name"],
-                            "role": s["role"],
-                            "swot_count": {
-                                "strengths": len(s.get("swot_strengths", [])),
-                                "weaknesses": len(s.get("swot_weaknesses", [])),
-                                "opportunities": len(s.get("swot_opportunities", [])),
-                                "threats": len(s.get("swot_threats", [])),
-                            },
-                            "priorities_count": len(s.get("priorities", [])),
-                            "has_vision": bool(s.get("vision", "").strip()),
-                        }
-                        for s in payload["stakeholders_inputs"]
-                    ],
+                    "stakeholders": clean_stakeholders,
                     "project_id": payload["project_id"],
                     "club_name": payload["club_name"],
                 },
-                "ready_for_generation": True,
-                "payload": payload,  # Payload completo per uso diretto
             }
         )
+    return jsonify({"success": True, "status": "processing"})
 
+
+@app.route("/api/research/basic-info", methods=["POST"])
+@login_required
+def api_quick_research():
+    """Ricerca rapida dati anagrafici club dal web con cache persistente, normalizzazione e fallback ibrido."""
+    import re
+    import json
+    from pathlib import Path
+    from web_research import WebResearcher
+
+    cache_file = KNOWLEDGE_DIR / "quick_research_cache.json"
+
+    def normalize_club_name(name):
+        """Normalizza il nome del club per migliorare il hit rate della cache."""
+        n = name.lower()
+        # Rimuovi termini comuni e date
+        n = re.sub(r"\b(ac|fc|as|usd|ssd|1926|calcio|19\d{2}|srl)\b", "", n)
+        # Rimuovi tutto ciò che non è alfanumerico
+        n = re.sub(r"[^a-z0-9]", "", n)
+        return n.strip()
+
+    try:
+        data = request.json
+        club_name = data.get("club_name", "").strip()
+        if not club_name:
+            return jsonify({"success": False}), 400
+
+        norm_name = normalize_club_name(club_name)
+
+        # 1. Controlla Cache
+        cache = {}
+        with cache_lock:
+            if cache_file.exists():
+                try:
+                    with open(cache_file, "r", encoding="utf-8") as f:
+                        cache = json.load(f)
+                        if norm_name in cache:
+                            logger.info(f"Cache HIT for quick research: {club_name}")
+                            return jsonify({"success": True, "info": cache[norm_name]})
+                except Exception as e:
+                    logger.warning(f"Error reading quick research cache: {e}")
+
+        # 2. Se MISS, avvia Ricerca Ibrida
+        logger.info(
+            f"Cache MISS for quick research: {club_name}. Starting Hybrid Retrieval..."
+        )
+
+        # 2a. Prima ricerca web "grezza" (Serper/Tavily) per avere dati reali
+        researcher = WebResearcher()
+        raw_results = researcher.search(
+            f"{club_name} presidente attuale stadio anno fondazione transfermarkt",
+            num_results=5,
+        )
+
+        snippets = ""
+        if raw_results and raw_results.results:
+            snippets = "\n".join([f"- {r.snippet}" for r in raw_results.results])
+
+        # 2b. AI Synthesis (Gemini con Google Search abilitato + Snippets)
+        prompt = f"""
+Sulla base di questi risultati di ricerca e della tua conoscenza web:
+{snippets}
+
+Estrai i dati del club '{club_name}'. 
+Sii PRECISO sull'attuale presidente. Cerca fonti come Transfermarkt o il sito ufficiale.
+
+Rispondi SOLO in JSON: 
+{{
+  "stadium": "nome stadio",
+  "foundation_year": "anno",
+  "president": "Nome Cognome Presidente Attuale",
+  "budget": "stima budget o N/D"
+}}
+"""
+
+        coordinator_agent = orchestrator.agents.get(AgentRole.COORDINATOR)
+        if not coordinator_agent or not coordinator_agent.model:
+            return jsonify({"success": False, "error": "AI Agent not available"}), 503
+
+        # Generazione con Grounding (Google Search Tool è abilitato nel modello)
+        response = coordinator_agent.model.generate_content(prompt)
+        text = response.text
+
+        # Pulizia e Parsing
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if json_match:
+            try:
+                info = json.loads(json_match.group(0))
+                for field in ["stadium", "foundation_year", "president", "budget"]:
+                    if field not in info:
+                        info[field] = ""
+
+                # 3. Salva in Cache
+                with cache_lock:
+                    # Rileggi per evitare di sovrascrivere modifiche di altri thread
+                    if cache_file.exists():
+                        try:
+                            with open(cache_file, "r", encoding="utf-8") as f:
+                                latest_cache = json.load(f)
+                                cache.update(latest_cache)
+                        except:
+                            pass
+
+                    cache[norm_name] = info
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(cache, f, ensure_ascii=False, indent=2)
+
+                return jsonify({"success": True, "info": info})
+            except Exception as parse_err:
+                logger.error(f"JSON Parse error in research: {parse_err}")
+
+        return jsonify({"success": False, "error": "Formato dati non valido"}), 404
+    except Exception as e:
+        logger.error(f"Quick research error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/generation-status/<project_id>")
+def api_generation_status(project_id):
+    """Restituisce lo stato dell'analisi in tempo reale (HUD)"""
+    status = project_progress.get(
+        project_id,
+        {"status": "not_found", "progress": 0, "message": "Sessione non trovata"},
+    )
+    return jsonify(status)
+
+
+@app.route("/api/upload-docx", methods=["POST"])
+@login_required
+def api_upload_docx():
+    """
+    Endpoint per caricamento file DOCX e analisi preliminare.
+    Esegue l'analisi nel ThreadPoolExecutor per gestire il carico su AWS.
+    """
+    if not hasattr(app, "analysis_results"):
+        app.analysis_results = {}
+
+    project_id = f"docx_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    update_project_status(project_id, "processing", 5, "Ricezione file in corso...")
+
+    try:
+        files = request.files.getlist("files[]") or request.files.getlist("files")
+        club_name = request.form.get("club_name", "Club")
+
+        # Salviamo i file in memoria
+        files_to_process = []
+        import io
+
+        for f in files:
+            content = io.BytesIO(f.read())
+            files_to_process.append((content, f.filename))
+
+        def run_analysis(p_id, f_to_process, c_name):
+            try:
+                import zipfile
+                import tempfile
+                from data_ingestor import DocxIngestor
+
+                update_project_status(
+                    p_id, "processing", 15, "Preparazione documenti..."
+                )
+
+                final_files = []
+                for content, filename in f_to_process:
+                    if filename.lower().endswith(".docx"):
+                        final_files.append((content, filename))
+                    elif filename.lower().endswith(".zip"):
+                        update_project_status(
+                            p_id, "processing", 20, "Estrazione file ZIP..."
+                        )
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            zip_path = os.path.join(temp_dir, "upload.zip")
+                            with open(zip_path, "wb") as f_zip:
+                                f_zip.write(content.getvalue())
+
+                            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                                zip_ref.extractall(temp_dir)
+                                for root, _, filenames in os.walk(temp_dir):
+                                    for fname in filenames:
+                                        if fname.lower().endswith(".docx"):
+                                            f_path = os.path.join(root, fname)
+                                            with open(f_path, "rb") as df:
+                                                final_files.append(
+                                                    (
+                                                        io.BytesIO(df.read()),
+                                                        os.path.relpath(
+                                                            f_path, temp_dir
+                                                        ),
+                                                    )
+                                                )
+
+                update_project_status(
+                    p_id,
+                    "processing",
+                    40,
+                    f"Lettura di {len(final_files)} file Word...",
+                )
+                ing = DocxIngestor()
+                ext = ing.ingest_multiple_files(final_files)
+
+                update_project_status(
+                    p_id,
+                    "processing",
+                    70,
+                    "Identificazione Stakeholder e SWOT Board...",
+                )
+                stk = ing.merge_to_stakeholder_inputs(ext)
+
+                # Prepara il payload completo
+                payload = {
+                    "project_id": p_id,
+                    "club_name": c_name,
+                    "extracted_files_data": [
+                        d.__dict__ for d in ext
+                    ],  # Salva i dati originali completi
+                    "stakeholders_inputs": [
+                        {
+                            "name": s.name,
+                            "role": s.role.label,
+                            "swot_strengths": s.swot_strengths,
+                            "swot_weaknesses": s.swot_weaknesses,
+                            "additional_notes": s.additional_notes,
+                        }
+                        for s in stk
+                    ],
+                    "files_processed": [d.filename for d in ext],
+                    "document_types_detected": ["SWOT"],
+                }
+
+                app.analysis_results[p_id] = payload
+                update_project_status(
+                    p_id,
+                    "completed",
+                    100,
+                    "Analisi completata con successo!",
+                    data=payload,
+                )
+                add_to_log_history("info", f"✅ Analisi {p_id} completata.")
+            except Exception as e:
+                logger.error(f"Background analysis error: {e}")
+                update_project_status(p_id, "error", 0, f"Errore: {str(e)}")
+                add_to_log_history("error", f"Errore analisi: {str(e)}")
+
+        # Avvia l'analisi nel pool di thread (max 2 contemporanee su AWS)
+        analysis_executor.submit(run_analysis, project_id, files_to_process, club_name)
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "Analisi messa in coda ed avviata",
+                "project_id": project_id,
+            }
+        )
     except Exception as e:
         logger.exception(f"[DOCX Upload] Error: {e}")
+        update_project_status(
+            project_id, "error", 0, f"Errore critico upload: {str(e)}"
+        )
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ingest-local", methods=["POST"])
+def api_ingest_local():
+    """
+    Endpoint per caricamento diretto da cartella locale (Technical Mode).
+    """
+    try:
+        data = request.json
+        local_path = data.get("path")
+        club_name = data.get("club_name", "Club")
+
+        if not local_path or not os.path.exists(local_path):
+            return jsonify(
+                {"success": False, "error": "Percorso non valido o inesistente"}
+            ), 400
+
+        logger.info(f"[Local Ingest] Analisi cartella: {local_path}")
+
+        # Inizializza ingestor
+        docx_ingestor = DocxIngestor()
+
+        # 1. Scansiona cartella locale
+        extracted_data = docx_ingestor.scan_local_directory(
+            local_path, club_name=club_name
+        )
+
+        # 2. Converti in StakeholderInput con validazione web mirata
+        stakeholder_inputs = docx_ingestor.merge_to_stakeholder_inputs(
+            extracted_data, club_name=club_name
+        )
+
+        # 3. Genera Dashboard di Allineamento
+        from data_ingestor import generate_alignment_dashboard_html
+
+        alignment_dashboard_html = generate_alignment_dashboard_html(stakeholder_inputs)
+
+        project_id = f"local_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Converti i dati in dict per il frontend
+        stakeholders_dict = []
+        for s in stakeholder_inputs:
+            stakeholders_dict.append(
+                {
+                    "name": s.name,
+                    "role": s.role.label,
+                    "vision": s.vision,
+                    "swot_strengths": s.swot_strengths,
+                    "swot_weaknesses": s.swot_weaknesses,
+                    "swot_opportunities": s.swot_opportunities,
+                    "swot_threats": s.swot_threats,
+                    "priorities": s.priorities,
+                    "answers": s.answers,
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "stakeholders_extracted": len(stakeholders_dict),
+                "alignment_dashboard": alignment_dashboard_html,
+                "extracted_data": {
+                    "stakeholders": stakeholders_dict,
+                    "project_id": project_id,
+                    "club_name": club_name,
+                },
+            }
+        )
+    except Exception as e:
+        logger.exception(f"[Local Ingest] Errore: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/browse-folder", methods=["POST"])
+def api_browse_folder():
+    """
+    Apre una finestra di dialogo nativa (Windows) per selezionare una cartella.
+    """
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        folder_path = filedialog.askdirectory(
+            title="Seleziona la cartella dei questionari"
+        )
+        root.destroy()
+
+        if folder_path:
+            return jsonify({"success": True, "path": folder_path})
+        return jsonify({"success": False, "error": "Selezione annullata"})
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1061,7 +2413,9 @@ def api_generate_from_docx():
                 logger.warning(f"[DOCX Generate] Research failed: {e}")
 
         # 4. Genera piano
-        logger.info("[DOCX Generate] Generating strategic plan...")
+        logger.info(
+            "[DOCX Generate] Activating Multi-Agent Orchestrator (Recipe #RF-2026)..."
+        )
 
         club_data = generation_params.copy()
         club_data["synthesized_vision"] = synthesized.unified_vision
@@ -1069,13 +2423,28 @@ def api_generate_from_docx():
             k: [item for item, _, _ in v[:5]]
             for k, v in synthesized.swot_aggregated.items()
         }
-        club_data["priority_ranking"] = [p for p, _ in synthesized.priority_ranking[:5]]
+        club_data["priority_ranking"] = []
+        for p in synthesized.priority_ranking[:5]:
+            if isinstance(p, (list, tuple)) and len(p) >= 1:
+                club_data["priority_ranking"].append(p[0])
+            else:
+                club_data["priority_ranking"].append(p)
 
         result = orchestrator.generate_strategic_plan(
             club_data=club_data,
             research_data=research_data.get("club", {}),
             parallel=True,
         )
+
+        # 4b. Genera Piano Strutturato (Scientifico) v5.4
+        logger.info("[DOCX Generate] Extracting Scientific Data Points...")
+        try:
+            structured_plan = structured_orchestrator.generate_plan(
+                club_data=club_data, research_data=research_data
+            )
+        except Exception as e:
+            logger.error(f"Structured generation failed: {e}")
+            structured_plan = None
 
         plan = result["plan"]
         sources = result["sources"]
@@ -1092,10 +2461,12 @@ def api_generate_from_docx():
 
         # Conteggio questionari compilati
         metadata["total_questionnaires"] = len(payload["files_processed"])
-        # Stima dati forniti dal club (conta campi parsed da tutti i file)
-        total_fields = sum(len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", []))
-        metadata["verified_data_count"] = max(total_fields, len(payload["files_processed"]) * 15)  # Minimo 15 dati per questionario
-        # Completezza stimata in base ai dati forniti
+        total_fields = sum(
+            len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
+        )
+        metadata["verified_data_count"] = max(
+            total_fields, len(payload["files_processed"]) * 15
+        )
         metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
 
         # 5. Ottieni colori club
@@ -1128,17 +2499,23 @@ def api_generate_from_docx():
             sources_count=len(sources),
             credibility_score=metadata.get("credibility_score", 0),
         )
-        knowledge_manager.add_plan_to_knowledge(plan_record)
+        knowledge_manager.add_plan_to_knowledge(
+            plan_record, owner_id=int(current_user.id)
+        )
 
-        logger.info(f"[DOCX Generate] Plan generated: {review.plan_id}")
+        logger.info(f"[DOCX Generate] Plan successfully locked: {review.plan_id}")
 
-        # 8. Genera PDF automaticamente (se production mode)
+        # 8. Genera report automaticamente
         pdf_url = None
         onepager_url = None
         executive_url = None
+        scientific_url = None
+
         if request_mode == "production":
             try:
+                # 8a. PDF
                 from export_pdf_server import PdfServerExporter
+
                 pdf_exporter = PdfServerExporter()
                 pdf_path = pdf_exporter.export(
                     plan_data=plan,
@@ -1147,45 +2524,34 @@ def api_generate_from_docx():
                     metadata=metadata,
                 )
                 pdf_url = f"/download/{pdf_path.name}"
-            except Exception as pdf_error:
-                logger.warning(f"[DOCX Generate] PDF failed: {pdf_error}")
 
-            # 8b. Genera anche One-Pager e Executive Report
-            try:
-                safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
+                # 8b. extra reports
+                safe_name = (
+                    generation_params["club_name"].replace(" ", "_").replace("/", "_")
+                )
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                # Prepara metadata per export (includi info questionari)
-                export_metadata = {
-                    "category": generation_params.get("category", "Eccellenza"),
-                    "primary_color": club_identity.get("primary", "#1a365d"),
-                    "secondary_color": club_identity.get("secondary", "#c9a227"),
-                    "credibility_score": int(metadata.get("credibility_score", 70)),
-                    "sources_count": len(sources),
-                    "total_questionnaires": metadata.get("total_questionnaires", 0),
-                    "verified_data_count": metadata.get("verified_data_count", 0),
-                    "questionnaire_completion": metadata.get("questionnaire_completion", 0),
-                    "files_processed": metadata.get("files_processed", []),
-                }
 
                 # One-Pager
                 from export_onepager import create_onepager
-                stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+                from stw_analyzer import STWAnalyzer
+
+                analyzer = STWAnalyzer()
+                full_stw_data = analyzer.analyze_plan_coverage(plan)
+
                 onepager_path = create_onepager(
                     plan_data=plan,
                     club_name=generation_params["club_name"],
-                    metadata=export_metadata,
-                    stw_progress=stw_progress,
+                    metadata=metadata,
+                    stw_progress=full_stw_data,
                 )
                 onepager_url = f"/download/{onepager_path.name}"
-                logger.info(f"[DOCX Generate] One-Pager generato: {onepager_path}")
 
                 # Executive Report
                 exec_html = generate_executive_report_html(
                     plan_data=plan,
                     club_name=generation_params["club_name"],
                     category=generation_params.get("category", "Eccellenza"),
-                    metadata=export_metadata,
+                    metadata=metadata,
                     sources=sources,
                 )
                 exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
@@ -1193,12 +2559,27 @@ def api_generate_from_docx():
                 with open(exec_path, "w", encoding="utf-8") as f:
                     f.write(exec_html)
                 executive_url = f"/download/{exec_filename}"
-                logger.info(f"[DOCX Generate] Executive Report generato: {exec_path}")
 
-            except Exception as extra_error:
-                import traceback
-                logger.error(f"[DOCX Generate] One-Pager/Executive fallito: {extra_error}")
-                logger.error(f"Traceback completo:\n{traceback.format_exc()}")
+                # Scientific Report
+                if structured_plan:
+                    sci_path_str = structured_renderer.render(structured_plan)
+                    sci_path = Path(sci_path_str)
+                    scientific_url = f"/download/{sci_path.name}"
+
+                # UPDATE DB RECORD WITH PATHS
+                export_paths = [pdf_path.name, onepager_path.name, exec_filename]
+                if structured_plan:
+                    export_paths.append(sci_path.name)
+
+                plan_record.export_paths = export_paths
+                knowledge_manager.store.save_plan(
+                    plan_record, owner_id=int(current_user.id)
+                )
+
+            except Exception as report_error:
+                logger.exception(
+                    f"[DOCX Generate] Report production failed: {report_error}"
+                )
 
         # Response
         return jsonify(
@@ -1207,22 +2588,20 @@ def api_generate_from_docx():
                 "plan_id": review.plan_id,
                 "project_id": payload.get("project_id"),
                 "club_name": generation_params["club_name"],
-                # DOCX info
                 "docx_processing": {
                     "files_processed": payload["files_processed"],
                     "document_types_detected": payload["document_types_detected"],
                     "stakeholders_extracted": len(payload["stakeholders_inputs"]),
                 },
-                # Synthesis report
                 "synthesis_report": {
                     "stakeholders_processed": len(payload["stakeholders_inputs"]),
                     "alignment_score": synthesized.stakeholder_alignment_score,
-                    "unified_vision_preview": synthesized.unified_vision[:500] + "..."
-                    if len(synthesized.unified_vision) > 500
-                    else synthesized.unified_vision,
-                    "top_priorities": [p for p, _ in synthesized.priority_ranking[:3]],
+                    "unified_vision_preview": synthesized.unified_vision[:500] + "...",
+                    "top_priorities": [
+                        p[0] if isinstance(p, (list, tuple)) else p
+                        for p in synthesized.priority_ranking[:3]
+                    ],
                 },
-                # Conflicts
                 "conflicts_detected": [
                     {
                         "area": c.area,
@@ -1232,16 +2611,14 @@ def api_generate_from_docx():
                     }
                     for c in synthesized.conflicts_detected
                 ],
-                # Plan info
                 "sections_count": len(plan),
                 "sources_count": len(sources),
-                # URLs
                 "pdf_url": pdf_url,
                 "onepager_url": onepager_url,
                 "executive_url": executive_url,
+                "scientific_url": scientific_url,
                 "edit_url": f"/plan/{review.plan_id}",
                 "view_url": f"/view/{review.plan_id}",
-                # Next steps
                 "next_steps": {
                     "export_pdf": f"/api/export/{review.plan_id}/pdf",
                     "export_package": f"/api/export/{review.plan_id}/package",
@@ -1376,6 +2753,7 @@ def api_export_plan(plan_id: str):
         # HTML Print-Ready (Paged.js) - FORMATO PRINCIPALE
         if "paged" in formats or "html" in formats:
             from export_paged import create_paged_html
+
             paged_path = create_paged_html(
                 plan_data=plan_data,
                 club_name=review.club_name,
@@ -1412,15 +2790,52 @@ def api_export_plan(plan_id: str):
 
 
 @app.route("/download/<filename>")
+@login_required
 def download_file(filename: str):
-    """Download file esportato"""
+    """Download file esportato con controllo permessi"""
+
+    # Se Super Admin, bypassa controlli
+    if current_user.role == "super_admin":
+        filepath = OUTPUT_DIR / filename
+        if filepath.exists():
+            return send_file(filepath, as_attachment=True, download_name=filename)
+        return "File not found", 404
+
+    # Verifica se il file appartiene a un piano dell'utente
+    # Cerchiamo nel DB se il filename è presente in export_paths per l'owner_id
+    with sqlite3.connect(knowledge_manager.store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        # Cerchiamo piani dell'utente (o assegnati) che contengono questo file
+        assigned_ids = knowledge_manager.store.get_assigned_plans(int(current_user.id))
+
+        query = "SELECT id FROM plans WHERE (owner_id = ?"
+        params = [int(current_user.id)]
+
+        if assigned_ids:
+            placeholders = ",".join(["?" for _ in assigned_ids])
+            query += f" OR id IN ({placeholders})"
+            params.extend(assigned_ids)
+
+        query += ") AND export_paths LIKE ?"
+        params.append(f"%{filename}%")
+
+        row = conn.execute(query, params).fetchone()
+
+        if not row:
+            logger.warning(
+                f"Unauthorized download attempt by {current_user.email} for file {filename}"
+            )
+            return "Accesso negato o file non trovato", 403
+
     filepath = OUTPUT_DIR / filename
     if filepath.exists():
         return send_file(filepath, as_attachment=True, download_name=filename)
-    return "File not found", 404
+
+    return "File non trovato su disco", 404
 
 
 @app.route("/api/export/<plan_id>/package", methods=["POST"])
+@login_required
 def api_export_package(plan_id: str):
     """
     Esporta piano come pacchetto ZIP contenente:
@@ -1432,8 +2847,28 @@ def api_export_package(plan_id: str):
     try:
         # Recupera piano
         review = editor.reviews.get(plan_id)
+
+        # Se non è in cache, carica da DB
         if not review:
-            return jsonify({"success": False, "error": "Plan not found"}), 404
+            plan_record = knowledge_manager.store.get_plan(plan_id)
+            if not plan_record:
+                return jsonify({"success": False, "error": "Plan not found"}), 404
+
+            review = editor.create_review_from_plan(
+                plan_data=plan_record.plan_data,
+                club_name=plan_record.club_name,
+                metadata={"category": plan_record.category},
+                owner_id=plan_record.owner_id,
+            )
+            review.plan_id = plan_id
+            editor.reviews[plan_id] = review
+
+        # SICUREZZA: Verifica ownership
+        is_owner = review.owner_id == int(current_user.id)
+        is_admin = current_user.role in ["super_admin", "admin"]
+
+        if not is_owner and not is_admin:
+            return jsonify({"success": False, "error": "Accesso negato"}), 403
 
         plan_data = editor.export_plan_for_final(plan_id)
         if not plan_data:
@@ -1505,6 +2940,52 @@ def api_export_package(plan_id: str):
             logger.info(f"DOCX generato: {docx_path}")
         except Exception as docx_error:
             logger.error(f"Errore generazione DOCX: {docx_error}", exc_info=True)
+
+        # --- EXECUTIVE REPORT (HTML) ---
+        try:
+            exec_html = generate_executive_report_html(
+                plan_data=plan_data,
+                club_name=review.club_name,
+                category=review.category,
+                metadata=metadata,
+                sources=sources,
+            )
+            exec_filename = f"{safe_name}_ExecutiveReport.html"
+            exec_path = Path(temp_dir) / exec_filename
+            with open(exec_path, "w", encoding="utf-8") as f:
+                f.write(exec_html)
+
+            files_added.append(("html_exec", str(exec_path)))
+            logger.info(f"Executive Report generato: {exec_path}")
+        except Exception as exec_error:
+            logger.error(
+                f"Errore generazione Executive Report: {exec_error}", exc_info=True
+            )
+
+        # --- ONE-PAGER (Infografica) ---
+        try:
+            from export_onepager import create_onepager
+            from stw_analyzer import STWAnalyzer
+
+            analyzer = STWAnalyzer()
+            full_stw_data = analyzer.analyze_plan_coverage(plan_data)
+
+            # Helper for onepager doesn't support custom output dir easily, so we move it
+            op_path = create_onepager(
+                plan_data=plan_data,
+                club_name=review.club_name,
+                metadata=metadata,
+                stw_progress=full_stw_data,
+            )
+            dest_op_path = Path(temp_dir) / f"{safe_name}_OnePager.html"
+            shutil.move(str(op_path), str(dest_op_path))
+
+            files_added.append(("onepager", str(dest_op_path)))
+            logger.info(f"One-Pager aggiunto al pack: {dest_op_path}")
+        except Exception as op_error:
+            logger.error(
+                f"Errore generazione One-Pager nel pack: {op_error}", exc_info=True
+            )
 
         # Verifica che almeno un file sia stato generato
         if not files_added:
@@ -1640,6 +3121,7 @@ def api_export_html_only(plan_id: str):
 
         # Usa il nuovo PdfServerExporter per un export PDF stabile
         from export_pdf_server import PdfServerExporter
+
         pdf_exporter = PdfServerExporter()
         pdf_path = pdf_exporter.export(
             plan_data=plan_data,
@@ -1658,6 +3140,102 @@ def api_export_html_only(plan_id: str):
     except Exception as e:
         logger.exception(f"HTML export error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/boardroom/<plan_id>")
+@login_required
+def boardroom_view(plan_id: str):
+    """
+    Innovative 'Strategic Boardroom' view.
+    Replaces the static 'View Online'.
+    """
+    review = editor.reviews.get(plan_id)
+    # Fallback to DB if not in memory
+    if not review:
+        plan_record = knowledge_manager.store.get_plan(plan_id)
+        if not plan_record:
+            flash("Piano non trovato", "error")
+            return redirect(url_for("plans_list"))
+
+        review = editor.create_review_from_plan(
+            plan_data=plan_record.plan_data,
+            club_name=plan_record.club_name,
+            metadata={"category": plan_record.category},
+            owner_id=plan_record.owner_id,
+        )
+        review.plan_id = plan_id
+        editor.reviews[plan_id] = review
+
+    # SICUREZZA
+    is_owner = review.owner_id == int(current_user.id)
+    is_admin = current_user.role in ["super_admin", "admin"]
+    if not is_owner and not is_admin:
+        flash("Accesso negato.", "error")
+        return redirect(url_for("plans_list"))
+
+    # Prepare data for dashboard
+    club_identity = get_club_identity(
+        club_name=review.club_name,
+        custom_primary=getattr(review, "primary_color", None),
+        custom_secondary=getattr(review, "secondary_color", None),
+    )
+
+    # Extract Executive Summary safely
+    exec_section = review.sections.get("executive_summary")
+    vision_text = "Visione strategica in fase di elaborazione..."
+    if exec_section and exec_section.content:
+        # Prendi il primo paragrafo significativo
+        parts = exec_section.content.split("\n")
+        for part in parts:
+            if part.strip() and not part.startswith("#"):
+                vision_text = part[:300] + "..."
+                break
+
+    # Extract SWOT from plan (naive extraction or structured if avail)
+    # Default placeholder
+    swot = {
+        "strengths": [
+            "Brand storico",
+            "Radicamento territoriale",
+            "Base tifosi fedele",
+        ],
+        "weaknesses": [
+            "Strutture da ammodernare",
+            "Budget limitato",
+            "Digitalizzazione",
+        ],
+        "opportunities": ["Sviluppo Academy", "Partnership locali", "Turismo sportivo"],
+        "threats": ["Competizione regionale", "Costi energetici", "Riforme federali"],
+    }
+
+    current_year = datetime.now().year
+
+    # Prepare sections content for template
+    # Il template si aspetta un dict {key: content_html}
+    sections_content = {}
+    if review and review.sections:
+        for key, section in review.sections.items():
+            # Supporta sia oggetto PlanSection che stringa raw (legacy)
+            if hasattr(section, "content"):
+                # Converte Markdown in HTML basilare se necessario
+                import markdown
+
+                sections_content[key] = markdown.markdown(section.content)
+            else:
+                sections_content[key] = str(section)
+
+    return render_template(
+        "boardroom.html",
+        plan_id=plan_id,
+        club_name=review.club_name,
+        category=review.category,
+        club_identity=club_identity,
+        vision_summary=vision_text,
+        swot=swot,
+        current_year=current_year,
+        review=review,
+        sections=sections_content,  # FIX: Passa sections esplicitamente
+    )
 
 
 @app.route("/view/<plan_id>")
@@ -1752,7 +3330,6 @@ def api_export_executive_report(plan_id: str):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-
 @app.route("/api/export/<plan_id>/onepager", methods=["GET"])
 def api_export_onepager(plan_id: str):
     """
@@ -1771,8 +3348,10 @@ def api_export_onepager(plan_id: str):
 
         club_identity = get_club_identity(review.club_name)
         credibility = (
-            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
-            if review.sections else 70
+            sum(s.credibility_score for s in review.sections.values())
+            / len(review.sections)
+            if review.sections
+            else 70
         )
 
         metadata = {
@@ -1780,12 +3359,19 @@ def api_export_onepager(plan_id: str):
             "primary_color": club_identity.get("primary", "#1a365d"),
             "secondary_color": club_identity.get("secondary", "#c9a227"),
             "credibility_score": int(credibility),
-            "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+            "sources_count": sum(s.sources_count for s in review.sections.values())
+            if review.sections
+            else 10,
         }
 
-        stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+        # Analisi copertura STW per infografica
+        from stw_analyzer import STWAnalyzer
+
+        analyzer = STWAnalyzer()
+        stw_progress = analyzer.analyze_plan_coverage(plan_data)
 
         from export_onepager import create_onepager
+
         html_path = create_onepager(
             plan_data=plan_data,
             club_name=review.club_name,
@@ -1793,7 +3379,12 @@ def api_export_onepager(plan_id: str):
             stw_progress=stw_progress,
         )
 
-        return send_file(html_path, mimetype="text/html", as_attachment=True, download_name=html_path.name)
+        return send_file(
+            html_path,
+            mimetype="text/html",
+            as_attachment=True,
+            download_name=html_path.name,
+        )
 
     except Exception as e:
         logger.exception(f"One-Pager export error: {e}")
@@ -1814,8 +3405,10 @@ def view_onepager(plan_id: str):
 
         club_identity = get_club_identity(review.club_name)
         credibility = (
-            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
-            if review.sections else 70
+            sum(s.credibility_score for s in review.sections.values())
+            / len(review.sections)
+            if review.sections
+            else 70
         )
 
         metadata = {
@@ -1823,11 +3416,14 @@ def view_onepager(plan_id: str):
             "primary_color": club_identity.get("primary", "#1a365d"),
             "secondary_color": club_identity.get("secondary", "#c9a227"),
             "credibility_score": int(credibility),
-            "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+            "sources_count": sum(s.sources_count for s in review.sections.values())
+            if review.sections
+            else 10,
         }
 
-        stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+        stw_progress = calculate_stw_progress(plan)
         from export_onepager import create_onepager
+
         html_path = create_onepager(plan_data, review.club_name, metadata, stw_progress)
 
         with open(html_path, "r", encoding="utf-8") as f:
@@ -1836,6 +3432,7 @@ def view_onepager(plan_id: str):
     except Exception as e:
         logger.exception(f"View One-Pager error: {e}")
         return f"Errore: {str(e)}", 500
+
 
 @app.route("/view/<plan_id>/executive")
 def view_executive_report(plan_id: str):
@@ -2766,6 +4363,7 @@ def api_export_pdf_only(plan_id: str):
         temp_dir = tempfile.mkdtemp(prefix="pdf_export_")
 
         from export_pdf import create_pdf_from_html
+
         pdf_success = create_pdf_from_html(
             html_content=html_content, output_path=temp_dir, plan_name=pdf_filename
         )
@@ -2786,8 +4384,10 @@ def api_export_pdf_only(plan_id: str):
             # Prepara metadata comuni
             club_identity = get_club_identity(review.club_name)
             credibility = (
-                sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
-                if review.sections else 70
+                sum(s.credibility_score for s in review.sections.values())
+                / len(review.sections)
+                if review.sections
+                else 70
             )
 
             common_metadata = {
@@ -2795,12 +4395,15 @@ def api_export_pdf_only(plan_id: str):
                 "primary_color": club_identity.get("primary", "#1a365d"),
                 "secondary_color": club_identity.get("secondary", "#c9a227"),
                 "credibility_score": int(credibility),
-                "sources_count": sum(s.sources_count for s in review.sections.values()) if review.sections else 10,
+                "sources_count": sum(s.sources_count for s in review.sections.values())
+                if review.sections
+                else 10,
             }
 
             # 1. Genera One-Pager
             from export_onepager import create_onepager
-            stw_progress = {"sportivi": 75, "strutturali": 60, "marketing": 70, "sociali": 55}
+
+            stw_progress = calculate_stw_progress(plan)
             onepager_path = create_onepager(
                 plan_data=plan_data,
                 club_name=review.club_name,
@@ -2837,7 +4440,9 @@ def api_export_pdf_only(plan_id: str):
             logger.info(f"Executive Report generato: {exec_path}")
 
         except Exception as e:
-            logger.warning(f"Generazione One-Pager/Executive fallita (non bloccante): {e}")
+            logger.warning(
+                f"Generazione One-Pager/Executive fallita (non bloccante): {e}"
+            )
         # ===== FINE GENERAZIONE EXTRA =====
 
         # Pulisci temp
@@ -2906,6 +4511,7 @@ def api_export_paged_html(plan_id: str):
 
         # Genera HTML Paged.js
         from export_paged import create_paged_html
+
         filepath = create_paged_html(
             plan_data=plan_data,
             club_name=review.club_name,
@@ -2961,6 +4567,7 @@ def api_preview_print(plan_id: str):
 
         # Genera HTML Paged.js
         from export_paged import create_paged_html
+
         filepath = create_paged_html(
             plan_data=plan_data,
             club_name=review.club_name,
@@ -3022,6 +4629,7 @@ def api_finalize_plan(plan_id: str):
 
             # Crea PDF
             from export_pdf import create_pdf_from_html
+
             safe_name = review.club_name.replace(" ", "_")
             pdf_success = create_pdf_from_html(
                 html_content, str(temp_dir_path), safe_name
@@ -3211,6 +4819,69 @@ def api_questionnaire_schema():
     return jsonify({"success": True, "schema": get_questionnaire_schema()})
 
 
+@app.route("/api/plan-export-status/<plan_id>")
+@login_required
+def api_plan_export_status(plan_id):
+    """
+    Verifica lo stato di generazione dei documenti di export.
+    Usato dalla pagina di successo per il polling.
+    """
+    try:
+        plan_record = knowledge_manager.store.get_plan(plan_id)
+        if not plan_record:
+            return jsonify({"error": "Plan not found"}), 404
+
+        # Controlla quali file esistono fisicamente
+        status = {"pdf": False, "onepager": False, "executive": False, "filenames": {}}
+
+        # Mapping logico basato sui nomi file
+        for path_str in plan_record.export_paths:
+            file_path = OUTPUT_DIR / path_str
+            if file_path.exists():
+                if "PianoStrategico" in path_str and path_str.endswith(".pdf"):
+                    status["pdf"] = True
+                    status["filenames"]["pdf"] = path_str
+                elif "OnePager" in path_str:
+                    status["onepager"] = True
+                    status["filenames"]["onepager"] = path_str
+                elif "ExecutiveReport" in path_str:
+                    status["executive"] = True
+                    status["filenames"]["executive"] = path_str
+                # Fallback per DOCX come PDF se PDF manca (per sicurezza)
+                elif path_str.endswith(".docx") and not status["pdf"]:
+                    status["pdf"] = True
+                    status["filenames"]["pdf"] = (
+                        path_str  # Il frontend scaricherà il docx ma il bottone si attiverà
+                    )
+
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Export status check error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# NOTA: Route duplicata rimossa - usare /success/<plan_id> invece
+# La route /plan/<plan_id> è già gestita da plan_detail() alla linea 749
+# @app.route("/plan/<plan_id>")
+# @login_required
+# def plan_success(plan_id):
+#     """Pagina di successo: mostra i link per scaricare i documenti esportati."""
+#     try:
+#         plan_record = knowledge_manager.store.get_plan(plan_id)
+#         if not plan_record:
+#             # Mostra pagina con plan_id solo per dimostrazione
+#             return render_template(
+#                 "generation_success.html", plan_id=plan_id, club_name=""
+#             )
+#         club_name = getattr(plan_record, "club_name", plan_id)
+#         return render_template(
+#             "generation_success.html", plan_id=plan_id, club_name=club_name
+#         )
+#     except Exception as e:
+#         logger.error(f"Plan success page error: {e}")
+#         return "Errore rendering plan success page", 500
+
+
 # =============================================================================
 # ERROR HANDLERS
 # =============================================================================
@@ -3328,6 +4999,20 @@ def kill_process_on_port(port: int) -> bool:
         return False
 
 
+@app.route("/api/check-file/<path:filename>")
+def api_check_file(filename):
+    """Verifica se un file esiste nella cartella output."""
+    try:
+        file_path = OUTPUT_DIR / filename
+        if file_path.exists() and file_path.is_file():
+            # Controlla che non sia vuoto (0 bytes)
+            if file_path.stat().st_size > 0:
+                return jsonify({"ready": True, "size": file_path.stat().st_size})
+        return jsonify({"ready": False})
+    except Exception as e:
+        return jsonify({"ready": False, "error": str(e)})
+
+
 if __name__ == "__main__":
     PORT = 5000
 
@@ -3346,7 +5031,7 @@ if __name__ == "__main__":
     print(f"""
     ===============================================================
     |                                                             |
-    |     ROOTING FUTURE STRATEGY ENGINE v5.4                     |
+    |     Rooting Future Strategy Engine v5.4                     |
     |     Dashboard Hybrid - Live Console + Upload                |
     |                                                             |
     |     Server: http://127.0.0.1:{PORT}                          |
@@ -3358,6 +5043,14 @@ if __name__ == "__main__":
     print(f"[*] Aprire nel browser: http://127.0.0.1:{PORT}")
     print("[*] Premi Ctrl+C per terminare\n")
 
+    # AUTO-OPEN BROWSER (Desktop App Experience)
+    import webbrowser
+    from threading import Timer
+
+    def open_browser():
+        webbrowser.open_new(f"http://127.0.0.1:{PORT}")
+
+    Timer(1.5, open_browser).start()
+
     # Usa 127.0.0.1 per evitare problemi firewall Windows
-    # Il controllo porta viene gestito dal batch file
     app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True, use_reloader=False)

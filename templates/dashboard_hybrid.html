@@ -32,6 +32,8 @@
             background: var(--bg-dark);
             color: var(--text);
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Header */
@@ -80,6 +82,7 @@
             padding: 0.5rem 1rem;
             border-radius: 6px;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .header-nav a:hover {
@@ -95,6 +98,7 @@
             background: var(--bg-input);
             border-radius: 20px;
             font-size: 0.85rem;
+            white-space: nowrap;
         }
 
         .status-dot {
@@ -115,13 +119,15 @@
             display: grid;
             grid-template-columns: 1fr 400px;
             gap: 0;
-            height: calc(100vh - 65px);
+            flex: 1; /* Fill remaining height */
+            overflow: hidden; /* Prevent body scroll, let panels scroll */
         }
 
         /* Left Panel - Upload & Actions */
         .left-panel {
             padding: 2rem;
             overflow-y: auto;
+            height: 100%;
         }
 
         .section-title {
@@ -259,6 +265,9 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .file-item-remove {
@@ -267,6 +276,7 @@
             color: var(--error);
             cursor: pointer;
             font-size: 1.25rem;
+            padding: 0 0.5rem;
         }
 
         /* Buttons */
@@ -318,6 +328,7 @@
             border-left: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .console-header {
@@ -368,6 +379,7 @@
         .log-entry {
             padding: 0.25rem 0;
             border-bottom: 1px solid rgba(255,255,255,0.05);
+            word-wrap: break-word;
         }
 
         .log-timestamp {
@@ -381,27 +393,13 @@
             font-size: 0.7rem;
             font-weight: 600;
             margin-right: 0.5rem;
+            display: inline-block;
         }
 
-        .log-level.INFO {
-            background: rgba(59, 130, 246, 0.2);
-            color: #60a5fa;
-        }
-
-        .log-level.WARNING {
-            background: rgba(245, 158, 11, 0.2);
-            color: #fbbf24;
-        }
-
-        .log-level.ERROR {
-            background: rgba(239, 68, 68, 0.2);
-            color: #f87171;
-        }
-
-        .log-level.DEBUG {
-            background: rgba(156, 163, 175, 0.2);
-            color: #9ca3af;
-        }
+        .log-level.INFO { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .log-level.WARNING { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .log-level.ERROR { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .log-level.DEBUG { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
 
         .log-message {
             color: #e5e7eb;
@@ -419,13 +417,8 @@
             gap: 0.5rem;
         }
 
-        .connection-status.connected .status-indicator {
-            background: var(--success);
-        }
-
-        .connection-status.disconnected .status-indicator {
-            background: var(--error);
-        }
+        .connection-status.connected .status-indicator { background: var(--success); }
+        .connection-status.disconnected .status-indicator { background: var(--error); }
 
         .status-indicator {
             width: 6px;
@@ -451,19 +444,10 @@
             margin-bottom: 0.75rem;
         }
 
-        .plan-item:last-child {
-            margin-bottom: 0;
-        }
+        .plan-item:last-child { margin-bottom: 0; }
 
-        .plan-info h4 {
-            font-size: 1rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .plan-info span {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
+        .plan-info h4 { font-size: 1rem; margin-bottom: 0.25rem; }
+        .plan-info span { font-size: 0.8rem; color: var(--text-muted); }
 
         .plan-status {
             padding: 0.25rem 0.75rem;
@@ -472,15 +456,8 @@
             font-weight: 600;
         }
 
-        .plan-status.draft {
-            background: rgba(245, 158, 11, 0.2);
-            color: #fbbf24;
-        }
-
-        .plan-status.ready {
-            background: rgba(34, 197, 94, 0.2);
-            color: #22c55e;
-        }
+        .plan-status.draft { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .plan-status.ready { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
 
         /* Progress indicator */
         .progress-container {
@@ -488,9 +465,7 @@
             margin-top: 1.5rem;
         }
 
-        .progress-container.active {
-            display: block;
-        }
+        .progress-container.active { display: block; }
 
         .progress-bar {
             height: 4px;
@@ -520,31 +495,9 @@
             text-align: center;
         }
 
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .main-container {
-                grid-template-columns: 1fr;
-            }
+        /* Empty state & Alerts */
+        .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
 
-            .right-panel {
-                height: 300px;
-                border-left: none;
-                border-top: 1px solid var(--border);
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 2rem;
-            color: var(--text-muted);
-        }
-
-        /* Alerts */
         .alert {
             padding: 1rem 1.25rem;
             border-radius: 8px;
@@ -553,23 +506,99 @@
             align-items: center;
             gap: 0.75rem;
         }
+        .alert-success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; }
+        .alert-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; }
+        .alert-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; }
 
-        .alert-success {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #22c55e;
+        /* =================================================================
+           RESPONSIVE / MOBILE STYLES
+           ================================================================= */
+        @media (max-width: 1024px) {
+            .main-container {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+
+            .left-panel {
+                padding: 1.5rem;
+                overflow: visible;
+                height: auto;
+            }
+
+            .right-panel {
+                display: none !important;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #ef4444;
+        @media (max-width: 640px) {
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .logo {
+                justify-content: center;
+            }
+
+            .header-nav {
+                justify-content: space-around;
+                width: 100%;
+                overflow-x: auto; /* Allow scrolling if many links */
+                padding-bottom: 5px;
+            }
+            
+            .status-badge {
+                display: none; /* Hide status on mobile to save space */
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-value {
+                font-size: 1.75rem;
+            }
+
+            .upload-card {
+                padding: 1.5rem;
+            }
+            
+            .drop-zone {
+                padding: 1.5rem 1rem;
+            }
+            
+            /* Make console text smaller on mobile */
+            .console-body {
+                font-size: 0.7rem;
+            }
         }
 
-        .alert-warning {
-            background: rgba(245, 158, 11, 0.1);
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            color: #f59e0b;
+        /* NUCLEAR MOBILE FIX */
+        @media screen and (max-width: 1025px) {
+            .main-container {
+                display: block !important;
+                width: 100% !important;
+            }
+            .right-panel {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                height: 0 !important;
+                width: 0 !important;
+                position: absolute !important;
+            }
+            .left-panel {
+                width: 100% !important;
+                padding: 10px !important;
+            }
         }
     </style>
 </head>
@@ -875,8 +904,44 @@
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
+            
+            const items = e.dataTransfer.items;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    const entry = items[i].webkitGetAsEntry();
+                    if (entry) {
+                        scanFiles(entry);
+                    }
+                }
+            } else {
+                handleFiles(e.dataTransfer.files);
+            }
         });
+
+        async function scanFiles(entry) {
+            if (entry.isFile) {
+                entry.file(file => {
+                    if (file.name.endsWith('.docx')) {
+                        addFileIfNew(file);
+                    }
+                });
+            } else if (entry.isDirectory) {
+                const reader = entry.createReader();
+                reader.readEntries(entries => {
+                    for (const childEntry of entries) {
+                        scanFiles(childEntry);
+                    }
+                });
+            }
+        }
+
+        function addFileIfNew(file) {
+            if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                selectedFiles.push(file);
+                renderFileList();
+                updateSubmitButton();
+            }
+        }
 
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
@@ -885,14 +950,9 @@
         function handleFiles(files) {
             for (const file of files) {
                 if (file.name.endsWith('.docx')) {
-                    // Evita duplicati
-                    if (!selectedFiles.some(f => f.name === file.name)) {
-                        selectedFiles.push(file);
-                    }
+                    addFileIfNew(file);
                 }
             }
-            renderFileList();
-            updateSubmitButton();
         }
 
         function renderFileList() {
@@ -970,7 +1030,7 @@
 
                     // Redirect after 2 seconds
                     setTimeout(() => {
-                        window.location.href = result.edit_url || `/plan/${result.plan_id}`;
+                        window.location.href = result.edit_url || `/success/${result.plan_id}`;
                     }, 2000);
                 } else {
                     throw new Error(result.error || 'Errore sconosciuto');
@@ -978,7 +1038,8 @@
 
             } catch (error) {
                 console.error('Upload error:', error);
-                document.getElementById('progressText').textContent = `Errore: ${error.message}`;
+                document.getElementById('progressText').innerHTML = `<span style="color:var(--error)">❌ Errore: ${error.message}</span>`;
+                alert(`Errore durante la generazione: ${error.message}`);
                 progressContainer.classList.remove('active');
                 submitBtn.disabled = false;
             }

@@ -16,6 +16,7 @@ from stw_matrix import generate_stw_matrix_html, get_stw_matrix_css
 
 logger = logging.getLogger(__name__)
 
+
 class PdfServerExporter(BaseExporter):
     """
     Esporta piani strategici direttamente in PDF utilizzando WeasyPrint.
@@ -27,20 +28,17 @@ class PdfServerExporter(BaseExporter):
         plan_data: Dict,
         club_name: str,
         sources: List[Dict] = None,
-        metadata: Dict = None
+        metadata: Dict = None,
     ) -> Path:
         """
         Genera il file PDF finale.
         """
         # Estrazione metadati e colori standardizzati
         meta = self._extract_metadata(metadata)
-        
+
         # Genera l'HTML con il CSS ottimizzato per WeasyPrint
         html_content = self._generate_html(
-            plan_data=plan_data,
-            club_name=club_name,
-            sources=sources or [],
-            meta=meta
+            plan_data=plan_data, club_name=club_name, sources=sources or [], meta=meta
         )
 
         # Output path standardizzato
@@ -60,11 +58,15 @@ class PdfServerExporter(BaseExporter):
 
     def _generate_html(self, plan_data, club_name, sources, meta) -> str:
         # Colori dinamici
-        club_primary = meta['primary_color']
-        club_secondary = meta['secondary_color'] if meta['secondary_color'] and meta['secondary_color'].lower() != "#ffffff" else "#1a202c"
-        contrast_color = meta['contrast_color']
-        
-        current_year = meta['current_year']
+        club_primary = meta["primary_color"]
+        club_secondary = (
+            meta["secondary_color"]
+            if meta["secondary_color"] and meta["secondary_color"].lower() != "#ffffff"
+            else "#1a202c"
+        )
+        contrast_color = meta["contrast_color"]
+
+        current_year = meta["current_year"]
 
         # Genera contenuto sezioni usando il colore del club
         sections_html = self._generate_sections_html(plan_data, club_primary)
@@ -117,7 +119,7 @@ class PdfServerExporter(BaseExporter):
                 padding-bottom: 3mm;
             }}
             @top-right {{
-                content: "PIANO STRATEGICO {current_year}—{current_year+3}";
+                content: "PIANO STRATEGICO {current_year}—{current_year + 3}";
                 font-family: 'Montserrat', sans-serif;
                 font-size: 7pt;
                 letter-spacing: 1px;
@@ -278,7 +280,7 @@ class PdfServerExporter(BaseExporter):
         /* ===========================================
            COPERTINA POSTER (Tactical Edition)
            =========================================== */
-        .cover {
+        .cover {{
             width: 210mm;
             height: 296mm; /* Reduced slightly to prevent overflow loop */
             background: var(--brand-gradient);
@@ -286,23 +288,23 @@ class PdfServerExporter(BaseExporter):
             position: relative;
             overflow: hidden;
             page-break-after: always;
-        }
+        }}
 
-        .cover::before {
+        .cover::before {{
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: url('https://www.transparenttextures.com/patterns/cubes.png');
             opacity: 0.15;
-        }
+        }}
 
-        .cover-content {
+        .cover-content {{
             position: absolute;
             top: 100mm; left: 25mm; right: 40mm;
             z-index: 10;
-        }
+        }}
 
-        .cover-brand {
+        .cover-brand {{
             font-size: 10pt;
             letter-spacing: 5px;
             background: #000;
@@ -310,58 +312,52 @@ class PdfServerExporter(BaseExporter):
             padding: 2mm 5mm;
             display: inline-block;
             margin-bottom: 12mm;
-        }
+        }}
 
-        .cover-club {
+        .cover-club {{
             font-size: 64pt;
             font-weight: 800;
             line-height: 0.9;
             margin-bottom: 8mm;
-        }
+        }}
 
-        .cover-title {
+        .cover-title {{
             font-size: 22pt;
             font-weight: 300;
             border-left: 3pt solid var(--contrast-color);
             padding-left: 6mm;
             text-transform: uppercase;
             letter-spacing: 2px;
-        }
+        }}
 
         /* ===========================================
            LAYOUT A COLONNE
            =========================================== */
-        .section-container {
+        .section-container {{
             margin-bottom: 15mm;
             page-break-inside: auto;
-        }
+        }}
 
-        .section-body {
-            column-count: 2;
-            column-gap: 10mm;
+        .section-body {{
             text-align: justify;
             orphans: 3;
             widows: 3;
-        }
+        }}
 
-        h1 { 
-            column-span: all; 
+        h1 {{
             page-break-before: always;
             page-break-after: avoid;
-        }
-        
-        h2, h3, h4 { 
-            column-span: all; 
+        }}
+
+        h2, h3, h4 {{
             page-break-after: avoid;
-        }
-        
-        /* Removed column-span: all from generic containers to prevent infinite loops */
-        table, .kpi-box, .insight-box, .action-box, blockquote { 
-            break-inside: avoid; 
+        }}
+
+        /* Simplified layout without columns to prevent WeasyPrint infinite loops */
+        table, .kpi-box, .insight-box, .action-box, blockquote {{
+            break-inside: avoid;
             margin-bottom: 5mm;
-            display: inline-block; /* Helps with column breaking */
-            width: 100%;
-        }
+        }}
 
 
         /* ===========================================
@@ -417,7 +413,9 @@ class PdfServerExporter(BaseExporter):
         <div class="cover-content">
             <div class="cover-brand">STRATEGIC DOSSIER</div>
             <div class="cover-club">{club_name}</div>
-            <div class="cover-title">PIANO STRATEGICO<br>SVILUPPO {current_year}—{current_year+3}</div>
+            <div class="cover-title">PIANO STRATEGICO<br>SVILUPPO {current_year}—{
+            current_year + 3
+        }</div>
             
             <div style="margin-top: 30mm; font-family: 'Montserrat'; font-size: 9pt; letter-spacing: 2px; opacity: 0.7;">
                 GENERATED BY ROOTING FUTURE STRATEGY ENGINE v6.0
@@ -445,23 +443,27 @@ class PdfServerExporter(BaseExporter):
         for key in preferred_order:
             if key in plan_data and plan_data[key]:
                 content = plan_data[key]
-                title = section_titles.get(key, key.replace('_', ' ').title())
+                title = section_titles.get(key, key.replace("_", " ").title())
                 html.append(f'<div class="section-container">')
-                html.append(f'<h1>{title}</h1>')
+                html.append(f"<h1>{title}</h1>")
                 # Normalizziamo il markdown prima della conversione
                 normalized_content = self._normalize_markdown(content)
-                html.append(f'<div class="section-body">{self._markdown_to_html(normalized_content)}</div>')
-                html.append(f'</div>')
+                html.append(
+                    f'<div class="section-body">{self._markdown_to_html(normalized_content)}</div>'
+                )
+                html.append(f"</div>")
 
         # Aggiungi eventuali sezioni non previste
         for key, content in plan_data.items():
             if key not in preferred_order and content:
-                title = section_titles.get(key, key.replace('_', ' ').title())
+                title = section_titles.get(key, key.replace("_", " ").title())
                 html.append(f'<div class="section-container">')
-                html.append(f'<h1>{title}</h1>')
+                html.append(f"<h1>{title}</h1>")
                 normalized_content = self._normalize_markdown(content)
-                html.append(f'<div class="section-body">{self._markdown_to_html(normalized_content)}</div>')
-                html.append(f'</div>')
+                html.append(
+                    f'<div class="section-body">{self._markdown_to_html(normalized_content)}</div>'
+                )
+                html.append(f"</div>")
 
         return "".join(html)
 
@@ -469,9 +471,9 @@ class PdfServerExporter(BaseExporter):
         """
         Genera la pagina Metodologia Rooting Future con evidenziazione dei questionari compilati.
         """
-        total_questionnaires = meta['total_questionnaires']
-        credibility_score = meta['credibility_score']
-        
+        total_questionnaires = meta["total_questionnaires"]
+        credibility_score = meta["credibility_score"]
+
         # Fallback per compatibilità
         if total_questionnaires == 0:
             total_questionnaires = 9
@@ -590,11 +592,12 @@ class PdfServerExporter(BaseExporter):
         return html
 
     def _generate_sources_html(self, sources) -> str:
-        if not sources: return ""
-        html = ['<h1>Fonti e Metodologia</h1>', '<div class="section-body"><ul>']
+        if not sources:
+            return ""
+        html = ["<h1>Fonti e Metodologia</h1>", '<div class="section-body"><ul>']
         for s in sources[:20]:
-            name = s.get('name', 'Fonte esterna')
-            url = s.get('url', '')
-            html.append(f'<li><strong>{name}</strong><br><small>{url}</small></li>')
-        html.append('</ul></div>')
+            name = s.get("name", "Fonte esterna")
+            url = s.get("url", "")
+            html.append(f"<li><strong>{name}</strong><br><small>{url}</small></li>")
+        html.append("</ul></div>")
         return "".join(html)
