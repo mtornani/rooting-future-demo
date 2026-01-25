@@ -686,6 +686,16 @@
                                 Formati accettati: .docx (SWOT, PEST, Vision)
                             </div>
                             <input type="file" id="fileInput" name="files[]" class="file-input" multiple accept=".docx">
+                            <input type="file" id="folderInput" name="folder[]" class="file-input" webkitdirectory directory style="display:none">
+
+                            <div style="display: flex; gap: 10px; margin-top: 12px; justify-content: center;">
+                                <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-secondary" style="font-size: 0.85rem; padding: 8px 16px;">
+                                    📄 Seleziona File
+                                </button>
+                                <button type="button" onclick="document.getElementById('folderInput').click()" class="btn-secondary" style="font-size: 0.85rem; padding: 8px 16px;">
+                                    📁 Seleziona Cartella
+                                </button>
+                            </div>
                         </div>
                         <div class="file-list" id="fileList"></div>
                     </div>
@@ -890,7 +900,9 @@
         // =================================================================
         // FILE UPLOAD
         // =================================================================
-        dropZone.addEventListener('click', () => fileInput.click());
+        // Click on drop zone opens file selector (NOT folder)
+        // Use explicit buttons for file vs folder selection
+        // dropZone.addEventListener('click', () => fileInput.click());
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -945,6 +957,12 @@
 
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
+        });
+
+        // Folder input listener (webkitdirectory enabled)
+        const folderInput = document.getElementById('folderInput');
+        folderInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);  // Same handler - FileList includes all files recursively
         });
 
         function handleFiles(files) {
