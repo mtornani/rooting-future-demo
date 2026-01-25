@@ -69,3 +69,12 @@
 - Features: 0% data loss on crash, <5s recovery time, progress tracking
 - Database schema includes session state, checkpoints, error logging
 - Next: Integrate checkpoints into agents.py orchestrator (optional)
+
+[2026-01-25 20:00] COMPLETED FIX-004: Infinite Loop Prevention
+- Added 300s timeout to parallel task execution (execute_parallel)
+- Added max_sleep=10s cap to retry backoff logic
+- Improved error handling in _generate_parallel with try/except/finally
+- Added detailed logging for task scheduling ("🚀 Scheduling...")
+- Prevents infinite hangs when API calls fail or agents get stuck
+- Total changes: +20 LOC in agents.py (timeout and logging)
+- Next: Test plan generation to verify fix works
