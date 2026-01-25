@@ -94,7 +94,8 @@ class AsyncGeminiClient:
         self,
         func: Callable,
         max_retries: int = 3,
-        backoff_factor: float = 2.0
+        backoff_factor: float = 2.0,
+        max_sleep: float = 10.0
     ) -> Any:
         """
         Execute function with exponential backoff retry logic.
@@ -103,6 +104,7 @@ class AsyncGeminiClient:
             func: Function to execute
             max_retries: Maximum number of retries
             backoff_factor: Multiplier for exponential backoff
+            max_sleep: Maximum sleep time between retries (default 10s)
 
         Returns:
             Function result
@@ -120,14 +122,15 @@ class AsyncGeminiClient:
                     logger.error(f"All {max_retries} retries failed: {e}")
                     raise
 
-                sleep_time = backoff_factor ** attempt
-                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time}s...")
+                sleep_time = min(backoff_factor ** attempt, max_sleep)
+                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.1f}s...")
                 time.sleep(sleep_time)
 
     async def execute_parallel(
         self,
         tasks: List[Callable],
-        task_names: List[str] = None
+        task_names: List[str] = None,
+        timeout: int = 300
     ) -> List[Any]:
         """
         Execute multiple tasks in parallel using ThreadPoolExecutor.
@@ -135,6 +138,7 @@ class AsyncGeminiClient:
         Args:
             tasks: List of callables (sync functions)
             task_names: Optional names for logging
+            timeout: Maximum seconds to wait for all tasks (default 300s = 5min)
 
         Returns:
             List of results in same order as tasks
@@ -146,7 +150,7 @@ class AsyncGeminiClient:
         futures = []
 
         for task, name in zip(tasks, task_names):
-            logger.debug(f"Scheduling {name} for parallel execution")
+            logger.info(f"🚀 Scheduling {name} for parallel execution")
             future = loop.run_in_executor(
                 self.executor,
                 self._execute_with_retry,
@@ -154,8 +158,20 @@ class AsyncGeminiClient:
             )
             futures.append(future)
 
-        # Wait for all to complete
-        results = await asyncio.gather(*futures, return_exceptions=True)
+        logger.info(f"⏳ Waiting for {len(futures)} tasks to complete (timeout={timeout}s)...")
+
+        # Wait for all to complete WITH TIMEOUT
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*futures, return_exceptions=True),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"⏱️ TIMEOUT after {timeout}s - cancelling all pending tasks")
+            for future in futures:
+                future.cancel()
+            # Return timeout exceptions for all tasks
+            results = [TimeoutError(f"Task exceeded {timeout}s timeout") for _ in tasks]
 
         # Log results
         for name, result in zip(task_names, results):
@@ -1256,9 +1272,13 @@ class MultiAgentOrchestrator:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            # Timeout di 5 minuti (300s) per evitare loop infiniti
             results_list = loop.run_until_complete(
-                self.async_client.execute_parallel(tasks, task_names)
+                self.async_client.execute_parallel(tasks, task_names, timeout=300)
             )
+        except Exception as e:
+            logger.error(f"Fatal error in parallel execution: {e}")
+            results_list = [Exception(f"Execution failed: {e}") for _ in tasks]
         finally:
             loop.close()
 
