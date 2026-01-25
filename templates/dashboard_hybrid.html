@@ -687,16 +687,18 @@
                             </div>
                             <input type="file" id="fileInput" name="files[]" class="file-input" multiple accept=".docx">
                             <input type="file" id="folderInput" name="folder[]" class="file-input" webkitdirectory directory style="display:none">
-
-                            <div style="display: flex; gap: 10px; margin-top: 12px; justify-content: center;">
-                                <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-secondary" style="font-size: 0.85rem; padding: 8px 16px;">
-                                    📄 Seleziona File
-                                </button>
-                                <button type="button" onclick="document.getElementById('folderInput').click()" class="btn-secondary" style="font-size: 0.85rem; padding: 8px 16px;">
-                                    📁 Seleziona Cartella
-                                </button>
-                            </div>
                         </div>
+
+                        <!-- Upload buttons OUTSIDE drop zone -->
+                        <div style="display: flex; gap: 12px; margin-top: 16px; justify-content: center;">
+                            <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 20px; border-radius: 8px;">
+                                📄 Seleziona File
+                            </button>
+                            <button type="button" onclick="document.getElementById('folderInput').click()" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 20px; border-radius: 8px;">
+                                📁 Seleziona Cartella
+                            </button>
+                        </div>
+
                         <div class="file-list" id="fileList"></div>
                     </div>
 
