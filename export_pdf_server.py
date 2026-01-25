@@ -130,14 +130,33 @@ class PdfServerExporter(BaseExporter):
         filename = self._get_safe_filename(club_name, "pdf", prefix="PianoStrategico")
         filepath = self.output_dir / filename
 
-        # Generazione PDF via WeasyPrint
+        # Generazione PDF via WeasyPrint con timeout protection
         logger.info(f"Inizio generazione PDF per {club_name} via WeasyPrint...")
-        try:
-            weasyprint.HTML(string=html_content).write_pdf(filepath)
-            logger.info(f"PDF generato con successo: {filepath}")
-        except Exception as e:
-            logger.error(f"Errore WeasyPrint: {e}")
-            raise
+
+        import threading
+        pdf_error = None
+
+        def generate_pdf():
+            nonlocal pdf_error
+            try:
+                weasyprint.HTML(string=html_content).write_pdf(filepath)
+            except Exception as e:
+                pdf_error = e
+
+        # Esegui con timeout di 2 minuti (120s)
+        pdf_thread = threading.Thread(target=generate_pdf, daemon=True)
+        pdf_thread.start()
+        pdf_thread.join(timeout=120)
+
+        if pdf_thread.is_alive():
+            logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 120s per {club_name}")
+            raise TimeoutError(f"PDF generation timeout dopo 120 secondi - WeasyPrint probabilmente in loop infinito")
+
+        if pdf_error:
+            logger.error(f"Errore WeasyPrint: {pdf_error}")
+            raise pdf_error
+
+        logger.info(f"✅ PDF generato con successo: {filepath}")
 
         return filepath
 
@@ -745,21 +764,43 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
     clean_html = _prepare_html_for_pdf(html_content)
 
     try:
-        # Genera PDF con WeasyPrint
-        html_doc = weasyprint.HTML(string=clean_html)
-        css = weasyprint.CSS(string=PDF_CSS_LEGACY)
-        html_doc.write_pdf(str(pdf_filename), stylesheets=[css])
+        import threading
+        pdf_error = None
+        generation_success = False
+
+        def generate_pdf_legacy():
+            nonlocal pdf_error, generation_success
+            try:
+                html_doc = weasyprint.HTML(string=clean_html)
+                css = weasyprint.CSS(string=PDF_CSS_LEGACY)
+                html_doc.write_pdf(str(pdf_filename), stylesheets=[css])
+                generation_success = True
+            except Exception as e:
+                pdf_error = e
+
+        # Esegui con timeout di 2 minuti (120s)
+        pdf_thread = threading.Thread(target=generate_pdf_legacy, daemon=True)
+        pdf_thread.start()
+        pdf_thread.join(timeout=120)
+
+        if pdf_thread.is_alive():
+            logger.error(f"⏱️ TIMEOUT: WeasyPrint legacy bloccato dopo 120s")
+            return False
+
+        if pdf_error:
+            logger.error(f"Errore WeasyPrint: {pdf_error}", exc_info=True)
+            return False
 
         # Verifica
-        if pdf_filename.exists() and pdf_filename.stat().st_size > 0:
+        if generation_success and pdf_filename.exists() and pdf_filename.stat().st_size > 0:
             logger.info(f"PDF generato: {pdf_filename} ({pdf_filename.stat().st_size} bytes)")
             return True
         else:
-            logger.error("PDF generato ma file vuoto")
+            logger.error("PDF generato ma file vuoto o generazione fallita")
             return False
 
     except Exception as e:
-        logger.error(f"Errore WeasyPrint: {e}", exc_info=True)
+        logger.error(f"Errore WeasyPrint (outer): {e}", exc_info=True)
         return False
 
 
