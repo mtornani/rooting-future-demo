@@ -259,9 +259,27 @@ class SQLiteKnowledgeStore:
                     value TEXT
                 )
             """)
-            
+
             # Initial setup for killswitch
             conn.execute("INSERT OR IGNORE INTO system_settings (key, value) VALUES ('global_lockout', '0')")
+
+            # REF-003: Generation Sessions for checkpoint/recovery
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS generation_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    club_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    completed_sections TEXT,
+                    pending_sections TEXT,
+                    partial_plan TEXT,
+                    metadata TEXT,
+                    error_log TEXT,
+                    owner_id INTEGER,
+                    FOREIGN KEY(owner_id) REFERENCES users(id)
+                )
+            """)
 
             # Indici per ricerche veloci (OPT-001 Optimized)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(doc_type)")
@@ -273,6 +291,11 @@ class SQLiteKnowledgeStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_plans_created ON plans(created_at DESC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_benchmarks_metric ON benchmarks(metric, category)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+
+            # REF-003: Indices for sessions
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_status ON generation_sessions(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_owner ON generation_sessions(owner_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON generation_sessions(updated_at DESC)")
 
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
@@ -1393,3 +1416,144 @@ class KnowledgeManager:
 
         logger.info(f"Imported: {counts}")
         return counts
+
+    # -------------------------------------------------------------------------
+    # GENERATION SESSIONS (REF-003)
+    # -------------------------------------------------------------------------
+
+    def save_generation_session(self, session_data: Dict) -> bool:
+        """
+        Save or update a generation session.
+
+        Args:
+            session_data: Dictionary with session fields
+
+        Returns:
+            True if saved successfully
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO generation_sessions
+                    (session_id, club_name, status, created_at, updated_at,
+                     completed_sections, pending_sections, partial_plan, metadata, error_log, owner_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    session_data['session_id'],
+                    session_data['club_name'],
+                    session_data['status'],
+                    session_data['created_at'],
+                    session_data['updated_at'],
+                    json.dumps(session_data.get('completed_sections', [])),
+                    json.dumps(session_data.get('pending_sections', [])),
+                    json.dumps(session_data.get('partial_plan', {})),
+                    json.dumps(session_data.get('metadata', {})),
+                    json.dumps(session_data.get('error_log', [])),
+                    session_data.get('owner_id')
+                ))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save session: {e}")
+            return False
+
+    def get_generation_session(self, session_id: str) -> Optional[Dict]:
+        """
+        Retrieve a generation session by ID.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Session data dict or None
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT * FROM generation_sessions WHERE session_id = ?
+            """, (session_id,)).fetchone()
+
+            if not row:
+                return None
+
+            return {
+                'session_id': row['session_id'],
+                'club_name': row['club_name'],
+                'status': row['status'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at'],
+                'completed_sections': json.loads(row['completed_sections'] or '[]'),
+                'pending_sections': json.loads(row['pending_sections'] or '[]'),
+                'partial_plan': json.loads(row['partial_plan'] or '{}'),
+                'metadata': json.loads(row['metadata'] or '{}'),
+                'error_log': json.loads(row['error_log'] or '[]'),
+                'owner_id': row['owner_id']
+            }
+
+    def get_user_sessions(self, owner_id: int, status_filter: Optional[str] = None) -> List[Dict]:
+        """
+        Get all sessions for a user.
+
+        Args:
+            owner_id: User ID
+            status_filter: Optional status to filter by
+
+        Returns:
+            List of session summary dicts
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            if status_filter:
+                rows = conn.execute("""
+                    SELECT session_id, club_name, status, created_at, updated_at
+                    FROM generation_sessions
+                    WHERE owner_id = ? AND status = ?
+                    ORDER BY updated_at DESC
+                """, (owner_id, status_filter)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT session_id, club_name, status, created_at, updated_at
+                    FROM generation_sessions
+                    WHERE owner_id = ?
+                    ORDER BY updated_at DESC
+                """, (owner_id,)).fetchall()
+
+            return [dict(row) for row in rows]
+
+    def delete_expired_sessions(self, cutoff_time: str) -> int:
+        """
+        Delete sessions older than cutoff time.
+
+        Args:
+            cutoff_time: ISO format datetime string
+
+        Returns:
+            Number of sessions deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                DELETE FROM generation_sessions
+                WHERE updated_at < ? AND status IN ('completed', 'failed', 'cancelled')
+            """, (cutoff_time,))
+            conn.commit()
+            return cursor.rowcount
+
+    def delete_generation_session(self, session_id: str) -> bool:
+        """
+        Delete a specific session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if deleted
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM generation_sessions WHERE session_id = ?", (session_id,))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete session {session_id}: {e}")
+            return False
