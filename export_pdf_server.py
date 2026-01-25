@@ -159,7 +159,10 @@ class PdfServerExporter(BaseExporter):
         filepath = self.output_dir / filename
 
         # Generazione PDF: Try wkhtmltopdf first, fallback to WeasyPrint
-        if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+        use_wkhtmltopdf = PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH
+        wkhtmltopdf_failed = False
+
+        if use_wkhtmltopdf:
             logger.info(f"🚀 Inizio generazione PDF per {club_name} via wkhtmltopdf (FAST)...")
             try:
                 config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
@@ -178,10 +181,9 @@ class PdfServerExporter(BaseExporter):
                 logger.info(f"✅ PDF generato con wkhtmltopdf in pochi secondi: {filepath}")
             except Exception as e:
                 logger.error(f"❌ wkhtmltopdf fallito: {e}. Fallback to WeasyPrint...")
-                # Fallback to WeasyPrint below
-                PDFKIT_AVAILABLE = False
+                wkhtmltopdf_failed = True
 
-        if not PDFKIT_AVAILABLE:
+        if not use_wkhtmltopdf or wkhtmltopdf_failed:
             # Fallback: WeasyPrint con timeout protection
             logger.info(f"⚠️ Generazione PDF per {club_name} via WeasyPrint (SLOW + timeout 120s)...")
 
