@@ -9,6 +9,8 @@ Genera un documento A4 singola pagina (o doppia) con:
 - Top 5 priorità
 
 Design: Senior Data Architect Edition (Purple & Bold)
+
+CONSOLIDATO: Ora eredita da BaseExporter (REF-002)
 """
 
 import re
@@ -17,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from config import OUTPUT_DIR
+from export_core import BaseExporter
 from stw_matrix import STW_FRAMEWORK, STWCategory, get_category_color, get_category_icon
 from stw_analyzer import calculate_stw_progress
 from data_estimator import estimate_missing_financials, DataTier
@@ -25,15 +27,16 @@ from data_estimator import estimate_missing_financials, DataTier
 logger = logging.getLogger(__name__)
 
 
-class OnePagerExporter:
+class OnePagerExporter(BaseExporter):
     """
     Genera infografica A4 singola pagina per condivisione rapida.
     Design: Dashboard-style con KPI, progress bars, top priorities.
+
+    Eredita da BaseExporter per condividere utilities comuni.
     """
 
-    def __init__(self):
-        OUTPUT_DIR.mkdir(exist_ok=True)
-        self._output_dir = OUTPUT_DIR
+    def __init__(self, output_dir: Optional[Path] = None):
+        super().__init__(output_dir)
 
     def export(
         self,
@@ -197,7 +200,7 @@ class OnePagerExporter:
         
         if lum > 0.65: # Abbassata soglia per maggior sicurezza
             # Se è quasi bianco, usa un grigio molto scuro o il colore originale molto scurito
-            text_on_white = self._darken_color(primary_color, 0.7)
+            text_on_white = '#' + self._darken_color(primary_color, 0.7)
         
         # Ulteriore check: se dopo lo scurimento è ancora troppo chiaro (es. partendo da bianco puro)
         r2, g2, b2 = tuple(int(text_on_white.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
@@ -520,27 +523,10 @@ class OnePagerExporter:
 </html>'''
         return html
 
-    def _lighten_color(self, hex_color: str, factor: float = 0.9) -> str:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        r = min(255, int(r + (255 - r) * factor))
-        g = min(255, int(g + (255 - g) * factor))
-        b = min(255, int(b + (255 - b) * factor))
-        return f'{r:02x}{g:02x}{b:02x}'
-
-    def _darken_color(self, hex_color: str, factor: float = 0.2) -> str:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        r = int(r * (1 - factor))
-        g = int(g * (1 - factor))
-        b = int(b * (1 - factor))
-        return f'#{r:02x}{g:02x}{b:02x}'
-
-    def _get_contrast_color(self, hex_color: str) -> str:
-        hex_color = hex_color.lstrip('#')
-        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        return '#ffffff' if luminance < 0.5 else '#1a1a1a'
+    # Color helpers ereditati da BaseExporter:
+    # - _get_contrast_color()
+    # - _lighten_color()
+    # - _darken_color()
 
 
 # Singleton per uso globale

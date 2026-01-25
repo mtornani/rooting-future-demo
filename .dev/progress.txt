@@ -41,3 +41,20 @@
 [2026-01-23 23:05] COMPLETED FIX-003: Success Page Restoration - Added missing /api/plan-export-status endpoint and fixed file path persistence in api_generate_from_docx to enable download buttons on success page.
 [2026-01-24] Fixed duplicate /api/plan-export-status route in app.py; consolidated to a single endpoint. Server started and responding. Next: run end-to-end demo via scripts/demo_end_to_end.py and scripts/run_demo.bat to showcase full generation + exports for video.
 [2026-01-24] Added end-to-end demo scaffolding: scripts/demo_end_to_end.py and scripts/run_demo.bat. This enables a repeatable video-demo run (plan generation + exports) without manual steps.
+
+[2026-01-24 21:12] COMPLETED REF-001: Delete dead code
+- Removed app_backup.py (1,691 LOC)
+- Removed temp_fix_app.py (150 LOC)
+- Cleaned ~12k .pyc/__pycache__ files
+- Total saved: 1,841 LOC + 12k cache
+- Next: REF-002 (consolidate export layer, target -800 LOC)
+
+[2026-01-25] COMPLETED REF-002: Consolidate Export Layer
+- Eliminated duplicate PDF exporter (export_pdf.py merged into export_pdf_server.py) [-393 LOC]
+- Migrated OnePagerExporter to inherit from BaseExporter (removed duplicate color helpers) [-14 LOC]
+- Fixed export_paged.py indentation issues [+3 LOC]
+- Added legacy compatibility layer to export_pdf_server.py [+169 LOC]
+- Total net reduction: 235 LOC (2,742 → 2,507)
+- All export formats maintain backward compatibility
+- Updated all import references in app.py
+- Next: REF-003 (session management optimization)

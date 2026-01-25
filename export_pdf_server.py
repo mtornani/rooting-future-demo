@@ -2,6 +2,8 @@
 Rooting Future Strategy Engine - Server-Side PDF Export
 Engine: WeasyPrint (Python Native)
 Design: Tactical Sports Report v3.0 (Anti-Crash Server Edition)
+
+CONSOLIDATO: Include funzionalità di export_pdf.py legacy
 """
 
 import re
@@ -9,12 +11,95 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
+from bs4 import BeautifulSoup
 import weasyprint
 
 from export_core import BaseExporter
 from stw_matrix import generate_stw_matrix_html, get_stw_matrix_css
+from config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# LEGACY PDF CSS (da export_pdf.py)
+# =============================================================================
+
+PDF_CSS_LEGACY = '''
+@page {
+    size: A4;
+    margin: 2cm 2.5cm;
+    @bottom-center {
+        content: "Pagina " counter(page) " di " counter(pages);
+        font-size: 9pt;
+        color: #718096;
+    }
+}
+
+body {
+    font-family: "Segoe UI", Calibri, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #2d3748;
+}
+
+h1 {
+    font-size: 22pt;
+    color: #1a365d;
+    border-bottom: 3px solid #3182ce;
+    padding-bottom: 12px;
+    margin: 30px 0 20px 0;
+    page-break-after: avoid;
+}
+
+h2 {
+    font-size: 16pt;
+    color: #2c5282;
+    margin: 25px 0 15px 0;
+    padding-top: 15px;
+    border-top: 1px solid #e2e8f0;
+    page-break-after: avoid;
+}
+
+h3 {
+    font-size: 13pt;
+    color: #3182ce;
+    margin: 20px 0 12px 0;
+    page-break-after: avoid;
+}
+
+p {
+    margin: 0 0 12px 0;
+    text-align: justify;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 10pt;
+    page-break-inside: avoid;
+}
+
+th, td {
+    border: 1px solid #cbd5e0;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+th {
+    background-color: #1a365d;
+    color: white;
+    font-weight: 600;
+}
+
+.kpi-box {
+    background: linear-gradient(135deg, #ebf8ff, #e6fffa);
+    border-left: 4px solid #3182ce;
+    padding: 15px 20px;
+    margin: 15px 0;
+    page-break-inside: avoid;
+}
+'''
 
 
 class PdfServerExporter(BaseExporter):
@@ -601,3 +686,87 @@ class PdfServerExporter(BaseExporter):
             html.append(f"<li><strong>{name}</strong><br><small>{url}</small></li>")
         html.append("</ul></div>")
         return "".join(html)
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY LAYER (da export_pdf.py)
+# =============================================================================
+
+def _prepare_html_for_pdf(html_content: str) -> str:
+    """Prepara l'HTML per la conversione PDF rimuovendo elementi problematici."""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        # Rimuovi script, noscript, iframe
+        for tag in soup.find_all(['script', 'noscript', 'iframe']):
+            tag.decompose()
+
+        # Rimuovi style tags interni
+        for tag in soup.find_all('style'):
+            tag.decompose()
+
+        # Rimuovi navigazione e elementi UI
+        for tag in soup.find_all(['button', 'nav']):
+            tag.decompose()
+
+        for class_name in ['nav', 'footer', 'print-bar', 'modal', 'btn']:
+            for tag in soup.find_all(class_=class_name):
+                tag.decompose()
+
+        return str(soup)
+    except Exception as e:
+        logger.warning(f"Errore pulizia HTML: {e}, uso HTML originale")
+        return html_content
+
+
+def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) -> bool:
+    """
+    Genera un PDF da HTML usando WeasyPrint (legacy compatibility function).
+
+    CONSOLIDATO da export_pdf.py - mantiene compatibilità con codice esistente.
+
+    Args:
+        html_content: Contenuto HTML completo
+        output_path: Directory dove salvare il PDF
+        plan_name: Nome del file (senza estensione)
+
+    Returns:
+        True se il PDF è stato generato con successo
+    """
+    # Validazione input
+    if not html_content or not isinstance(html_content, str):
+        logger.error("html_content non valido")
+        return False
+
+    pdf_filename = Path(output_path) / f"{plan_name}.pdf"
+    logger.info(f"Generazione PDF legacy: {pdf_filename}")
+
+    # Pulisci HTML
+    clean_html = _prepare_html_for_pdf(html_content)
+
+    try:
+        # Genera PDF con WeasyPrint
+        html_doc = weasyprint.HTML(string=clean_html)
+        css = weasyprint.CSS(string=PDF_CSS_LEGACY)
+        html_doc.write_pdf(str(pdf_filename), stylesheets=[css])
+
+        # Verifica
+        if pdf_filename.exists() and pdf_filename.stat().st_size > 0:
+            logger.info(f"PDF generato: {pdf_filename} ({pdf_filename.stat().st_size} bytes)")
+            return True
+        else:
+            logger.error("PDF generato ma file vuoto")
+            return False
+
+    except Exception as e:
+        logger.error(f"Errore WeasyPrint: {e}", exc_info=True)
+        return False
+
+
+def get_pdf_generator_info() -> dict:
+    """Restituisce info sul generatore PDF disponibile."""
+    return {
+        'weasyprint_available': True,
+        'xhtml2pdf_available': False,
+        'preferred': 'weasyprint'
+    }

@@ -114,7 +114,7 @@ from export_html import ChunkedHTMLExporter, HTMLSection
 
 # NOTA: export_pdf, export_pdf_server, export_paged importano WeasyPrint
 # che può bloccare GTK su Windows. Import lazy nelle funzioni che li usano.
-# from export_pdf import create_pdf_from_html  # LAZY
+# from export_pdf_server import create_pdf_from_html  # LAZY
 # from export_paged import create_paged_html   # LAZY
 # from export_pdf_server import PdfServerExporter  # LAZY
 # from export_onepager import create_onepager  # LAZY - usa stw_matrix
@@ -4362,7 +4362,7 @@ def api_export_pdf_only(plan_id: str):
 
         temp_dir = tempfile.mkdtemp(prefix="pdf_export_")
 
-        from export_pdf import create_pdf_from_html
+        from export_pdf_server import create_pdf_from_html
 
         pdf_success = create_pdf_from_html(
             html_content=html_content, output_path=temp_dir, plan_name=pdf_filename
@@ -4628,7 +4628,7 @@ def api_finalize_plan(plan_id: str):
             )
 
             # Crea PDF
-            from export_pdf import create_pdf_from_html
+            from export_pdf_server import create_pdf_from_html
 
             safe_name = review.club_name.replace(" ", "_")
             pdf_success = create_pdf_from_html(

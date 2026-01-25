@@ -139,21 +139,24 @@ class PagedHtmlExporter(BaseExporter):
         
         return '\n'.join(html_parts)
 
-        def _generate_sources(self, sources: List[Dict]) -> str:
-            html = ['<h1>Fonti e Metodologia</h1><ul>']
-            for s in sources[:20]:
-                html.append(f'<li><strong>{s.get("name", "Fonte")}</strong>: {s.get("url", "")}</li>')
-            html.append('</ul>')
-            return '\n'.join(html)
-            # Alias for backward compatibility
-        paged_exporter = PagedHtmlExporter()
-        
-        def create_paged_html(
-            plan_data: Dict,
-            club_name: str,
-            sources: List[Dict] = None,
-            metadata: Dict = None
-        ) -> Path:
-            """Helper function to create paged HTML."""
-            return paged_exporter.export(plan_data, club_name, sources, metadata)
+    def _generate_sources(self, sources: List[Dict]) -> str:
+        html = ['<h1>Fonti e Metodologia</h1><ul>']
+        for s in sources[:20]:
+            html.append(f'<li><strong>{s.get("name", "Fonte")}</strong>: {s.get("url", "")}</li>')
+        html.append('</ul>')
+        return '\n'.join(html)
+
+
+# Singleton instance for backward compatibility
+paged_exporter = PagedHtmlExporter()
+
+
+def create_paged_html(
+    plan_data: Dict,
+    club_name: str,
+    sources: List[Dict] = None,
+    metadata: Dict = None
+) -> Path:
+    """Helper function to create paged HTML."""
+    return paged_exporter.export(plan_data, club_name, sources, metadata)
         
