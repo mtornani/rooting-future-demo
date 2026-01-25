@@ -65,17 +65,43 @@ class BaseExporter(ABC):
         }
 
     def _get_contrast_color(self, hex_color: str) -> str:
-        """Returns #FFFFFF or #000000 based on the contrast of the input hex color."""
+        """
+        Returns #FFFFFF or #000000 based on WCAG 2.1 contrast ratio.
+        Ensures minimum 4.5:1 contrast for readability.
+        """
         hex_color = hex_color.lstrip('#')
         if len(hex_color) != 6:
-            return '#FFFFFF'
+            return '#000000'  # Safe default
         try:
-            r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-            # YIQ formula for brightness
-            brightness = (r * 299 + g * 587 + b * 114) / 1000
-            return '#000000' if brightness > 128 else '#FFFFFF'
+            # Calculate contrast with both white and black, pick better one
+            contrast_white = self._calculate_contrast_ratio(hex_color, 'ffffff')
+            contrast_black = self._calculate_contrast_ratio(hex_color, '000000')
+
+            # Return the color with higher contrast
+            return '#FFFFFF' if contrast_white > contrast_black else '#000000'
         except Exception:
-            return '#FFFFFF'
+            return '#000000'  # Safe default
+
+    def _calculate_contrast_ratio(self, hex1: str, hex2: str) -> float:
+        """
+        Calculate WCAG 2.1 contrast ratio between two hex colors.
+        Returns value between 1 and 21 (21 = max contrast).
+        """
+        def relative_luminance(hex_color: str) -> float:
+            """Calculate relative luminance according to WCAG"""
+            rgb = [int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
+            # Apply gamma correction
+            rgb_linear = [(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4) for c in rgb]
+            return 0.2126 * rgb_linear[0] + 0.7152 * rgb_linear[1] + 0.0722 * rgb_linear[2]
+
+        l1 = relative_luminance(hex1.lstrip('#'))
+        l2 = relative_luminance(hex2.lstrip('#'))
+
+        # Ensure l1 is the lighter color
+        if l1 < l2:
+            l1, l2 = l2, l1
+
+        return (l1 + 0.05) / (l2 + 0.05)
 
     def _lighten_color(self, hex_color: str, factor: float = 0.9) -> str:
         """Lightens a hex color by a given factor."""
@@ -98,6 +124,41 @@ class BaseExporter(ABC):
             rgb = [int(hex_color[i:i+2], 16) for i in (0, 2, 4)]
             new_rgb = [max(0, int(c * (1 - factor))) for c in rgb]
             return '{:02x}{:02x}{:02x}'.format(*new_rgb)
+        except Exception:
+            return hex_color
+
+    def _ensure_readable_text(self, text_color: str, bg_color: str, min_contrast: float = 4.5) -> str:
+        """
+        Ensures text color has sufficient contrast against background.
+        If contrast is insufficient, returns #000000 or #FFFFFF (whichever has better contrast).
+
+        Args:
+            text_color: Hex color for text
+            bg_color: Hex color for background
+            min_contrast: Minimum WCAG contrast ratio (default 4.5 for normal text)
+
+        Returns:
+            Adjusted text color hex (with #)
+        """
+        text_hex = text_color.lstrip('#')
+        bg_hex = bg_color.lstrip('#')
+
+        try:
+            current_contrast = self._calculate_contrast_ratio(text_hex, bg_hex)
+
+            if current_contrast >= min_contrast:
+                return f"#{text_hex}"  # Color is fine
+
+            # Insufficient contrast - force black or white
+            contrast_white = self._calculate_contrast_ratio('ffffff', bg_hex)
+            contrast_black = self._calculate_contrast_ratio('000000', bg_hex)
+
+            logger.warning(f"Low contrast ({current_contrast:.2f}) between #{text_hex} and #{bg_hex}. Forcing safe color.")
+            return '#FFFFFF' if contrast_white > contrast_black else '#000000'
+
+        except Exception as e:
+            logger.error(f"Contrast calculation error: {e}")
+            return '#000000'  # Safe default
         except Exception:
             return hex_color
 
