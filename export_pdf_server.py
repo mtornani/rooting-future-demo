@@ -1,6 +1,6 @@
 """
 Rooting Future Strategy Engine - Server-Side PDF Export
-Engine: WeasyPrint (Python Native)
+Engine: wkhtmltopdf (Primary) with WeasyPrint fallback
 Design: Tactical Sports Report v3.0 (Anti-Crash Server Edition)
 
 CONSOLIDATO: Include funzionalità di export_pdf.py legacy
@@ -14,11 +14,39 @@ from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
 import weasyprint
 
+# Try to import pdfkit (wkhtmltopdf wrapper)
+try:
+    import pdfkit
+    PDFKIT_AVAILABLE = True
+except ImportError:
+    PDFKIT_AVAILABLE = False
+    pdfkit = None
+
 from export_core import BaseExporter
 from stw_matrix import generate_stw_matrix_html, get_stw_matrix_css
 from config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
+
+# Auto-detect wkhtmltopdf path
+WKHTMLTOPDF_PATH = None
+if PDFKIT_AVAILABLE:
+    import shutil
+    # Common installation paths on Windows
+    possible_paths = [
+        r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe",
+        r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe",
+        shutil.which("wkhtmltopdf"),  # Check PATH
+    ]
+    for path in possible_paths:
+        if path and Path(path).exists():
+            WKHTMLTOPDF_PATH = path
+            logger.info(f"✅ wkhtmltopdf found at: {path}")
+            break
+
+    if not WKHTMLTOPDF_PATH:
+        logger.warning("⚠️ pdfkit installed but wkhtmltopdf.exe not found. Falling back to WeasyPrint.")
+        PDFKIT_AVAILABLE = False
 
 # =============================================================================
 # LEGACY PDF CSS (da export_pdf.py)
@@ -130,33 +158,57 @@ class PdfServerExporter(BaseExporter):
         filename = self._get_safe_filename(club_name, "pdf", prefix="PianoStrategico")
         filepath = self.output_dir / filename
 
-        # Generazione PDF via WeasyPrint con timeout protection
-        logger.info(f"Inizio generazione PDF per {club_name} via WeasyPrint...")
-
-        import threading
-        pdf_error = None
-
-        def generate_pdf():
-            nonlocal pdf_error
+        # Generazione PDF: Try wkhtmltopdf first, fallback to WeasyPrint
+        if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+            logger.info(f"🚀 Inizio generazione PDF per {club_name} via wkhtmltopdf (FAST)...")
             try:
-                weasyprint.HTML(string=html_content).write_pdf(filepath)
+                config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+                options = {
+                    'page-size': 'A4',
+                    'margin-top': '0mm',
+                    'margin-right': '0mm',
+                    'margin-bottom': '0mm',
+                    'margin-left': '0mm',
+                    'encoding': 'UTF-8',
+                    'enable-local-file-access': None,
+                    'no-stop-slow-scripts': None,
+                    'javascript-delay': 100,
+                }
+                pdfkit.from_string(html_content, str(filepath), configuration=config, options=options)
+                logger.info(f"✅ PDF generato con wkhtmltopdf in pochi secondi: {filepath}")
             except Exception as e:
-                pdf_error = e
+                logger.error(f"❌ wkhtmltopdf fallito: {e}. Fallback to WeasyPrint...")
+                # Fallback to WeasyPrint below
+                PDFKIT_AVAILABLE = False
 
-        # Esegui con timeout di 2 minuti (120s)
-        pdf_thread = threading.Thread(target=generate_pdf, daemon=True)
-        pdf_thread.start()
-        pdf_thread.join(timeout=120)
+        if not PDFKIT_AVAILABLE:
+            # Fallback: WeasyPrint con timeout protection
+            logger.info(f"⚠️ Generazione PDF per {club_name} via WeasyPrint (SLOW + timeout 120s)...")
 
-        if pdf_thread.is_alive():
-            logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 120s per {club_name}")
-            raise TimeoutError(f"PDF generation timeout dopo 120 secondi - WeasyPrint probabilmente in loop infinito")
+            import threading
+            pdf_error = None
 
-        if pdf_error:
-            logger.error(f"Errore WeasyPrint: {pdf_error}")
-            raise pdf_error
+            def generate_pdf():
+                nonlocal pdf_error
+                try:
+                    weasyprint.HTML(string=html_content).write_pdf(filepath)
+                except Exception as e:
+                    pdf_error = e
 
-        logger.info(f"✅ PDF generato con successo: {filepath}")
+            # Esegui con timeout di 2 minuti (120s)
+            pdf_thread = threading.Thread(target=generate_pdf, daemon=True)
+            pdf_thread.start()
+            pdf_thread.join(timeout=120)
+
+            if pdf_thread.is_alive():
+                logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 120s per {club_name}")
+                raise TimeoutError(f"PDF generation timeout dopo 120 secondi - WeasyPrint probabilmente in loop infinito")
+
+            if pdf_error:
+                logger.error(f"Errore WeasyPrint: {pdf_error}")
+                raise pdf_error
+
+            logger.info(f"✅ PDF generato con successo: {filepath}")
 
         return filepath
 
@@ -763,6 +815,29 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
     # Pulisci HTML
     clean_html = _prepare_html_for_pdf(html_content)
 
+    # Try wkhtmltopdf first
+    if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+        try:
+            logger.info(f"🚀 Generazione PDF legacy via wkhtmltopdf...")
+            config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+            options = {
+                'page-size': 'A4',
+                'margin-top': '2cm',
+                'margin-right': '2.5cm',
+                'margin-bottom': '2cm',
+                'margin-left': '2.5cm',
+                'encoding': 'UTF-8',
+                'enable-local-file-access': None,
+            }
+            pdfkit.from_string(clean_html, str(pdf_filename), configuration=config, options=options)
+
+            if pdf_filename.exists() and pdf_filename.stat().st_size > 0:
+                logger.info(f"✅ PDF legacy generato con wkhtmltopdf: {pdf_filename} ({pdf_filename.stat().st_size} bytes)")
+                return True
+        except Exception as e:
+            logger.error(f"❌ wkhtmltopdf legacy fallito: {e}. Fallback to WeasyPrint...")
+
+    # Fallback: WeasyPrint
     try:
         import threading
         pdf_error = None
@@ -806,7 +881,21 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
 
 def get_pdf_generator_info() -> dict:
     """Restituisce info sul generatore PDF disponibile."""
+    if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+        engine = "wkhtmltopdf"
+        path = WKHTMLTOPDF_PATH
+        performance = "FAST (2-5s per PDF)"
+    else:
+        engine = "WeasyPrint"
+        path = "Python native"
+        performance = "SLOW (30-120s per PDF, timeout protection enabled)"
+
     return {
+        "engine": engine,
+        "path": path,
+        "performance": performance,
+        "pdfkit_installed": PDFKIT_AVAILABLE,
+        "wkhtmltopdf_found": bool(WKHTMLTOPDF_PATH),
         'weasyprint_available': True,
         'xhtml2pdf_available': False,
         'preferred': 'weasyprint'
