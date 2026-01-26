@@ -1533,17 +1533,18 @@ def view_strategic_plan(plan_id):
 
     # Recupera metadata per colori e info
     review = editor.reviews.get(plan_id)
-    metadata = {}
+    metadata = {
+        "category": plan_record.category,
+        "primary_color": "#1a365d",
+        "secondary_color": "#ffffff"
+    }
 
     if review:
-        metadata = review.metadata
-    else:
-        # Fallback: usa dati dal plan_record
-        metadata = {
-            "category": plan_record.category,
-            "primary_color": "#1a365d",
-            "secondary_color": "#ffffff"
-        }
+        # PlanReview ha primary_color e secondary_color direttamente, non in metadata
+        if review.primary_color:
+            metadata["primary_color"] = review.primary_color
+        if review.secondary_color:
+            metadata["secondary_color"] = review.secondary_color
 
     return render_template(
         "strategic_plan_viewer.html",
