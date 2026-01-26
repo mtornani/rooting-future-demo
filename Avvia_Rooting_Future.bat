@@ -27,6 +27,7 @@ echo  ^|     ARCHITETTURA:                                           ^|
 echo  ^|       Tally/Forms -^> Ngrok -^> n8n -^> Python API            ^|
 echo  ^|                                                             ^|
 echo  ^|     Servizi in avvio:                                       ^|
+echo  ^|       [0] Diagnostica Integrita                             ^|
 echo  ^|       [1] Python Flask API (porta 5000)                     ^|
 echo  ^|       [2] n8n Workflow Automation (porta 5678)              ^|
 echo  ^|       [3] Ngrok Tunnel (espone n8n sulla 5678)              ^|
@@ -35,9 +36,25 @@ echo  ===============================================================
 echo.
 
 :: -----------------------------------------------------------------------------
-:: STEP 0: Chiudi eventuali processi Python sulla porta 5000
+:: STEP 0: Verifica integrità sistema
 :: -----------------------------------------------------------------------------
-echo  [0/3] Verifica porta 5000...
+echo  [0/4] Esecuzione diagnostica rapida...
+call venv\Scripts\activate.bat
+venv\Scripts\python.exe diagnostica_avvio.py --quiet
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo  [!] ERRORE: La diagnostica ha rilevato problemi.
+    echo      Controlla gli errori sopra e premi un tasto per uscire.
+    pause
+    exit /b %ERRORLEVEL%
+)
+echo        [OK] Sistema integro.
+echo.
+
+:: -----------------------------------------------------------------------------
+:: STEP 1: Chiudi eventuali processi Python sulla porta 5000
+:: -----------------------------------------------------------------------------
+echo  [1/4] Verifica porta 5000...
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":5000 " ^| findstr "LISTENING"') do (
     if not "%%a"=="" (
         echo        Terminazione processo PID %%a sulla porta 5000...
@@ -49,9 +66,9 @@ echo        [OK] Porta 5000 libera
 echo.
 
 :: -----------------------------------------------------------------------------
-:: STEP 1: Avvio Python API (finestra visibile per debug)
+:: STEP 2: Avvio Python API (finestra visibile per debug)
 :: -----------------------------------------------------------------------------
-echo  [1/3] Avvio Python API Server (porta 5000)...
+echo  [2/4] Avvio Python API Server (porta 5000)...
 start "Python API Server" cmd /k "cd /d %~dp0 && call venv\Scripts\activate.bat && py avvia_server.py"
 timeout /t 8 /nobreak > nul
 echo        [OK] Python API avviato
@@ -59,9 +76,9 @@ echo        Endpoint: http://127.0.0.1:5000
 echo.
 
 :: -----------------------------------------------------------------------------
-:: STEP 2: Avvio N8N (finestra minimizzata)
+:: STEP 3: Avvio N8N (finestra minimizzata)
 :: -----------------------------------------------------------------------------
-echo  [2/3] Avvio n8n Workflow Engine (porta 5678)...
+echo  [3/4] Avvio n8n Workflow Engine (porta 5678)...
 start /min "n8n Automation" cmd /c "npx n8n start"
 timeout /t 8 /nobreak > nul
 echo        [OK] n8n avviato in background
@@ -69,9 +86,9 @@ echo        Dashboard: http://localhost:5678
 echo.
 
 :: -----------------------------------------------------------------------------
-:: STEP 3: Avvio NGROK -> porta 5678 (n8n)
+:: STEP 4: Avvio NGROK -> porta 5678 (n8n)
 :: -----------------------------------------------------------------------------
-echo  [3/3] Avvio Ngrok Tunnel (espone n8n)...
+echo  [4/4] Avvio Ngrok Tunnel (espone n8n)...
 echo        IMPORTANTE: Ngrok punta alla porta 5678 (n8n)
 start /min "Ngrok Tunnel" cmd /c "ngrok http --domain=jakob-untalking-purringly.ngrok-free.dev 5678"
 timeout /t 4 /nobreak > nul

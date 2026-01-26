@@ -631,9 +631,9 @@ if __name__ == "__main__":
     plan = orchestrator.generate_plan(club_data)
 
     # Render
-    from structured_renderer import StructuredHTMLRenderer
-    renderer = StructuredHTMLRenderer()
-    filepath = renderer.render(plan)
+    from domain.rendering import PlanRenderer
+    renderer = PlanRenderer()
+    filepath = renderer.render_structured(plan)
     print(f"Piano generato: {filepath}")
     print(f"Credibilita: {plan.overall_credibility:.1f}%")
     print(f"Data points: {plan.total_data_points} (verified: {plan.verified_data_points})")

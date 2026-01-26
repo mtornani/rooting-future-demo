@@ -19,7 +19,9 @@ from config import EXPORT_CONFIG
 from export_core import BaseExporter
 from stw_analyzer import get_stw_coverage_summary
 from stw_matrix import get_category_color, get_category_icon, STWCategory, generate_stw_matrix_html
-from methodology_section import generate_rooting_future_methodology_html
+from domain.rendering.renderer import PlanRenderer
+def generate_rooting_future_methodology_html(metadata=None, primary_color='#1a365d'):
+    return PlanRenderer().add_methodology("", metadata, primary_color)
 
 logger = logging.getLogger(__name__)
 

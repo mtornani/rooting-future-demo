@@ -39,88 +39,7 @@ def _clean_text(text: str) -> str:
     text = re.sub(r'\*\*|\*|#{1,4}\s*', '', text)
     # Rimuovi spazi multipli
     text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
-    # Rimuovi due punti iniziali (fix Task 6)
-    if text.startswith(':'):
-        text = text[1:].strip()
-    return text
-
-
-def add_source_badge_inline(text: str, source: str = "estimate") -> str:
-    """
-    Aggiunge badge inline al testo basato sulla fonte.
-    """
-    if not text:
-        return ""
-    
-    # Mappa fonti a badge
-    badge_map = {
-        'verified': '<span class="source-badge source-ver">📋 VERIFICATO</span>',
-        'questionnaire': '<span class="source-badge source-ver">📋 DA QUESTIONARIO</span>',
-        'research': '<span class="source-badge source-ded">🔍 DEDOTTO</span>',
-        'estimate': '<span class="source-badge source-est">📊 STIMATO</span>'
-    }
-    
-    badge = badge_map.get(source, badge_map['estimate'])
-    return f"{text} {badge}"
-
-
-MICRO_OBJECTIVES_FALLBACKS = {
-    'CREAZIONE E SVILUPPO IDENTITÀ TECNICA': [
-        'Definire modulo tattico unificato (es. 4-3-3) per tutte le categorie',
-        'Formare lo staff tecnico su metodologia di gioco comune',
-        'Implementare sistema di valutazione performance standardizzato',
-        'Creare protocollo allenamenti settimanale condiviso tra categorie'
-    ],
-    'COSTRUZIONE E RINNOVAMENTO STRUTTURE': [
-        'Mappare stato attuale impianti con report fotografico dettagliato',
-        'Prioritizzare interventi su campo allenamento settore giovanile',
-        'Ottenere certificazioni sicurezza aggiornate per tutti gli impianti',
-        'Installare sistema illuminazione LED su campo principale'
-    ],
-    'SVILUPPO AREA COMUNICAZIONE': [
-        'Pubblicare 3 post/settimana sui social media con calendario editoriale',
-        'Creare newsletter mensile per tesserati e sponsor',
-        'Implementare area stampa digitale sul sito web',
-        'Avviare collaborazione con media locali per copertura partite'
-    ],
-    'SVILUPPO AREA MARKETING': [
-        'Lanciare campagna sponsor per stagione 2026/27 con target €50K',
-        'Creare merchandising ufficiale (maglie, sciarpe) entro marzo',
-        'Implementare programma fedeltà per abbonati',
-        'Organizzare 2 eventi corporate per attrarre nuovi partner'
-    ],
-    'SVILUPPO BRAND IDENTITY': [
-        'Ridisegnare logo e brand guidelines entro aprile 2026',
-        'Unificare comunicazione visiva su tutti i canali',
-        'Creare brand book digitale per uso interno/esterno',
-        'Registrare marchio presso UIBM per protezione legale'
-    ],
-    'SVILUPPO AREA COMMERCIALE': [
-        'Mappare potenziali sponsor locali (target list di 30 aziende)',
-        'Creare presentation deck commerciale con pacchetti sponsor',
-        'Assumere commerciale part-time per gestione sponsor',
-        'Attivare vendita biglietti online su piattaforma dedicata'
-    ],
-    'SVILUPPO INCLUSIONE E UGUAGLIANZA': [
-        'Creare squadra femminile o accordo con club femminile locale',
-        'Implementare protocollo anti-discriminazione in tutti gli eventi',
-        'Organizzare torneo giovanile inclusivo aperto a tutti',
-        'Formare staff su gestione diversità e inclusione'
-    ],
-    'PROTEZIONE BAMBINI/E E GIOVANI': [
-        'Certificare tutti gli allenatori giovanili con corso Safeguarding',
-        'Implementare protocollo tutela minori conforme FIGC',
-        'Nominare responsabile protezione minori nel club',
-        'Attivare assicurazione specifica per settore giovanile'
-    ],
-    'RISORSE UMANE': [
-        'Digitalizzare gestione presenze staff con sistema HR cloud',
-        'Creare organigramma chiaro con ruoli e responsabilità definiti',
-        'Implementare valutazione annuale performance per staff tecnico',
-        'Attivare convenzioni welfare per dipendenti (palestra, assicurazioni)'
-    ]
-}
+    return text.strip()
 
 
 def _truncate_text(text: str, max_len: int = 60) -> str:
@@ -392,84 +311,44 @@ def _generate_questionnaire_box(metadata: Dict[str, Any], club_name: str) -> str
 
 
 def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
-    """Estrae obiettivi MACRO e MICRO con titoli descrittivi completi."""
+    """Estrae obiettivi MACRO e MICRO in forma sintetica con fallback aggressivi."""
     result = {'macro': [], 'micro': []}
     if not content:
-        # Fallback totale se contenuto assente
-        result['macro'] = ["Definizione Posizionamento Strategico", "Consolidamento Struttura Organizzativa"]
-        result['micro'] = ["Analisi dei processi interni", "Sviluppo competenze staff", "Definizione budget preliminare"]
         return result
 
     # --- MACRO OBIETTIVI ---
-    # Cerca header ## (es: ## MACRO 1: TITOLO o ## 1. TITOLO)
-    macro_matches = re.findall(r'##\s*(?:MACRO\s+)?(?:\d+\.)?\s*([A-ZÀ-Ÿ][^#\n]{5,100})', content)
+    # 1. Cerca header ## numerati o non
+    macro_matches = re.findall(r'##\s*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,80})', content)
     
+    # 2. Se pochi header, cerca bold line all'inizio di paragrafi che sembrano titoli
+    if len(macro_matches) < 2:
+        bold_matches = re.findall(r'\n\*\*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,60})\*\*', content)
+        macro_matches.extend(bold_matches)
+
     for m in macro_matches[:4]:
-        clean = _clean_text(m)
-        clean = re.sub(r'^(?:MACRO\s+)?\d+[:\s.-]*', '', clean, flags=re.IGNORECASE).strip()
-        if len(clean) > 5 and clean not in result['macro']:
+        clean = _clean_text(m).split(':')[0] # Prendi solo parte prima dei due punti
+        if len(clean) > 5:
             result['macro'].append(clean)
 
     # --- MICRO OBIETTIVI ---
-    # Cerca header ### (es: ### 1.1 TITOLO) o bullet points forti
-    micro_matches = re.findall(r'###\s*(?:\d+\.\d+)?\s*([A-ZÀ-Ÿ][^#\n]{5,100})', content)
+    # 1. Cerca header ###
+    micro_matches = re.findall(r'###\s*(?:\d+\.\d+)?\s*([A-ZÀ-Ÿ].{5,80})', content)
     
-    # Se pochi MICRO, cerca bullet points che iniziano con grassetto
+    # 2. Se pochi header, cerca bullet points forti
     if len(micro_matches) < 2:
-        bullet_bold = re.findall(r'[-*•]\s*\*\*([A-ZÀ-Ÿ][^*]{5,80})\*\*', content)
-        micro_matches.extend(bullet_bold)
+        bullet_matches = re.findall(r'[-*•]\s+([A-ZÀ-Ÿ].{10,100})', content)
+        micro_matches.extend(bullet_matches)
 
-    for m in micro_matches[:5]:
-        clean = _clean_text(m)
-        clean = re.sub(r'^\d+\.\d+[:\s.-]*', '', clean).strip()
-        
-        # Filtra duplicati dei macro
-        is_duplicate = False
-        for macro in result['macro']:
-            if (clean.lower() in macro.lower() or macro.lower() in clean.lower()) and abs(len(clean) - len(macro)) < 15:
-                is_duplicate = True
-                break
-        
-        if not is_duplicate and len(clean) > 10 and clean not in result['micro']:
+    for m in micro_matches[:4]:
+        clean = _clean_text(m).split(':')[0]
+        if len(clean) > 5:
             result['micro'].append(clean)
 
-    # --- SMART FALLBACKS (Basati su parole chiave nei Macro) ---
-    if len(result['micro']) < 2:
-        # Mappa parole chiave dei MACRO ai FALLBACK
-        keyword_map = {
-            'tecnica': 'CREAZIONE E SVILUPPO IDENTITÀ TECNICA',
-            'sportiva': 'CREAZIONE E SVILUPPO IDENTITÀ TECNICA',
-            'settore giovanile': 'CREAZIONE E SVILUPPO IDENTITÀ TECNICA',
-            'struttur': 'COSTRUZIONE E RINNOVAMENTO STRUTTURE',
-            'impiant': 'COSTRUZIONE E RINNOVAMENTO STRUTTURE',
-            'comunicazione': 'SVILUPPO AREA COMUNICAZIONE',
-            'social': 'SVILUPPO AREA COMUNICAZIONE',
-            'marketing': 'SVILUPPO AREA MARKETING',
-            'commerciale': 'SVILUPPO AREA COMMERCIALE',
-            'brand': 'SVILUPPO BRAND IDENTITY',
-            'inclusione': 'SVILUPPO INCLUSIONE E UGUAGLIANZA',
-            'bambini': 'PROTEZIONE BAMBINI/E E GIOVANI',
-            'risorse': 'RISORSE UMANE',
-            'personale': 'RISORSE UMANE',
-            'organigramma': 'RISORSE UMANE'
-        }
-
-        # Per ogni macro trovato, cerca se esiste un set di fallback pertinente
-        for macro in result['macro']:
-            for kw, fallback_key in keyword_map.items():
-                if kw in macro.lower():
-                    fallbacks = MICRO_OBJECTIVES_FALLBACKS.get(fallback_key, [])
-                    for fb in fallbacks:
-                        if fb not in result['micro'] and len(result['micro']) < 4:
-                            result['micro'].append(fb)
-                    break
-            if len(result['micro']) >= 4: break
-
-    # Fallback finali se ancora vuoti (Garantisce che il report non sia mai vuoto)
+    # Fallback finale se vuoto
     if not result['macro']:
-        result['macro'] = ["Evoluzione Organizzativa", "Sostenibilità Economico-Sportiva"]
+        result['macro'] = ["Definizione obiettivi strategici", "Consolidamento societario"]
     if not result['micro']:
-        result['micro'] = ["Analisi del posizionamento territoriale", "Consolidamento dei ricavi commerciali", "Efficienza nella gestione sportiva"]
+        result['micro'] = ["Analisi operativa", "Sviluppo risorse umane"]
 
     return result
 
@@ -496,61 +375,27 @@ def generate_executive_report_html(
     """
     current_year = datetime.now().year
 
-    # Colori club (Protagonisti)
-    primary_color = metadata.get('primary_color') or '#6a0dad'
+    # Colori club
+    primary_color = metadata.get('primary_color') or '#1a365d'
     secondary_color = metadata.get('secondary_color') or '#ffffff'
-    
-    # Se il secondario è bianco, usiamo un grigio scuro per i gradienti per dare profondità
-    grad_secondary = secondary_color if secondary_color.lower() != "#ffffff" else "#1a202c"
 
     # Genera varianti colore
     primary_dark = _darken_color(primary_color, 0.2)
     text_on_primary = _get_contrast_color(primary_color)
 
-    # Calculate text_on_cover (contrast against primary/brand_gradient)
-    # If primary is light (e.g. White), the gradient is light, so text must be dark.
-    r_p, g_p, b_p = tuple(int(primary_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-    lum_p = (0.299 * r_p + 0.587 * g_p + 0.114 * b_p) / 255
-    text_on_cover = '#ffffff' if lum_p < 0.6 else '#1a1a1a'
-
-    # FIX: Text on white background should be readable even if primary is white/light
-    text_on_white = primary_color
-    r, g, b = tuple(int(primary_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-    lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-    if lum > 0.65:
-        text_on_white = _darken_color(primary_color, 0.7)
-    
-    # Check extra per bianco puro
-    r2, g2, b2 = tuple(int(text_on_white.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-    if (0.299 * r2 + 0.587 * g2 + 0.114 * b2) / 255 > 0.7:
-        text_on_white = "#333333"
-
     # === CALCOLO COPERTURA STW ===
     stw_progress = calculate_stw_progress(plan_data)
     stw_dashboard_html = _generate_stw_dashboard_html(stw_progress)
-    
-    # === ESTRAZIONE PUNTI CHIAVE PER SINTESI ===
-    # Cerca il contenuto dell'executive summary generale o specifico
-    exec_summary_content = plan_data.get('executive_summary') or \
-                          plan_data.get('executive_summary_sporting') or \
-                          ""
-    
-    exec_points = []
-    if exec_summary_content:
-        exec_points = _extract_key_points(exec_summary_content, max_points=3)
-    
-    # Fallback se non ci sono punti estratti
-    if not exec_points:
-        exec_points = ["Consolidamento della struttura societaria", "Sostenibilità finanziaria a lungo termine"]
 
-    # === DATI FINANZIARI PER KPI ===
-    known_financials = metadata.get("known_financials", {})
-    club_data_for_est = {
-        "dimensione_rosa": metadata.get("dimensione_rosa", 22),
-        "capienza_stadio": metadata.get("capienza_stadio", 0)
+    # === STIME FINANZIARIE ===
+    club_data = {
+        'dimensione_rosa': metadata.get('dimensione_rosa', 22),
+        'capienza_stadio': metadata.get('capienza_stadio', 0)
     }
-    estimates = estimate_missing_financials(club_data_for_est, category, known_financials)
+    known_financials = metadata.get('known_financials', {})
+    estimates = estimate_missing_financials(club_data, category, known_financials)
 
+    # Estrai valori
     fatturato = estimates.get('fatturato')
     monte_ingaggi = estimates.get('monte_ingaggi')
     valore_rosa = estimates.get('valore_rosa')
@@ -561,148 +406,155 @@ def generate_executive_report_html(
     vr_val = valore_rosa.value if valore_rosa else 0
     marg_val = margine.value if margine else 0
 
-    # === GENERAZIONE GRAFICI ===
-    # 1. Pie Chart Ricavi (Stima scientifica per categoria se non dettaglio)
-    # Distribuzioni tipiche basate su Report Calcio FIGC 2024
-    revenue_profiles = {
-        # Serie A/B: Forte impatto diritti TV e Commerciale
-        'top_tier': {'Ricavi Gara': 0.15, 'Commerciale': 0.30, 'Diritti TV': 0.45, 'Altro': 0.10},
-        # Serie C: Mix equilibrato, TV marginali
-        'pro_tier': {'Ricavi Gara': 0.25, 'Commerciale': 0.45, 'Diritti TV': 0.15, 'Altro': 0.15},
-        # LND/Dilettanti: Dipendenza da sponsor locali e biglietteria/eventi
-        'amateur':  {'Ricavi Gara': 0.30, 'Sponsor Locali': 0.50, 'Eventi/Campo': 0.15, 'Altro': 0.05}
+    # === GRAFICI COMPATTI ===
+    # Pie chart ricavi
+    revenues = {
+        'Gara': fat_val * 0.25,
+        'Sponsor': fat_val * 0.35,
+        'Media': fat_val * 0.20,
+        'Altro': fat_val * 0.20
     }
-
-    # Selezione profilo
-    norm_cat = category.lower()
-    if 'serie a' in norm_cat or 'serie b' in norm_cat:
-        profile = revenue_profiles['top_tier']
-    elif 'serie c' in norm_cat:
-        profile = revenue_profiles['pro_tier']
-    else:
-        profile = revenue_profiles['amateur']
-
-    revenues = {k: fat_val * pct for k, pct in profile.items()}
-    
     pie_b64 = generate_revenue_pie_chart(revenues, club_name, primary_color)
-    pie_img = embed_chart_in_html(pie_b64, "Composizione Ricavi")
+    pie_img = f'<img src="data:image/png;base64,{pie_b64}" style="max-width:100%;height:auto;" />' if pie_b64 else ''
 
-    # 2. Gap Analysis
-    from data_models import BenchmarkDatabase
+    # Gap analysis
     benchmarks = BenchmarkDatabase.FINANCIAL_BENCHMARKS.get(category, {})
-    gap_img = ""
     if benchmarks:
         gaps = {
-            'fatturato': (fat_val, benchmarks.get('fatturato_medio', fat_val)),
-            'monte_ingaggi': (mi_val, benchmarks.get('monte_ingaggi_medio', mi_val)),
-            'valore_rosa': (vr_val, benchmarks.get('costo_rosa_medio', vr_val))
+            'Fatturato': (fat_val, benchmarks.get('fatturato_medio', fat_val)),
+            'Ingaggi': (mi_val, benchmarks.get('monte_ingaggi_medio', mi_val)),
+            'Rosa': (vr_val, benchmarks.get('costo_rosa_medio', vr_val))
         }
         gap_b64 = generate_gap_analysis_chart(gaps, club_name, category)
-        gap_img = embed_chart_in_html(gap_b64, "Gap Analysis")
+        gap_img = f'<img src="data:image/png;base64,{gap_b64}" style="max-width:100%;height:auto;" />' if gap_b64 else ''
+    else:
+        gap_img = ''
 
-    # === GENERAZIONE CONTENT AREE ===
-    areas_html = ""
-    modals_html = ""
-    
-    area_configs = [
-        ('sporting', 'Area Sportiva', '⚽', ['technical_sporting', 'youth_development']),
-        ('structural', 'Area Strutturale', '🏗️', ['infrastructure']),
-        ('marketing', 'Marketing & Brand', '📈', ['marketing_commercial']),
-        ('social', 'Area Sociale', '🤝', ['social_sustainability', 'governance'])
+    # === SEZIONI SINTETICHE CON POPUP ===
+    areas_config = [
+        ('technical_sporting', 'Area Sportiva', '⚽', '#2E7D32'),
+        ('infrastructure', 'Infrastrutture', '🏗️', '#1565C0'),
+        ('marketing_commercial', 'Marketing', '📈', '#F57C00'),
+        ('social_sustainability', 'Sociale', '🤝', '#7B1FA2'),
     ]
 
-    for key, title, icon, section_keys in area_configs:
-        # Unisci contenuti
-        content = ""
-        for sk in section_keys:
-            content += plan_data.get(sk, "") + "\n"
-        
-        objs = _extract_objectives_summary(content)
-        
-        # HTML per Box Area
-        # Aggiungi badge se la sezione sembra verificata (placeholder logic, idealmente viene da metadata)
-        macro_list = "".join([f'<li>{add_source_badge_inline(m, "estimate" if "stima" in m.lower() else "research")}</li>' for m in objs['macro'][:2]])
-        micro_list = "".join([f'<li>{m}</li>' for m in objs['micro'][:2]])
-        
+    areas_html = ""
+    modals_html = ""
+
+    for idx, (key, title, icon, color) in enumerate(areas_config):
+        content = plan_data.get(key, '')
+        objectives = _extract_objectives_summary(content)
+
+        # Preview compatta (max 3 items per colonna)
+        # Testo completo con classe CSS per troncamento solo su schermo
+        macro_preview = objectives['macro'][:3]
+        micro_preview = objectives['micro'][:3]
+
+        macro_preview_html = "".join([f'<li class="truncate-screen">{m}</li>' for m in macro_preview]) or '<li>Da definire</li>'
+        micro_preview_html = "".join([f'<li class="truncate-screen">{m}</li>' for m in micro_preview]) or '<li>Da definire</li>'
+
+        # Contenuto completo per il modal (senza troncamento)
+        macro_full_html = "".join([f'<li>{m}</li>' for m in objectives['macro']]) or '<li>Da definire</li>'
+        micro_full_html = "".join([f'<li>{m}</li>' for m in objectives['micro']]) or '<li>Da definire</li>'
+
+        # Estrai anche punti chiave per il modal
+        key_points = _extract_key_points(content, 6)
+        key_points_html = "".join([f'<li>{p}</li>' for p in key_points]) if key_points else ''
+
+        modal_id = f"modal-{key}"
+
+        # Card cliccabile (anteprima)
         areas_html += f'''
-        <div class="area-box clickable" onclick="openModal('modal_{key}')">
+        <div class="area-box clickable" style="border-left-color:{color};" onclick="openModal('{modal_id}')">
             <div class="area-header">
                 <span class="area-icon">{icon}</span>
                 <span class="area-title">{title}</span>
+                <span class="expand-hint">🔍</span>
             </div>
             <div class="area-content">
-                <div>
-                    <span class="obj-label macro">MACRO OBIETTIVI</span>
-                    <ul class="obj-list">{macro_list}</ul>
+                <div class="obj-col">
+                    <div class="obj-label macro">MACRO</div>
+                    <ul class="obj-list">{macro_preview_html}</ul>
                 </div>
-                <div>
-                    <span class="obj-label micro">AZIONI CHIAVE</span>
-                    <ul class="obj-list">{micro_list}</ul>
+                <div class="obj-col">
+                    <div class="obj-label micro">MICRO</div>
+                    <ul class="obj-list">{micro_preview_html}</ul>
                 </div>
             </div>
-            <div class="click-hint">CLICCA PER DETTAGLI ➜</div>
+            <div class="click-hint">Clicca per espandere</div>
         </div>
         '''
 
-        # HTML per Modale
-        full_macro = "".join([f'<li>{m}</li>' for m in objs['macro']])
-        full_micro = "".join([f'<li>{m}</li>' for m in objs['micro']])
-        
+        # Modal con contenuto completo
         modals_html += f'''
-        <div id="modal_{key}" class="modal">
-            <div class="modal-content">
-                <span class="modal-close" onclick="closeModal('modal_{key}')">&times;</span>
+        <div id="{modal_id}" class="modal">
+            <div class="modal-content" style="border-top: 5px solid {color};">
+                <span class="modal-close" onclick="closeModal('{modal_id}')">&times;</span>
                 <div class="modal-header">
                     <span class="modal-icon">{icon}</span>
-                    <h2 style="margin:0; color:var(--primary);">{title}</h2>
+                    <h2>{title}</h2>
                 </div>
-                <div class="modal-section">
-                    <h3>🎯 OBIETTIVI MACRO</h3>
-                    <ul class="modal-list">{full_macro}</ul>
-                </div>
-                <div class="modal-section">
-                    <h3>⚡ AZIONI OPERATIVE</h3>
-                    <ul class="modal-list">{full_micro}</ul>
+                <div class="modal-body">
+                    <div class="modal-section">
+                        <h3><span class="obj-label macro">OBIETTIVI MACRO</span></h3>
+                        <ul class="modal-list">{macro_full_html}</ul>
+                    </div>
+                    <div class="modal-section">
+                        <h3><span class="obj-label micro">OBIETTIVI MICRO</span></h3>
+                        <ul class="modal-list">{micro_full_html}</ul>
+                    </div>
+                    {f'<div class="modal-section"><h3>Punti Chiave</h3><ul class="modal-list">{key_points_html}</ul></div>' if key_points_html else ''}
                 </div>
             </div>
         </div>
         '''
 
+    # === EXECUTIVE SUMMARY ESTRATTO ===
+    exec_summary = plan_data.get('executive_summary', '')
+    exec_points = _extract_key_points(exec_summary, 5)
+    exec_html = "".join([f'<li>{p}</li>' for p in exec_points]) if exec_points else '<li>Executive summary non disponibile</li>'
+
     # === TIMELINE ===
-    # Estrai anni dal piano
-    current_year = datetime.now().year
-    years = [current_year, current_year+1, current_year+2]
-    
     timeline_html = f'''
-    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top:20px;">
-        <div style="background:#f0f4f8; padding:15px; border-radius:8px; border-top:4px solid var(--primary);">
-            <div style="font-weight:800; font-size:12pt; color:var(--primary); margin-bottom:10px;">ANNO 1 ({years[0]})</div>
-            <div style="font-size:9pt;">Fase di Consolidamento</div>
+    <div class="timeline">
+        <div class="timeline-item">
+            <div class="timeline-marker" style="background:{primary_color};">Y1</div>
+            <div class="timeline-content">
+                <strong>Anno 1 - Fondamenta</strong>
+                <p>Consolidamento strutturale, audit processi, setup governance</p>
+            </div>
         </div>
-        <div style="background:#f0f4f8; padding:15px; border-radius:8px; border-top:4px solid var(--secondary);">
-            <div style="font-weight:800; font-size:12pt; color:var(--secondary); margin-bottom:10px;">ANNO 2 ({years[1]})</div>
-            <div style="font-size:9pt;">Fase di Sviluppo</div>
+        <div class="timeline-item">
+            <div class="timeline-marker" style="background:{primary_color};">Y2</div>
+            <div class="timeline-content">
+                <strong>Anno 2 - Crescita</strong>
+                <p>Espansione commerciale, sviluppo settore giovanile, investimenti infrastrutturali</p>
+            </div>
         </div>
-        <div style="background:#f0f4f8; padding:15px; border-radius:8px; border-top:4px solid #38a169;">
-            <div style="font-weight:800; font-size:12pt; color:#38a169; margin-bottom:10px;">ANNO 3 ({years[2]})</div>
-            <div style="font-size:9pt;">Fase di Espansione</div>
+        <div class="timeline-item">
+            <div class="timeline-marker" style="background:{primary_color};">Y3</div>
+            <div class="timeline-content">
+                <strong>Anno 3 - Consolidamento</strong>
+                <p>Sostenibilità finanziaria, obiettivi sportivi, legacy territoriale</p>
+            </div>
         </div>
     </div>
     '''
 
-    # === COMPARISON TABLE ===
-    comparison_table_html = _generate_comparison_table_html(estimates, category)
-
-    # === METODOLOGIA FIELDS ===
-    estimated_fields = {}
-    for k, v in estimates.items():
-        if hasattr(v, 'tier'):
-            estimated_fields[k] = v.tier.value
-        else:
-            estimated_fields[k] = "sconosciuto"
-
-    # === TIMING BADGE ===
-    timing_badge_html = _format_timing_badge(metadata)
+    # === METODOLOGIA COMPATTA ===
+    # Genera campi stimati dalle stime effettive
+    estimated_fields = metadata.get('estimated_fields', {})
+    if not estimated_fields:
+        # Usa le stime calcolate per mostrare i tier
+        estimated_fields = {}
+        if fatturato:
+            estimated_fields['fatturato'] = fatturato.tier.value
+        if monte_ingaggi:
+            estimated_fields['monte_ingaggi'] = monte_ingaggi.tier.value
+        if valore_rosa:
+            estimated_fields['valore_rosa'] = valore_rosa.tier.value
+        if margine:
+            estimated_fields['margine_operativo'] = margine.tier.value
 
     # === HTML FINALE ===
     html = f'''<!DOCTYPE html>
@@ -711,609 +563,434 @@ def generate_executive_report_html(
     <meta charset="UTF-8">
     <title>Executive Report - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --club-primary: {primary_color};
-            --club-secondary: {secondary_color};
-            --primary: var(--club-primary);
-            --primary-dark: {primary_dark};
-            --text-on-primary: {text_on_primary};
-            --text-on-white: {text_on_white};
-            --text-on-cover: {text_on_cover};
-            
-            --brand-gradient: linear-gradient(135deg, var(--club-primary) 0%, var(--primary-dark) 100%);
-            --soft-bg: #f8fafc;
-            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-            --accent: {grad_secondary};
-            --text-main: #1e293b;
-            --text-muted: #64748b;
+            --primary: #6a0dad; /* Viola Rooting Future */
+            --primary-dark: #4b0082;
+            --secondary: {secondary_color};
+            --accent: #9c27b0;
+            --text: #1a202c;
+            --text-light: #718096;
             --white: #ffffff;
-            --border-light: #f1f5f9;
+            --bg-light: #f7fafc;
+            --border: #e2e8f0;
+            
+            /* Badge Colors */
+            --badge-q: #7B1FA2; /* Questionnaire */
+            --badge-r: #1565C0; /* Research */
+            --badge-e: #F57C00; /* Estimate */
         }}
 
         @page {{
             size: A4;
+            margin: 15mm;
+        }}
+
+        * {{
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }}
 
         body {{
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: var(--text-main);
-            background-color: #f1f5f9;
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-            -webkit-print-color-adjust: exact;
+            font-family: 'Inter', sans-serif;
+            font-size: 10pt;
+            line-height: 1.5;
+            color: var(--text);
+            background: white;
         }}
 
-        .page {{
-            width: 210mm;
-            min-height: 297mm;
-            padding: 20mm;
-            margin: 10mm auto;
-            background: white;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            position: relative;
-            box-sizing: border-box;
-            page-break-after: always;
-            overflow: hidden;
+        h1, h2, h3, .page-title {{
+            font-family: 'Montserrat', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
         }}
 
         /* === COVER PAGE === */
         .cover {{
-            background: var(--brand-gradient);
-            color: var(--text-on-cover);
+            height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+            color: white;
             text-align: center;
-            height: 297mm;
-            padding: 0;
-            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
         }}
 
-        .cover-content {{
-            position: relative;
-            z-index: 2;
+        .cover::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url('https://www.transparenttextures.com/patterns/cubes.png');
+            opacity: 0.1;
+            z-index: 0;
+        }}
+
+        .cover > * {{
+            z-index: 1;
         }}
 
         .cover h1 {{
-            font-family: 'Montserrat', sans-serif;
-            font-size: 52pt;
-            font-weight: 900;
-            margin: 0;
-            letter-spacing: -2px;
-            text-transform: uppercase;
+            font-size: 32pt;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
         }}
 
         .cover .subtitle {{
-            font-size: 18pt;
-            font-weight: 300;
-            margin-top: 10px;
+            font-size: 16pt;
             opacity: 0.9;
-            letter-spacing: 4px;
-            text-transform: uppercase;
+            margin-bottom: 40px;
+            font-weight: 300;
         }}
 
-        .cover-footer {{
-            position: absolute;
-            bottom: 40px;
-            width: 100%;
-            text-align: center;
-        }}
-
-        .timing-badge {{
-            position: absolute;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 6px 14px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 16px;
-            font-size: 9pt;
+        .cover .period {{
+            font-size: 18pt;
+            font-weight: 700;
+            background: rgba(255,255,255,0.15);
             backdrop-filter: blur(10px);
+            padding: 12px 40px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.3);
+            margin-bottom: 40px;
         }}
 
-        /* === TYPOGRAPHY & HEADERS === */
-        h2.section-title {{
-            font-family: 'Montserrat', sans-serif;
-            font-size: 24pt;
+        /* === PAGE SECTIONS === */
+        .page {{
+            padding: 10mm 0;
+        }}
+
+        .page-break {{
+            page-break-after: always;
+        }}
+
+        .page-title {{
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            padding: 15px 25px;
+            font-size: 14pt;
             font-weight: 800;
-            color: var(--primary);
-            margin-bottom: 25px;
+            margin-bottom: 20px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            border-bottom: 3px solid var(--soft-bg);
-            padding-bottom: 15px;
-        }}
-
-        .icon-box {{
-            background: var(--soft-bg);
-            padding: 10px;
-            border-radius: 12px;
-            font-size: 20pt;
         }}
 
         /* === KPI CARDS === */
         .kpi-grid {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin-bottom: 30px;
+            gap: 12px;
+            margin-bottom: 25px;
         }}
 
         .kpi-card {{
-            background: white;
-            border: 1px solid var(--border-light);
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: var(--card-shadow);
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            padding: 20px 15px;
+            border-radius: 12px;
             text-align: center;
             transition: transform 0.2s;
-        }}
-
-        .kpi-card .label {{
-            font-size: 8pt;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
         }}
 
         .kpi-card .value {{
             font-family: 'Montserrat', sans-serif;
             font-size: 20pt;
             font-weight: 800;
-            color: var(--text-main);
+            color: var(--primary);
+        }}
+
+        .kpi-card .label {{
+            font-size: 8pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-top: 5px;
+        }}
+
+        /* === COMPARISON TABLE === */
+        .comparison-container {{
+            margin: 25px 0;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }}
+
+        .comparison-table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+
+        .comparison-table th {{
+            background: var(--primary);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 9pt;
+            text-transform: uppercase;
+        }}
+
+        .comparison-table td {{
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 10pt;
+        }}
+
+        /* === BADGES === */
+        .source-badge {{
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 7.5pt;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }}
+        .source-ver {{ background: #F3E5F5; color: var(--badge-q); }}
+        .source-ded {{ background: #E3F2FD; color: var(--badge-r); }}
+        .source-est {{ background: #FFF3E0; color: var(--badge-e); }}
+
+        /* === AREAS === */
+        .areas-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }}
+
+        .area-box {{
+            background: white;
+            border: 1px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 8px;
+            padding: 20px;
+            page-break-inside: avoid;
         }}
 
         /* === STW DASHBOARD === */
         .stw-dashboard {{
-            background: var(--soft-bg);
+            background: #fdfbff;
+            border: 1px solid #e9d8fd;
+            border-radius: 12px;
             padding: 20px;
+            margin-top: 25px;
+        }}
+
+        .stw-fill {{
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%) !important;
+        }}
+
+        /* === I TUOI DATI PAGE === */
+        .data-source-page {{
+            background: #fcfaff;
+            border: 2px solid var(--primary);
             border-radius: 16px;
-            margin-bottom: 30px;
-            border: 1px solid var(--border-light);
-        }}
-        .stw-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            font-weight: 700;
-            color: var(--primary);
-        }}
-        .stw-overall {{
-            font-size: 18pt;
-            background: var(--primary);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 10px;
-        }}
-        .stw-row {{
-            display: grid;
-            grid-template-columns: 25px 100px 1fr 45px;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }}
-        .stw-icon {{ font-size: 12pt; }}
-        .stw-label {{ font-size: 8pt; font-weight: 600; color: var(--text-muted); }}
-        .stw-bar {{ height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }}
-        .stw-fill {{ height: 100%; border-radius: 4px; }}
-        .stw-percent {{ font-size: 9pt; font-weight: 700; text-align: right; }}
-        .stw-note {{ font-size: 7.5pt; color: var(--text-muted); margin-top: 10px; font-style: italic; }}
-
-        /* === COMPARISON TABLE === */
-        .comparison-table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9pt;
-            margin-bottom: 20px;
-        }}
-        .comparison-table th {{
-            background: var(--soft-bg);
-            text-align: left;
-            padding: 10px;
-            border-bottom: 2px solid var(--primary);
-            color: var(--primary);
-            font-weight: 800;
-            text-transform: uppercase;
-        }}
-        .comparison-table td {{
-            padding: 10px;
-            border-bottom: 1px solid var(--border-light);
-        }}
-        .gap-pos {{ color: #16a34a; font-weight: 700; }}
-        .gap-neg {{ color: #dc2626; font-weight: 700; }}
-        .source-badge {{
-            font-size: 7pt;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-        }}
-        .source-ver {{ background: #f3e8ff; color: #7e22ce; }}
-        .source-ded {{ background: #e0f2fe; color: #0369a1; }}
-        .source-est {{ background: #fef3c7; color: #92400e; }}
-
-        /* === DATA SOURCE SECTION === */
-        .data-header {{
-            background: var(--soft-bg);
-            padding: 25px;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            border-left: 6px solid var(--primary);
+            padding: 30px;
+            margin: 20px 0;
         }}
 
-        .data-stats {{
+        .data-stats-grid {{
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
-            margin-top: 20px;
+            margin: 30px 0;
         }}
 
-        .stat-circle {{
-            text-align: center;
-        }}
-
-        .stat-circle .val {{
-            font-size: 24pt;
-            font-weight: 800;
-            color: var(--primary);
-            display: block;
-        }}
-
-        .stat-circle .lbl {{
-            font-size: 9pt;
-            color: var(--text-muted);
-            font-weight: 500;
-        }}
-
-        /* === STRATEGIC AREAS === */
-        .areas-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }}
-
-        .area-card {{
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            padding: 25px;
-            position: relative;
-            background: white;
-            box-shadow: var(--card-shadow);
-        }}
-
-        .area-card h3 {{
-            font-family: 'Montserrat', sans-serif;
-            font-size: 14pt;
-            font-weight: 800;
-            margin: 0 0 15px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-
-        .area-card .tag {{
-            font-size: 7pt;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 6px;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-            display: inline-block;
-        }}
-
-        .tag-macro {{ background: #e0f2fe; color: #0369a1; }}
-        .tag-action {{ background: #f0fdf4; color: #166534; }}
-
-        .area-list {{
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }}
-
-        .area-list li {{
-            font-size: 9.5pt;
-            padding-left: 15px;
-            position: absolute; /* Hidden in main box, shown in modal */
-            display: none;
-        }}
-        
-        .area-card .obj-list {{
-            list-style: none;
-            padding: 0;
-            margin: 0 0 15px 0;
-        }}
-        
-        .area-card .obj-list li {{
-            font-size: 9pt;
-            padding-left: 15px;
-            position: relative;
-            margin-bottom: 5px;
-            color: #475569;
-            display: block;
-        }}
-        
-        .area-card .obj-list li::before {{
-            content: "•";
-            position: absolute;
-            left: 0;
-            color: var(--primary);
-            font-weight: bold;
-        }}
-
-        /* === CHARTS === */
-        .charts-container {{
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 20px;
-            margin-top: 20px;
-        }}
-
-        .chart-wrapper {{
+        .stat-item {{
             background: white;
             padding: 20px;
-            border-radius: 20px;
-            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(106, 13, 173, 0.05);
+            text-align: center;
+            border: 1px solid #eee;
         }}
 
-        .chart-title {{
-            font-size: 11pt;
-            font-weight: 700;
-            margin-bottom: 15px;
-            color: var(--text-main);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        /* === FOOTER === */
-        .footer {{
-            position: absolute;
-            bottom: 20mm;
-            left: 20mm;
-            right: 20mm;
-            border-top: 1px solid var(--border-light);
-            padding-top: 15px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 8pt;
-            color: var(--text-muted);
-        }}
-
-        /* === MODALS === */
-        .modal {{
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-        }}
-        .modal-content {{
-            background-color: white;
-            padding: 40px;
-            border-radius: 24px;
-            width: 70%;
-            max-height: 80%;
-            overflow-y: auto;
-            position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }}
-        .modal-close {{
-            position: absolute;
-            top: 20px;
-            right: 20px;
+        .stat-value {{
+            font-family: 'Montserrat', sans-serif;
             font-size: 28pt;
-            font-weight: bold;
-            color: var(--text-muted);
-            cursor: pointer;
+            font-weight: 800;
+            color: var(--primary);
         }}
-        .modal-header {{
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 30px;
-            border-bottom: 2px solid var(--soft-bg);
-            padding-bottom: 20px;
-        }}
-        .modal-icon {{ font-size: 32pt; }}
-        .modal-section {{ margin-bottom: 25px; }}
-        .modal-section h3 {{ font-size: 12pt; color: var(--text-muted); margin-bottom: 10px; }}
-        .modal-list {{ list-style: none; padding: 0; }}
-        .modal-list li {{
-            font-size: 11pt;
-            padding: 12px 15px;
-            background: var(--soft-bg);
-            margin-bottom: 8px;
-            border-radius: 10px;
-            border-left: 4px solid var(--primary);
+
+        .stat-label {{
+            font-size: 9pt;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
         }}
 
         @media print {{
-            body {{ background: white; }}
-            .page {{ margin: 0; box-shadow: none; }}
-            .no-print {{ display: none; }}
-            .modal {{ display: none !important; }}
+            .modal, .click-hint, button {{ display: none !important; }}
+            * {{ -webkit-print-color-adjust: exact !important; }}
+            .page-break {{ page-break-after: always; }}
         }}
     </style>
 </head>
 <body>
 
-<!-- PAGE 1: COVER -->
+<!-- PAGINA 1: COVER -->
 <div class="cover page-break">
-    <div class="cover-content">
-        <div style="font-size: 12pt; letter-spacing: 8px; font-weight: 300; margin-bottom: 30px;">STRATEGY REPORT</div>
-        <h1>{club_name}</h1>
-        <div class="subtitle">Piano Strategico Triennale</div>
-        <div style="margin-top: 60px;">
-            <div style="font-weight: 800; font-size: 14pt;">{current_year} — {current_year + 3}</div>
-            <div style="font-size: 10pt; opacity: 0.8; margin-top: 5px;">EXECUTIVE SUMMARY FOR THE BOARD</div>
+    <div style="font-size: 10pt; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.8;">Rooting Future</div>
+    <h1>{club_name}</h1>
+    <div class="subtitle">Strategic Planning Framework</div>
+    <div class="period">PIANO TRIENNALE {current_year} - {current_year + 3}</div>
+    <div style="font-family: 'Montserrat'; font-size: 12pt; text-transform: uppercase; letter-spacing: 2px;">Executive Report</div>
+    {_format_timing_badge(metadata)}
+</div>
+
+<!-- PAGINA 2: I TUOI DATI -->
+<div class="page page-break">
+    <div class="page-title"><span class="icon">📋</span> I Tuoi Dati: Trasparenza e Metodologia</div>
+    
+    <div class="data-source-page">
+        <h2 style="color: var(--primary); margin-bottom: 15px;">La Base del Tuo Piano</h2>
+        <p style="font-size: 11pt; color: var(--text-light); margin-bottom: 20px;">
+            Questo documento non è una semplice generazione AI. È costruito sui dati reali forniti dal Board di <strong>{club_name}</strong>, 
+            incrociati con i benchmark ufficiali FIGC e la nostra metodologia proprietaria.
+        </p>
+
+        <div class="data-stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{metadata.get('total_questionnaires', 0)}</div>
+                <div class="stat-label">Questionari Board</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{metadata.get('verified_data_count', 0)}+</div>
+                <div class="stat-label">Dati Verificati</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{int(metadata.get('questionnaire_completion', 0) * 100)}%</div>
+                <div class="stat-label">Completezza Input</div>
+            </div>
+        </div>
+
+        <div style="background: white; padding: 20px; border-radius: 12px; border-left: 5px solid var(--badge-q);">
+            <h3 style="color: var(--badge-q); font-size: 11pt; margin-bottom: 10px;">🛡️ Garanzia di Qualità</h3>
+            <ul style="font-size: 9.5pt; padding-left: 20px; color: var(--text);">
+                <li>Dati estratti dai questionari Word caricati dal sistema.</li>
+                <li>Incrocio automatico con database benchmark Serie {category}.</li>
+                <li>Validazione scientifica degli scostamenti (Gap Analysis).</li>
+            </ul>
         </div>
     </div>
-    {timing_badge_html}
-    <div class="cover-footer">
-        <div style="font-size: 9pt; letter-spacing: 2px;">POWERED BY ROOTING FUTURE AI ENGINE v5.4.5</div>
+
+    <div class="page-title" style="margin-top: 30px;"><span class="icon">📋</span> Sintesi Strategica</div>
+    <div class="exec-box" style="background: #f9f7ff; border-left: 4px solid var(--primary); padding: 20px; border-radius: 0 12px 12px 0;">
+        <ul style="list-style: none; padding: 0;">
+            {exec_html}
+        </ul>
     </div>
 </div>
 
-<!-- PAGE 2: DASHBOARD DATI -->
+<!-- PAGINA 3: KPI + GRAFICI -->
 <div class="page page-break">
-    <h2 class="section-title"><span class="icon-box">📊</span> Dashboard & Credibilità</h2>
+    <div class="page-title"><span class="icon">💰</span> Quadro Finanziario e Benchmark</div>
     
-    <div class="data-header">
-        <div style="font-size: 14pt; font-weight: 700; color: var(--text-main);">Fondamenti Scientifici del Piano</div>
-        <p style="font-size: 10pt; color: var(--text-muted); margin-top: 8px;">
-            Questo report non si basa su astrazioni, ma su una pipeline di dati verificati, benchmark di categoria FIGC 
-            e stime algoritmiche validate. La trasparenza del dato è il pilastro della nostra strategia.
-        </p>
-        
-        <div class="data-stats">
-            <div class="stat-circle">
-                <span class="val">{metadata.get('total_questionnaires', 0)}</span>
-                <span class="lbl">Questionari Board</span>
-            </div>
-            <div class="stat-circle">
-                <span class="val">{metadata.get('verified_data_count', 0)}+</span>
-                <span class="lbl">Dati Certificati</span>
-            </div>
-            <div class="stat-circle">
-                <span class="val">{int(metadata.get('questionnaire_completion', 0) * 100)}%</span>
-                <span class="lbl">Completezza Input</span>
-            </div>
-        </div>
-    </div>
-
-    {stw_dashboard_html}
-
-    <h2 class="section-title"><span class="icon-box">💰</span> Financial Snapshot</h2>
     <div class="kpi-grid">
         <div class="kpi-card">
             <div class="label">Fatturato</div>
             <div class="value">€{fat_val/1_000_000:.1f}M</div>
-            <div style="font-size: 7pt; margin-top: 5px;">
-                <span class="source-badge source-{'ver' if fatturato and fatturato.tier == DataTier.TIER_1_FACT else 'est'}">
-                    {fatturato.tier.value.upper() if fatturato else 'N/A'}
-                </span>
+            <div class="source-badge source-{'ver' if fatturato and fatturato.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if fatturato and fatturato.tier == DataTier.TIER_1_FACT else '📊' } {fatturato.tier.value.upper() if fatturato else 'N/A'}
             </div>
         </div>
         <div class="kpi-card">
             <div class="label">Monte Ingaggi</div>
             <div class="value">€{mi_val/1_000:.0f}K</div>
-            <div style="font-size: 7pt; margin-top: 5px;">
-                <span class="source-badge source-{'ver' if monte_ingaggi and monte_ingaggi.tier == DataTier.TIER_1_FACT else 'est'}">
-                    {monte_ingaggi.tier.value.upper() if monte_ingaggi else 'N/A'}
-                </span>
+            <div class="source-badge source-{'ver' if monte_ingaggi and monte_ingaggi.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if monte_ingaggi and monte_ingaggi.tier == DataTier.TIER_1_FACT else '📊' } {monte_ingaggi.tier.value.upper() if monte_ingaggi else 'N/A'}
             </div>
         </div>
         <div class="kpi-card">
             <div class="label">Valore Rosa</div>
             <div class="value">€{vr_val/1_000:.0f}K</div>
-            <div style="font-size: 7pt; margin-top: 5px;">
-                <span class="source-badge source-{'ver' if valore_rosa and valore_rosa.tier == DataTier.TIER_1_FACT else 'est'}">
-                    {valore_rosa.tier.value.upper() if valore_rosa else 'N/A'}
-                </span>
+            <div class="source-badge source-{'ver' if valore_rosa and valore_rosa.tier == DataTier.TIER_1_FACT else 'est'}">
+                { '📋' if valore_rosa and valore_rosa.tier == DataTier.TIER_1_FACT else '📊' } {valore_rosa.tier.value.upper() if valore_rosa else 'N/A'}
             </div>
         </div>
-        <div class="kpi-card">
+        <div class="kpi-card" style="background: {primary_color}05;">
             <div class="label">Margine Op.</div>
-            <div class="value" style="color: {'#16a34a' if marg_val >= 0 else '#dc2626'}">€{marg_val/1_000:.0f}K</div>
-            <div style="font-size: 7pt; margin-top: 5px;"><span class="source-badge source-est">STIMA</span></div>
+            <div class="value" style="color: {'#38a169' if marg_val >= 0 else '#e53e3e'}">€{marg_val/1_000:.0f}K</div>
+            <div class="source-badge source-est">📊 STIMA</div>
         </div>
     </div>
 
-    {comparison_table_html}
+    {_generate_comparison_table_html(estimates, category)}
 
-    <div class="charts-container">
-        <div class="chart-wrapper">
-            <div class="chart-title">Analisi dei Gap vs Serie {category}</div>
-            {gap_img}
-        </div>
-        <div class="chart-wrapper">
-            <div class="chart-title">Ripartizione Ricavi</div>
+    <div class="charts-grid" style="margin-top: 20px;">
+        <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
+            <h4 style="font-family: 'Montserrat'; color: var(--primary);">Composizione Ricavi</h4>
             {pie_img}
         </div>
+        <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
+            <h4 style="font-family: 'Montserrat'; color: var(--primary);">Gap Analysis vs {category}</h4>
+            {gap_img}
+        </div>
     </div>
 
-    <div class="footer">
-        <span>EXECUTIVE REPORT — {club_name.upper()}</span>
-        <span>PAGINA 2 DI 4</span>
-    </div>
+    {stw_dashboard_html}
 </div>
 
-<!-- PAGE 3: AREE STRATEGICHE -->
+<!-- PAGINA 4: AREE STRATEGICHE + ROADMAP -->
 <div class="page page-break">
-    <h2 class="section-title"><span class="icon-box">🎯</span> Pilastri Strategici</h2>
-    
+    <div class="page-title"><span class="icon">🎯</span> Aree Strategiche di Intervento</div>
     <div class="areas-grid">
-        {areas_html.replace('area-box', 'area-card').replace('obj-label macro', 'tag tag-macro').replace('obj-label micro', 'tag tag-action')}
+        {areas_html}
     </div>
 
-    <h2 class="section-title" style="margin-top: 40px;"><span class="icon-box">📅</span> Roadmap Evolutiva</h2>
-    <div style="padding: 20px; background: var(--soft-bg); border-radius: 20px;">
-        {timeline_html}
-    </div>
-
-    <div class="footer">
-        <span>EXECUTIVE REPORT — {club_name.upper()}</span>
-        <span>PAGINA 3 DI 4</span>
-    </div>
+    <div class="page-title" style="margin-top:30px;"><span class="icon">📅</span> Roadmap Triennale</div>
+    {timeline_html}
 </div>
 
-<!-- PAGE 4: METODOLOGIA -->
+<!-- PAGINA 5: METODOLOGIA -->
 <div class="page">
-    <h2 class="section-title"><span class="icon-box">🛡️</span> Metodologia & Fonti</h2>
-    
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-        <div class="chart-wrapper">
-            <h3 style="font-size: 12pt; margin-bottom: 15px;">Fonti di Riferimento</h3>
-            <ul class="area-list">
-                <li><strong>Questionari Rooting Future:</strong> Input diretti del Board compilati via Word.</li>
-                <li><strong>Report Calcio FIGC 2024:</strong> Benchmark finanziari e sportivi ufficiali.</li>
-                <li><strong>Transfermarkt Pro:</strong> Valutazioni di mercato e trend di rosa.</li>
-                <li><strong>Web Intelligence:</strong> Analisi del contesto territoriale e news.</li>
+    <div class="page-title"><span class="icon">📊</span> Metodologia e Fonti</div>
+
+    <div class="method-grid">
+        <div class="method-box">
+            <h4>Fonti Dati Utilizzate</h4>
+            <ul style="font-size:8.5pt; padding-left:15px; color: var(--text);">
+                <li><strong>Questionari Rooting Future</strong> - Input diretti del club 📋</li>
+                <li><strong>FIGC Report Calcio 2024</strong> - Benchmark ufficiali di categoria</li>
+                <li><strong>Transfermarkt</strong> - Valutazioni di mercato e statistiche rose</li>
+                <li><strong>Web Research</strong> - News, bilanci pubblici e news territoriali 🔍</li>
             </ul>
         </div>
-        <div class="chart-wrapper">
-            <h3 style="font-size: 12pt; margin-bottom: 15px;">Validazione Dati</h3>
-            <ul class="area-list">
+        <div class="method-box">
+            <h4>Analisi dei Campi</h4>
+            <ul style="font-size:8.5pt; padding-left:15px; color: var(--text);">
                 {_format_estimated_fields(estimated_fields)}
             </ul>
         </div>
     </div>
 
-    <div style="margin-top: 40px; padding: 25px; border-radius: 20px; background: var(--brand-gradient); color: white;">
-        <h3 style="margin: 0 0 10px 0;">Nota di Confidenzialità</h3>
-        <p style="font-size: 9pt; opacity: 0.9; margin: 0;">
-            Il presente documento è ad uso esclusivo del Board di {club_name}. I dati qui contenuti sono il risultato di elaborazioni AI 
-            basate sulla metodologia proprietaria Rooting Future Strategy Engine. Ogni riproduzione è vietata.
-        </p>
+    <div class="tier-legend" style="margin-top: 20px; background: var(--bg-light); padding: 15px; border-radius: 8px;">
+        <div class="tier-item"><span class="source-badge source-ver">📋 QUESTIONARIO</span> Dato verificato dal club</div>
+        <div class="tier-item"><span class="source-badge source-ded">🔍 DEDOTTO</span> Calcolato da parametri indiretti</div>
+        <div class="tier-item"><span class="source-badge source-est">📊 STIMA</span> Calcolo algoritmico su benchmark</div>
     </div>
 
     <div class="footer">
-        <span>ROOTING FUTURE STRATEGY ENGINE v5.4.5</span>
-        <span>{datetime.now().strftime('%d/%m/%Y')} — PAGINA 4 DI 4</span>
+        Documento generato da <strong>Rooting Future Strategy Engine v5.4.3</strong> |
+        {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
 </div>
 
+<!-- MODALS -->
 {modals_html}
 
 <script>
 function openModal(modalId) {{
-    document.getElementById(modalId).style.display = 'flex';
+    document.getElementById(modalId).classList.add('active');
     document.body.style.overflow = 'hidden';
 }}
+
 function closeModal(modalId) {{
-    document.getElementById(modalId).style.display = 'none';
+    document.getElementById(modalId).classList.remove('active');
     document.body.style.overflow = 'auto';
 }}
 </script>
@@ -1321,6 +998,8 @@ function closeModal(modalId) {{
 </body>
 </html>
 '''
+
+    return html
 
     return html
 

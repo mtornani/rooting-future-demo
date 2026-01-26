@@ -125,4 +125,5 @@ if __name__ == "__main__":
         print("Risultato: FALLITO - Vedi errori sopra")
     print("-" * 60)
 
-    input("\nPremi INVIO per chiudere...")
+    if "--quiet" not in sys.argv:
+        input("\nPremi INVIO per chiudere...")

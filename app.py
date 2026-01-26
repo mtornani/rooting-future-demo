@@ -1,5 +1,5 @@
 """
-Rooting Future Strategy Engine v5.4
+Rooting Future Strategy Engine v6.0
 Flask Application Principale
 
 API e interfaccia web per generazione piani strategici.
@@ -126,33 +126,23 @@ from post_production_editor import (
     SectionStatus,
 )
 
-# Nuovo sistema strutturato v5.4
-from structured_agent import StructuredOrchestrator, SECTION_DATA_TEMPLATES
-from structured_renderer import StructuredHTMLRenderer
-from data_models import StructuredPlan, DataType, ConfidenceLevel
-
-# Nuovo sistema RAG
+# Sistema strutturato v6.0
+from domain.rendering import PlanRenderer
+from structured_agent import StructuredOrchestrator
 from file_search_manager import FileSearchManager
 from football_data_provider import data_provider
 
+plan_renderer = PlanRenderer()
+
 # Dashboard Strategica
 from dashboard_module import generate_strategic_dashboard
-
-# Metodologia e Fonti
-from methodology_section import (
-    generate_methodology_section_html,
-    get_default_sources_for_report,
-)
 
 # Data Estimator e Charts
 from data_estimator import estimate_missing_financials, DataTier
 from chart_generator import generate_financial_charts_for_report
 from stw_analyzer import calculate_stw_progress
 
-# Executive Report A4
-from executive_report import generate_executive_report_html
-
-# n8n Integration
+from stw_analyzer import calculate_stw_progress
 from n8n_integration import register_n8n_routes, get_questionnaire_schema
 
 # Data Ingestor for Multi-Stakeholder Conflict Resolution
@@ -363,12 +353,10 @@ html_exporter = ChunkedHTMLExporter()
 editor = PostProductionEditor()
 batch_manager = BatchReviewManager()
 
-# Sistema strutturato v5.4
+# Sistema strutturato v6.0
 structured_orchestrator = StructuredOrchestrator(
     file_search_store_name=file_search_store_name, knowledge_store=knowledge_manager
-)
-structured_renderer = StructuredHTMLRenderer()
-
+) # Sistema strutturato v6.0
 
 # =============================================================================
 # LEGAL & GDPR
@@ -1180,7 +1168,7 @@ def api_generate_plan():
         )
         phase_timings["ai_generation"] = round(time.time() - generation_start, 2)
 
-        # 2b. Genera Piano Strutturato (Scientifico) v5.4
+        # 2b. Genera Piano Strutturato (Scientifico) v6.0
         logger.info("Generating scientific structured plan...")
         structured_start = time.time()
         try:
@@ -1337,7 +1325,7 @@ def api_generate_plan():
 
         # 5c. Executive Report (HTML Print-Ready)
         try:
-            exec_html = generate_executive_report_html(
+            exec_html = plan_renderer.render_executive_html(
                 plan_data=plan,
                 club_name=club_name,
                 category=data.get("category", "Eccellenza"),
@@ -1359,7 +1347,7 @@ def api_generate_plan():
         # 5d. Scientific Report (Structured)
         try:
             if structured_plan:
-                sci_path_str = structured_renderer.render(structured_plan)
+                sci_path_str = plan_renderer.render_structured(structured_plan)
                 sci_path = Path(sci_path_str)
                 scientific_url = f"/download/{sci_path.name}"
                 export_paths.append(sci_path.name)
@@ -1461,6 +1449,8 @@ def api_regenerate_section():
 @login_required
 def generation_success(plan_id):
     """Pagina finale di successo con i download dei 3 file principali."""
+    logger.info(f"[SUCCESS PAGE] Accessing success page for plan_id: {plan_id}")
+    logger.info(f"[SUCCESS PAGE] Current user: {current_user.id if current_user.is_authenticated else 'anonymous'}")
     review = editor.reviews.get(plan_id)
     # Se non è in cache, prova a caricare da DB
     if not review:
@@ -1775,7 +1765,7 @@ Il presente piano è frutto della sintesi di **{len(payload.get("stakeholders_in
                     )
 
                     # Executive
-                    exec_html = generate_executive_report_html(
+                    exec_html = plan_renderer.render_executive_html(
                         plan_data=plan_data,
                         club_name=club_name,
                         category=metadata.get("category", "Eccellenza"),
@@ -2436,7 +2426,7 @@ def api_generate_from_docx():
             parallel=True,
         )
 
-        # 4b. Genera Piano Strutturato (Scientifico) v5.4
+        # 4b. Genera Piano Strutturato (Scientifico) v6.0
         logger.info("[DOCX Generate] Extracting Scientific Data Points...")
         try:
             structured_plan = structured_orchestrator.generate_plan(
@@ -2547,12 +2537,11 @@ def api_generate_from_docx():
                 onepager_url = f"/download/{onepager_path.name}"
 
                 # Executive Report
-                exec_html = generate_executive_report_html(
+                exec_html = plan_renderer.render_executive_html(
                     plan_data=plan,
                     club_name=generation_params["club_name"],
                     category=generation_params.get("category", "Eccellenza"),
                     metadata=metadata,
-                    sources=sources,
                 )
                 exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
                 exec_path = OUTPUT_DIR / exec_filename
@@ -2562,7 +2551,7 @@ def api_generate_from_docx():
 
                 # Scientific Report
                 if structured_plan:
-                    sci_path_str = structured_renderer.render(structured_plan)
+                    sci_path_str = plan_renderer.render_structured(structured_plan)
                     sci_path = Path(sci_path_str)
                     scientific_url = f"/download/{sci_path.name}"
 
@@ -2617,7 +2606,7 @@ def api_generate_from_docx():
                 "onepager_url": onepager_url,
                 "executive_url": executive_url,
                 "scientific_url": scientific_url,
-                "edit_url": f"/plan/{review.plan_id}",
+                "edit_url": f"/success/{review.plan_id}",
                 "view_url": f"/view/{review.plan_id}",
                 "next_steps": {
                     "export_pdf": f"/api/export/{review.plan_id}/pdf",
@@ -2943,7 +2932,7 @@ def api_export_package(plan_id: str):
 
         # --- EXECUTIVE REPORT (HTML) ---
         try:
-            exec_html = generate_executive_report_html(
+            exec_html = plan_renderer.render_executive_html(
                 plan_data=plan_data,
                 club_name=review.club_name,
                 category=review.category,
@@ -3304,7 +3293,7 @@ def api_export_executive_report(plan_id: str):
         }
 
         # Genera Executive Report HTML
-        html_content = generate_executive_report_html(
+        html_content = plan_renderer.render_executive_html(
             plan_data=plan_data,
             club_name=review.club_name,
             category=review.category,
@@ -3459,7 +3448,7 @@ def view_executive_report(plan_id: str):
             "estimated_fields": {},
         }
 
-        html_content = generate_executive_report_html(
+        html_content = plan_renderer.render_executive_html(
             plan_data=plan_data,
             club_name=review.club_name,
             category=review.category,
@@ -3586,10 +3575,10 @@ def _generate_printable_html(
                 "valore_rosa": "tier2_deduced",
             }
 
-        methodology_html = generate_methodology_section_html(
+        methodology_html = plan_renderer.render_methodology(
             club_name=club_name,
             category=category,
-            data_sources_used=get_default_sources_for_report(),
+            data_sources_used=["figc_report", "web_search", "knowledge_base", "benchmark_calc"],
             estimated_fields=estimated_fields,
             primary_color=primary_color,
         )
@@ -4207,7 +4196,7 @@ def _generate_printable_html(
         <p style="font-size: 1.1rem; margin-bottom: 15px;"><strong>{club_name}</strong></p>
         <p>Piano Strategico Triennale {current_year}-{current_year + 3}</p>
         <p style="margin-top: 20px; font-size: 0.85rem; opacity: 0.7;">
-            Documento generato da Rooting Future Strategy Engine v5.4<br>
+            Documento generato da Rooting Future Strategy Engine v6.0<br>
             {datetime.now().strftime("%d/%m/%Y alle %H:%M")}
         </p>
     </footer>
@@ -4426,7 +4415,7 @@ def api_export_pdf_only(plan_id: str):
                     "valore_rosa": "tier2_deduced",
                 },
             }
-            exec_html = generate_executive_report_html(
+            exec_html = plan_renderer.render_executive_html(
                 plan_data=plan_data,
                 club_name=review.club_name,
                 category=review.category or "Eccellenza",
@@ -4707,7 +4696,7 @@ def api_agents():
 
 
 # =============================================================================
-# API - SISTEMA STRUTTURATO v5.4
+# API - SISTEMA STRUTTURATO v6.0
 # =============================================================================
 
 
@@ -4715,7 +4704,7 @@ def api_agents():
 def api_structured_generate():
     """
     Genera piano con sistema strutturato (benchmark + validazione scientifica).
-    Questo e' il nuovo sistema v5.4 che produce dati tracciabili.
+    Questo e' il nuovo sistema v6.0 che produce dati tracciabili.
     """
     try:
         data = request.json or {}
@@ -4763,7 +4752,7 @@ def api_structured_generate():
         plan = structured_orchestrator.generate_plan(club_data, research_data)
 
         # Render HTML
-        filepath = structured_renderer.render(plan)
+        filepath = plan_renderer.render_structured(plan)
 
         return jsonify(
             {
@@ -5031,7 +5020,7 @@ if __name__ == "__main__":
     print(f"""
     ===============================================================
     |                                                             |
-    |     Rooting Future Strategy Engine v5.4                     |
+    |     Rooting Future Strategy Engine v6.0                     |
     |     Dashboard Hybrid - Live Console + Upload                |
     |                                                             |
     |     Server: http://127.0.0.1:{PORT}                          |

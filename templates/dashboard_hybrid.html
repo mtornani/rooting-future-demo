@@ -607,7 +607,7 @@
         <div class="logo">
             <span class="logo-icon">🌱</span>
             <span class="logo-text">Rooting Future</span>
-            <span class="logo-version">v5.4</span>
+            <span class="logo-version">v6.0</span>
         </div>
 
         <nav class="header-nav">
@@ -1044,15 +1044,24 @@
                 });
 
                 const result = await response.json();
+                console.log('[DEBUG] API Response:', result);
+                console.log('[DEBUG] Success status:', result.success);
+                console.log('[DEBUG] Plan ID:', result.plan_id);
+                console.log('[DEBUG] Edit URL:', result.edit_url);
 
                 if (result.success) {
                     document.getElementById('progressText').textContent = 'Piano generato con successo!';
 
+                    const redirectUrl = result.edit_url || `/success/${result.plan_id}`;
+                    console.log('[DEBUG] Will redirect to:', redirectUrl);
+
                     // Redirect after 2 seconds
                     setTimeout(() => {
-                        window.location.href = result.edit_url || `/success/${result.plan_id}`;
+                        console.log('[DEBUG] Executing redirect NOW to:', redirectUrl);
+                        window.location.href = redirectUrl;
                     }, 2000);
                 } else {
+                    console.error('[DEBUG] Generation failed:', result.error);
                     throw new Error(result.error || 'Errore sconosciuto');
                 }
 

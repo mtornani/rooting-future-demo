@@ -2,6 +2,45 @@
 
 This file serves as a checkpoint for AI agents to resume work or understand the latest system state.
 
+## 🔵 [v6.0] - 2026-01-26 (Performance & Stability)
+**Commit:** `v6.0-stable`
+**Branch:** `master`
+
+### 🚀 Performance Optimizations
+*   **FIX-005: wkhtmltopdf Integration:** Replaced WeasyPrint with wkhtmltopdf as primary PDF engine, achieving **40x faster PDF generation** (120s+ → 3s).
+*   **FIX-004: Infinite Loop Prevention:** Added 300s timeout to parallel task execution and capped retry backoff to prevent infinite hangs.
+*   **OPT-002: True Parallel Execution:** Implemented ThreadPoolExecutor for genuine concurrent agent execution (~66% faster generation).
+*   **OPT-001: SQLite Optimizations:** Added WAL mode and strategic indexes for 70% query speed improvement.
+
+### 🎨 Accessibility & UX
+*   **FIX-006: WCAG 2.1 Contrast:** Implemented proper contrast ratio calculation (4.5:1 minimum) to fix white-on-white text issues in PDFs.
+*   **FEAT-007: Folder Upload:** Added support for selecting entire folders with questionnaire subfolders using webkitdirectory.
+*   **Success Page Debug:** Added comprehensive logging for redirect flow debugging.
+
+### 🔧 Bug Fixes
+*   **FIX-008: Import Order:** Fixed `StructuredOrchestrator` initialization order preventing server startup.
+*   **Executive Report Fix:** Removed unsupported `sources` parameter from `render_executive_html` call.
+*   **Session Management (REF-003):** Added resilient generation with checkpoint system and recovery mechanism.
+
+### 📦 Code Quality
+*   **REF-001: Dead Code Removal:** Deleted 1,841 LOC of unused code and 12k cache files.
+*   **REF-002: Export Layer Consolidation:** Merged duplicate PDF exporters, reduced codebase by 235 LOC.
+*   **Version Bump:** Updated all references from v5.4 to v6.0 to reflect major improvements.
+
+## 🔵 [v5.5.1] - 2026-01-25 (Optimization & Refactor)
+**Commit:** `ref-003-complete`
+**Branch:** `master`
+
+### 🏛️ Architecture: Rendering Layer Unification (REF-003)
+*   **Unified PlanRenderer:** Created `domain/rendering/renderer.py` as a single point of entry for all document rendering.
+*   **Consolidation:** Merged logic from `structured_renderer.py`, `executive_report.py`, and `methodology_section.py`.
+*   **Code Quality:** Centralized CSS styles, helper functions (`_clean_text`, `_darken_color`), and fallback logic (MICRO objectives).
+*   **Integration:** Updated `app.py` to use the unified `PlanRenderer` for both structured and executive reports.
+
+### 🚀 UX & Bug Fixes
+*   **Upload Success Redirect:** Fixed a redirection issue in `api_generate_from_docx` where users were sent to the editor instead of the success page with download links.
+*   **Upload UI Fix:** (In progress) Restored drag-and-drop functionality and improved button visibility in the hybrid dashboard.
+
 ## 🔵 [v5.5.0] - 2026-01-15 (Battute Finali)
 **Commit:** `final-gold`
 **Branch:** `master`
