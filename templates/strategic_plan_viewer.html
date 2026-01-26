@@ -29,35 +29,29 @@
             <a href="#executive-summary" class="nav-link active">
                 <span class="icon">📊</span> Executive Summary
             </a>
-            <a href="#market-analysis" class="nav-link">
-                <span class="icon">📈</span> Analisi di Mercato
+            <a href="#technical-sporting" class="nav-link">
+                <span class="icon">⚽</span> Area Tecnico-Sportiva
             </a>
-            <a href="#competitive-landscape" class="nav-link">
-                <span class="icon">⚔️</span> Competitive Landscape
+            <a href="#youth-development" class="nav-link">
+                <span class="icon">🌱</span> Settore Giovanile
             </a>
-            <a href="#swot" class="nav-link">
-                <span class="icon">🎯</span> SWOT Analysis
+            <a href="#infrastructure" class="nav-link">
+                <span class="icon">🏗️</span> Infrastrutture
             </a>
-            <a href="#objectives" class="nav-link">
-                <span class="icon">🏆</span> Obiettivi Strategici
-            </a>
-            <a href="#tactical-plan" class="nav-link">
-                <span class="icon">📋</span> Piano Tattico
+            <a href="#marketing-commercial" class="nav-link">
+                <span class="icon">📢</span> Marketing & Commerciale
             </a>
             <a href="#financial" class="nav-link">
                 <span class="icon">💰</span> Proiezioni Finanziarie
             </a>
-            <a href="#roadmap" class="nav-link">
-                <span class="icon">🗺️</span> Roadmap
+            <a href="#governance" class="nav-link">
+                <span class="icon">⚖️</span> Governance
             </a>
-            <a href="#kpis" class="nav-link">
-                <span class="icon">📊</span> KPI Dashboard
+            <a href="#social-sustainability" class="nav-link">
+                <span class="icon">🤝</span> Sostenibilità Sociale
             </a>
-            <a href="#risks" class="nav-link">
-                <span class="icon">⚠️</span> Risk Management
-            </a>
-            <a href="#stakeholders" class="nav-link">
-                <span class="icon">🤝</span> Stakeholder Alignment
+            <a href="#coordinator-summary" class="nav-link">
+                <span class="icon">🎯</span> Sintesi Strategica
             </a>
         </nav>
 
@@ -87,72 +81,59 @@
                 </button>
             </div>
             <div id="executive-summary-content" class="section-content">
-                {{ plan.get('executive_summary', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ plan.get('executive_summary', plan.get('summary', '<p class="empty-section">Sezione non disponibile</p>'))|safe }}
             </div>
         </section>
 
-        <!-- Market Analysis -->
-        <section id="market-analysis" class="plan-section">
+        <!-- Technical & Sporting -->
+        <section id="technical-sporting" class="plan-section">
             <div class="section-header">
-                <h1>📈 Analisi di Mercato</h1>
-                <button class="collapse-btn" data-target="market-analysis-content">
+                <h1>⚽ Area Tecnico-Sportiva</h1>
+                <button class="collapse-btn" data-target="technical-sporting-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="market-analysis-content" class="section-content">
-                {{ plan.get('market_analysis', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="technical-sporting-content" class="section-content">
+                {{ plan.get('technical_sporting', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- Competitive Landscape -->
-        <section id="competitive-landscape" class="plan-section">
+        <!-- Youth Development -->
+        <section id="youth-development" class="plan-section">
             <div class="section-header">
-                <h1>⚔️ Competitive Landscape</h1>
-                <button class="collapse-btn" data-target="competitive-landscape-content">
+                <h1>🌱 Settore Giovanile</h1>
+                <button class="collapse-btn" data-target="youth-development-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="competitive-landscape-content" class="section-content">
-                {{ plan.get('competitive_landscape', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="youth-development-content" class="section-content">
+                {{ plan.get('youth_development', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- SWOT Analysis -->
-        <section id="swot" class="plan-section">
+        <!-- Infrastructure -->
+        <section id="infrastructure" class="plan-section">
             <div class="section-header">
-                <h1>🎯 SWOT Analysis</h1>
-                <button class="collapse-btn" data-target="swot-content">
+                <h1>🏗️ Infrastrutture</h1>
+                <button class="collapse-btn" data-target="infrastructure-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="swot-content" class="section-content">
-                {{ plan.get('swot_analysis', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="infrastructure-content" class="section-content">
+                {{ plan.get('infrastructure', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- Strategic Objectives -->
-        <section id="objectives" class="plan-section">
+        <!-- Marketing & Commercial -->
+        <section id="marketing-commercial" class="plan-section">
             <div class="section-header">
-                <h1>🏆 Obiettivi Strategici</h1>
-                <button class="collapse-btn" data-target="objectives-content">
+                <h1>📢 Marketing & Commerciale</h1>
+                <button class="collapse-btn" data-target="marketing-commercial-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="objectives-content" class="section-content">
-                {{ plan.get('strategic_objectives', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
-            </div>
-        </section>
-
-        <!-- Tactical Plan -->
-        <section id="tactical-plan" class="plan-section">
-            <div class="section-header">
-                <h1>📋 Piano Tattico</h1>
-                <button class="collapse-btn" data-target="tactical-plan-content">
-                    <span class="icon">▼</span>
-                </button>
-            </div>
-            <div id="tactical-plan-content" class="section-content">
-                {{ plan.get('tactical_plan', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="marketing-commercial-content" class="section-content">
+                {{ plan.get('marketing_commercial', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -165,59 +146,46 @@
                 </button>
             </div>
             <div id="financial-content" class="section-content">
-                {{ plan.get('financial_projections', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ plan.get('financial', plan.get('financial_projections', '<p class="empty-section">Sezione non disponibile</p>'))|safe }}
             </div>
         </section>
 
-        <!-- Implementation Roadmap -->
-        <section id="roadmap" class="plan-section">
+        <!-- Governance -->
+        <section id="governance" class="plan-section">
             <div class="section-header">
-                <h1>🗺️ Roadmap Implementazione</h1>
-                <button class="collapse-btn" data-target="roadmap-content">
+                <h1>⚖️ Governance</h1>
+                <button class="collapse-btn" data-target="governance-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="roadmap-content" class="section-content">
-                {{ plan.get('implementation_roadmap', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="governance-content" class="section-content">
+                {{ plan.get('governance', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- KPI Dashboard -->
-        <section id="kpis" class="plan-section">
+        <!-- Social Sustainability -->
+        <section id="social-sustainability" class="plan-section">
             <div class="section-header">
-                <h1>📊 KPI Dashboard</h1>
-                <button class="collapse-btn" data-target="kpis-content">
+                <h1>🤝 Sostenibilità Sociale</h1>
+                <button class="collapse-btn" data-target="social-sustainability-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="kpis-content" class="section-content">
-                {{ plan.get('kpi_dashboard', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="social-sustainability-content" class="section-content">
+                {{ plan.get('social_sustainability', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- Risk Management -->
-        <section id="risks" class="plan-section">
+        <!-- Coordinator Summary (if available) -->
+        <section id="coordinator-summary" class="plan-section">
             <div class="section-header">
-                <h1>⚠️ Risk Management</h1>
-                <button class="collapse-btn" data-target="risks-content">
+                <h1>🎯 Sintesi Strategica</h1>
+                <button class="collapse-btn" data-target="coordinator-summary-content">
                     <span class="icon">▼</span>
                 </button>
             </div>
-            <div id="risks-content" class="section-content">
-                {{ plan.get('risk_management', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
-            </div>
-        </section>
-
-        <!-- Stakeholder Alignment -->
-        <section id="stakeholders" class="plan-section">
-            <div class="section-header">
-                <h1>🤝 Allineamento Stakeholder</h1>
-                <button class="collapse-btn" data-target="stakeholders-content">
-                    <span class="icon">▼</span>
-                </button>
-            </div>
-            <div id="stakeholders-content" class="section-content">
-                {{ plan.get('stakeholder_alignment', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            <div id="coordinator-summary-content" class="section-content">
+                {{ plan.get('coordinator_summary', plan.get('synthesis', '<p class="empty-section">Sezione non disponibile</p>'))|safe }}
             </div>
         </section>
 
