@@ -158,42 +158,21 @@ class PdfServerExporter(BaseExporter):
         filename = self._get_safe_filename(club_name, "pdf", prefix="PianoStrategico")
         filepath = self.output_dir / filename
 
-        # Generazione PDF: Try wkhtmltopdf first, fallback to WeasyPrint
-        use_wkhtmltopdf = PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH
-        wkhtmltopdf_failed = False
+        # Generazione PDF: Try WeasyPrint first (supports @page CSS), fallback to wkhtmltopdf
+        # WeasyPrint è più lento ma supporta correttamente CSS Paged Media
+        weasyprint_failed = False
 
-        if use_wkhtmltopdf:
-            logger.info(f"🚀 Inizio generazione PDF per {club_name} via wkhtmltopdf (FAST)...")
-            try:
-                config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
-                options = {
-                    'page-size': 'A4',
-                    'margin-top': '0mm',
-                    'margin-right': '0mm',
-                    'margin-bottom': '0mm',
-                    'margin-left': '0mm',
-                    'encoding': 'UTF-8',
-                    'enable-local-file-access': None,
-                    'no-stop-slow-scripts': None,
-                    'javascript-delay': 100,
-                }
-                pdfkit.from_string(html_content, str(filepath), configuration=config, options=options)
-                logger.info(f"✅ PDF generato con wkhtmltopdf in pochi secondi: {filepath}")
-            except Exception as e:
-                logger.error(f"❌ wkhtmltopdf fallito: {e}. Fallback to WeasyPrint...")
-                wkhtmltopdf_failed = True
+        logger.info(f"🎨 Inizio generazione PDF per {club_name} via WeasyPrint (CSS Paged Media)...")
+        weasyprint_failed = False
 
-        if not use_wkhtmltopdf or wkhtmltopdf_failed:
-            # Fallback: WeasyPrint con timeout protection
-            logger.info(f"⚠️ Generazione PDF per {club_name} via WeasyPrint (SLOW + timeout 120s)...")
-
+        try:
             import threading
             pdf_error = None
 
             def generate_pdf():
                 nonlocal pdf_error
                 try:
-                    weasyprint.HTML(string=html_content).write_pdf(filepath)
+                    weasyprint.HTML(string=html_content).write_pdf(str(filepath))
                 except Exception as e:
                     pdf_error = e
 
@@ -204,15 +183,44 @@ class PdfServerExporter(BaseExporter):
 
             if pdf_thread.is_alive():
                 logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 120s per {club_name}")
-                raise TimeoutError(f"PDF generation timeout dopo 120 secondi - WeasyPrint probabilmente in loop infinito")
+                weasyprint_failed = True
+            elif pdf_error:
+                logger.error(f"❌ Errore WeasyPrint: {pdf_error}")
+                weasyprint_failed = True
+            else:
+                logger.info(f"✅ PDF generato con WeasyPrint: {filepath}")
+                return filepath
 
-            if pdf_error:
-                logger.error(f"Errore WeasyPrint: {pdf_error}")
-                raise pdf_error
+        except Exception as e:
+            logger.error(f"❌ WeasyPrint exception: {e}")
+            weasyprint_failed = True
 
-            logger.info(f"✅ PDF generato con successo: {filepath}")
+        # Fallback: wkhtmltopdf (fast but doesn't support @page CSS perfectly)
+        if weasyprint_failed and PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+            logger.warning(f"⚠️ Tentativo fallback con wkhtmltopdf per {club_name}...")
+            try:
+                config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+                options = {
+                    'page-size': 'A4',
+                    'margin-top': '22mm',
+                    'margin-right': '20mm',
+                    'margin-bottom': '18mm',
+                    'margin-left': '20mm',
+                    'encoding': 'UTF-8',
+                    'enable-local-file-access': None,
+                    'no-stop-slow-scripts': None,
+                    'javascript-delay': 1000,
+                    'load-error-handling': 'ignore',
+                    'load-media-error-handling': 'ignore',
+                }
+                pdfkit.from_string(html_content, str(filepath), configuration=config, options=options)
+                logger.info(f"✅ PDF generato con wkhtmltopdf (fallback): {filepath}")
+                return filepath
+            except Exception as e2:
+                logger.error(f"❌ wkhtmltopdf fallback failed: {e2}")
 
-        return filepath
+        # Se arriviamo qui, entrambi i metodi sono falliti
+        raise Exception(f"❌ CRITICAL: Tutti i metodi PDF sono falliti per {club_name}. WeasyPrint e wkhtmltopdf non disponibili.")
 
     def _generate_html(self, plan_data, club_name, sources, meta) -> str:
         # Colori dinamici

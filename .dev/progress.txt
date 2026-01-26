@@ -78,3 +78,18 @@
 - Prevents infinite hangs when API calls fail or agents get stuck
 - Total changes: +20 LOC in agents.py (timeout and logging)
 - Next: Test plan generation to verify fix works
+
+[2026-01-26] COMPLETED REF-004: WebApp Piano Strategico Strutturato
+- Created /view/<plan_id> route as primary strategic plan interface
+- Webapp now replaces PDF as main output (PDF becomes optional download)
+- Interactive features: sidebar navigation, collapsible sections, search, smooth scroll
+- Created templates/strategic_plan_viewer.html (+290 LOC)
+- Created static/css/plan_viewer.css (+370 LOC)
+- Created static/js/plan_viewer.js (+200 LOC)
+- Modified generation_success.html to link webapp instead of PDF
+- Added authorization checks (owner or assigned plans only)
+- Responsive design (desktop/tablet/mobile) + print CSS
+- Total addition: ~860 LOC (3,079 → 3,939)
+- Benefits: Instant loading (no PDF wait), searchable, responsive, accessible
+- PDF available on-demand via "Scarica PDF" button (armored with multi-layer fallback from REF-003)
+- Next: Test webapp with existing plan, then move to STAB-001 (test suite)

@@ -1506,6 +1506,55 @@ def generation_success(plan_id):
     )
 
 
+@app.route("/view/<plan_id>")
+@login_required
+def view_strategic_plan(plan_id):
+    """
+    WebApp interattiva per visualizzare il piano strategico.
+    Interfaccia primaria - il PDF diventa download opzionale.
+    """
+    logger.info(f"[WEBAPP VIEWER] Accessing plan viewer for plan_id: {plan_id}")
+
+    # Recupera piano da database
+    plan_record = knowledge_manager.store.get_plan(plan_id)
+
+    if not plan_record:
+        logger.error(f"[WEBAPP VIEWER] Plan {plan_id} not found")
+        abort(404)
+
+    # Verifica autorizzazione
+    if current_user.role != "super_admin":
+        if plan_record.owner_id != int(current_user.id):
+            # Check if plan is assigned to user
+            assigned_plans = knowledge_manager.store.get_assigned_plans(int(current_user.id))
+            if plan_id not in assigned_plans:
+                logger.warning(f"[WEBAPP VIEWER] Unauthorized access attempt by user {current_user.id} to plan {plan_id}")
+                abort(403)
+
+    # Recupera metadata per colori e info
+    review = editor.reviews.get(plan_id)
+    metadata = {}
+
+    if review:
+        metadata = review.metadata
+    else:
+        # Fallback: usa dati dal plan_record
+        metadata = {
+            "category": plan_record.category,
+            "primary_color": "#1a365d",
+            "secondary_color": "#ffffff"
+        }
+
+    return render_template(
+        "strategic_plan_viewer.html",
+        plan=plan_record.plan_data,
+        plan_id=plan_id,
+        club_name=plan_record.club_name,
+        category=plan_record.category,
+        metadata=metadata
+    )
+
+
 @app.route("/api/generate-from-webhook", methods=["POST"])
 def api_generate_from_webhook():
     """
@@ -4314,151 +4363,151 @@ def _format_inline(text: str) -> str:
     return text
 
 
-@app.route("/api/export/<plan_id>/pdf", methods=["GET"])
-def api_export_pdf_only(plan_id: str):
-    """
-    Esporta piano solo in formato PDF.
-    Usa WeasyPrint per alta qualità.
-    """
-    temp_dir = None
-    try:
-        review = editor.reviews.get(plan_id)
-        if not review:
-            return jsonify({"success": False, "error": "Plan not found"}), 404
-
-        plan_data = editor.export_plan_for_final(plan_id)
-        if not plan_data:
-            return jsonify({"success": False, "error": "No content to export"}), 400
-
-        sources = []
-        metadata = {
-            "category": review.category,
-            "credibility_score": sum(
-                s.credibility_score for s in review.sections.values()
-            )
-            / len(review.sections)
-            if review.sections
-            else 0,
-        }
-
-        html_content = _generate_printable_html(
-            plan_data, review.club_name, sources, metadata
-        )
-
-        safe_name = review.club_name.replace(" ", "_").replace("/", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pdf_filename = f"{safe_name}_PianoStrategico_{timestamp}"
-
-        temp_dir = tempfile.mkdtemp(prefix="pdf_export_")
-
-        from export_pdf_server import create_pdf_from_html
-
-        pdf_success = create_pdf_from_html(
-            html_content=html_content, output_path=temp_dir, plan_name=pdf_filename
-        )
-
-        if not pdf_success:
-            if temp_dir and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
-            return jsonify({"success": False, "error": "Generazione PDF fallita"}), 500
-
-        pdf_temp_path = os.path.join(temp_dir, f"{pdf_filename}.pdf")
-
-        # Copia in output directory
-        final_pdf_path = OUTPUT_DIR / f"{pdf_filename}.pdf"
-        shutil.copy2(pdf_temp_path, final_pdf_path)
-
-        # ===== GENERA ANCHE ONE-PAGER E EXECUTIVE REPORT =====
-        try:
-            # Prepara metadata comuni
-            club_identity = get_club_identity(review.club_name)
-            credibility = (
-                sum(s.credibility_score for s in review.sections.values())
-                / len(review.sections)
-                if review.sections
-                else 70
-            )
-
-            common_metadata = {
-                "category": review.category or "Eccellenza",
-                "primary_color": club_identity.get("primary", "#1a365d"),
-                "secondary_color": club_identity.get("secondary", "#c9a227"),
-                "credibility_score": int(credibility),
-                "sources_count": sum(s.sources_count for s in review.sections.values())
-                if review.sections
-                else 10,
-            }
-
-            # 1. Genera One-Pager
-            from export_onepager import create_onepager
-
-            stw_progress = calculate_stw_progress(plan)
-            onepager_path = create_onepager(
-                plan_data=plan_data,
-                club_name=review.club_name,
-                metadata=common_metadata,
-                stw_progress=stw_progress,
-            )
-            logger.info(f"One-Pager generato: {onepager_path}")
-
-            # 2. Genera Executive Report
-            exec_metadata = {
-                "category": review.category or "Eccellenza",
-                "primary_color": common_metadata.get("primary_color", "#1a365d"),
-                "secondary_color": common_metadata.get("secondary_color", "#ffffff"),
-                "dimensione_rosa": getattr(review, "squad_size", 22),
-                "capienza_stadio": getattr(review, "stadium_capacity", 0),
-                "known_financials": {},
-                "estimated_fields": {
-                    "fatturato": "tier3_estimated",
-                    "monte_ingaggi": "tier2_deduced",
-                    "valore_rosa": "tier2_deduced",
-                },
-            }
-            exec_html = plan_renderer.render_executive_html(
-                plan_data=plan_data,
-                club_name=review.club_name,
-                category=review.category or "Eccellenza",
-                metadata=exec_metadata,
-                sources=[],
-            )
-            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
-            exec_path = OUTPUT_DIR / exec_filename
-            with open(exec_path, "w", encoding="utf-8") as f:
-                f.write(exec_html)
-            logger.info(f"Executive Report generato: {exec_path}")
-
-        except Exception as e:
-            logger.warning(
-                f"Generazione One-Pager/Executive fallita (non bloccante): {e}"
-            )
-        # ===== FINE GENERAZIONE EXTRA =====
-
-        # Pulisci temp
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                shutil.rmtree(temp_dir)
-            except:
-                pass
-
-        return send_file(
-            final_pdf_path,
-            mimetype="application/pdf",
-            as_attachment=True,
-            download_name=f"{pdf_filename}.pdf",
-        )
-
-    except Exception as e:
-        logger.exception(f"PDF export error: {e}")
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                shutil.rmtree(temp_dir)
-            except:
-                pass
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/api/export/<plan_id>/paged", methods=["GET"])
+# DUPLICATE REMOVED: @app.route("/api/export/<plan_id>/pdf", methods=["GET"])
+# DUPLICATE REMOVED: def api_export_pdf_only(plan_id: str):
+# DUPLICATE REMOVED:     """
+# DUPLICATE REMOVED:     Esporta piano solo in formato PDF.
+# DUPLICATE REMOVED:     Usa WeasyPrint per alta qualità.
+# DUPLICATE REMOVED:     """
+# DUPLICATE REMOVED:     temp_dir = None
+# DUPLICATE REMOVED:     try:
+# DUPLICATE REMOVED:         review = editor.reviews.get(plan_id)
+# DUPLICATE REMOVED:         if not review:
+# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "Plan not found"}), 404
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         plan_data = editor.export_plan_for_final(plan_id)
+# DUPLICATE REMOVED:         if not plan_data:
+# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "No content to export"}), 400
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         sources = []
+# DUPLICATE REMOVED:         metadata = {
+# DUPLICATE REMOVED:             "category": review.category,
+# DUPLICATE REMOVED:             "credibility_score": sum(
+# DUPLICATE REMOVED:                 s.credibility_score for s in review.sections.values()
+# DUPLICATE REMOVED:             )
+# DUPLICATE REMOVED:             / len(review.sections)
+# DUPLICATE REMOVED:             if review.sections
+# DUPLICATE REMOVED:             else 0,
+# DUPLICATE REMOVED:         }
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         html_content = _generate_printable_html(
+# DUPLICATE REMOVED:             plan_data, review.club_name, sources, metadata
+# DUPLICATE REMOVED:         )
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         safe_name = review.club_name.replace(" ", "_").replace("/", "_")
+# DUPLICATE REMOVED:         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+# DUPLICATE REMOVED:         pdf_filename = f"{safe_name}_PianoStrategico_{timestamp}"
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         temp_dir = tempfile.mkdtemp(prefix="pdf_export_")
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         from export_pdf_server import create_pdf_from_html
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         pdf_success = create_pdf_from_html(
+# DUPLICATE REMOVED:             html_content=html_content, output_path=temp_dir, plan_name=pdf_filename
+# DUPLICATE REMOVED:         )
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         if not pdf_success:
+# DUPLICATE REMOVED:             if temp_dir and os.path.exists(temp_dir):
+# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
+# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "Generazione PDF fallita"}), 500
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         pdf_temp_path = os.path.join(temp_dir, f"{pdf_filename}.pdf")
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         # Copia in output directory
+# DUPLICATE REMOVED:         final_pdf_path = OUTPUT_DIR / f"{pdf_filename}.pdf"
+# DUPLICATE REMOVED:         shutil.copy2(pdf_temp_path, final_pdf_path)
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         # ===== GENERA ANCHE ONE-PAGER E EXECUTIVE REPORT =====
+# DUPLICATE REMOVED:         try:
+# DUPLICATE REMOVED:             # Prepara metadata comuni
+# DUPLICATE REMOVED:             club_identity = get_club_identity(review.club_name)
+# DUPLICATE REMOVED:             credibility = (
+# DUPLICATE REMOVED:                 sum(s.credibility_score for s in review.sections.values())
+# DUPLICATE REMOVED:                 / len(review.sections)
+# DUPLICATE REMOVED:                 if review.sections
+# DUPLICATE REMOVED:                 else 70
+# DUPLICATE REMOVED:             )
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:             common_metadata = {
+# DUPLICATE REMOVED:                 "category": review.category or "Eccellenza",
+# DUPLICATE REMOVED:                 "primary_color": club_identity.get("primary", "#1a365d"),
+# DUPLICATE REMOVED:                 "secondary_color": club_identity.get("secondary", "#c9a227"),
+# DUPLICATE REMOVED:                 "credibility_score": int(credibility),
+# DUPLICATE REMOVED:                 "sources_count": sum(s.sources_count for s in review.sections.values())
+# DUPLICATE REMOVED:                 if review.sections
+# DUPLICATE REMOVED:                 else 10,
+# DUPLICATE REMOVED:             }
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:             # 1. Genera One-Pager
+# DUPLICATE REMOVED:             from export_onepager import create_onepager
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:             stw_progress = calculate_stw_progress(plan)
+# DUPLICATE REMOVED:             onepager_path = create_onepager(
+# DUPLICATE REMOVED:                 plan_data=plan_data,
+# DUPLICATE REMOVED:                 club_name=review.club_name,
+# DUPLICATE REMOVED:                 metadata=common_metadata,
+# DUPLICATE REMOVED:                 stw_progress=stw_progress,
+# DUPLICATE REMOVED:             )
+# DUPLICATE REMOVED:             logger.info(f"One-Pager generato: {onepager_path}")
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:             # 2. Genera Executive Report
+# DUPLICATE REMOVED:             exec_metadata = {
+# DUPLICATE REMOVED:                 "category": review.category or "Eccellenza",
+# DUPLICATE REMOVED:                 "primary_color": common_metadata.get("primary_color", "#1a365d"),
+# DUPLICATE REMOVED:                 "secondary_color": common_metadata.get("secondary_color", "#ffffff"),
+# DUPLICATE REMOVED:                 "dimensione_rosa": getattr(review, "squad_size", 22),
+# DUPLICATE REMOVED:                 "capienza_stadio": getattr(review, "stadium_capacity", 0),
+# DUPLICATE REMOVED:                 "known_financials": {},
+# DUPLICATE REMOVED:                 "estimated_fields": {
+# DUPLICATE REMOVED:                     "fatturato": "tier3_estimated",
+# DUPLICATE REMOVED:                     "monte_ingaggi": "tier2_deduced",
+# DUPLICATE REMOVED:                     "valore_rosa": "tier2_deduced",
+# DUPLICATE REMOVED:                 },
+# DUPLICATE REMOVED:             }
+# DUPLICATE REMOVED:             exec_html = plan_renderer.render_executive_html(
+# DUPLICATE REMOVED:                 plan_data=plan_data,
+# DUPLICATE REMOVED:                 club_name=review.club_name,
+# DUPLICATE REMOVED:                 category=review.category or "Eccellenza",
+# DUPLICATE REMOVED:                 metadata=exec_metadata,
+# DUPLICATE REMOVED:                 sources=[],
+# DUPLICATE REMOVED:             )
+# DUPLICATE REMOVED:             exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+# DUPLICATE REMOVED:             exec_path = OUTPUT_DIR / exec_filename
+# DUPLICATE REMOVED:             with open(exec_path, "w", encoding="utf-8") as f:
+# DUPLICATE REMOVED:                 f.write(exec_html)
+# DUPLICATE REMOVED:             logger.info(f"Executive Report generato: {exec_path}")
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         except Exception as e:
+# DUPLICATE REMOVED:             logger.warning(
+# DUPLICATE REMOVED:                 f"Generazione One-Pager/Executive fallita (non bloccante): {e}"
+# DUPLICATE REMOVED:             )
+# DUPLICATE REMOVED:         # ===== FINE GENERAZIONE EXTRA =====
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         # Pulisci temp
+# DUPLICATE REMOVED:         if temp_dir and os.path.exists(temp_dir):
+# DUPLICATE REMOVED:             try:
+# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
+# DUPLICATE REMOVED:             except:
+# DUPLICATE REMOVED:                 pass
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:         return send_file(
+# DUPLICATE REMOVED:             final_pdf_path,
+# DUPLICATE REMOVED:             mimetype="application/pdf",
+# DUPLICATE REMOVED:             as_attachment=True,
+# DUPLICATE REMOVED:             download_name=f"{pdf_filename}.pdf",
+# DUPLICATE REMOVED:         )
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED:     except Exception as e:
+# DUPLICATE REMOVED:         logger.exception(f"PDF export error: {e}")
+# DUPLICATE REMOVED:         if temp_dir and os.path.exists(temp_dir):
+# DUPLICATE REMOVED:             try:
+# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
+# DUPLICATE REMOVED:             except:
+# DUPLICATE REMOVED:                 pass
+# DUPLICATE REMOVED:         return jsonify({"success": False, "error": str(e)}), 500
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED: 
+# DUPLICATE REMOVED: @app.route("/api/export/<plan_id>/paged", methods=["GET"])
 def api_export_paged_html(plan_id: str):
     """
     Esporta piano come HTML Print-First con Paged.js.

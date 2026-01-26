@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ club_name }} - Piano Strategico 2026-2028</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/plan_viewer.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+</head>
+<body data-plan-id="{{ plan_id }}">
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>{{ club_name }}</h2>
+            <p class="subtitle">Piano Strategico 2026-2028</p>
+            <span class="category-badge">{{ category }}</span>
+        </div>
+
+        <!-- Search Box -->
+        <div class="search-box">
+            <input type="text" id="planSearch" placeholder="🔍 Cerca nel piano...">
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="section-nav" id="sectionNav">
+            <a href="#executive-summary" class="nav-link active">
+                <span class="icon">📊</span> Executive Summary
+            </a>
+            <a href="#market-analysis" class="nav-link">
+                <span class="icon">📈</span> Analisi di Mercato
+            </a>
+            <a href="#competitive-landscape" class="nav-link">
+                <span class="icon">⚔️</span> Competitive Landscape
+            </a>
+            <a href="#swot" class="nav-link">
+                <span class="icon">🎯</span> SWOT Analysis
+            </a>
+            <a href="#objectives" class="nav-link">
+                <span class="icon">🏆</span> Obiettivi Strategici
+            </a>
+            <a href="#tactical-plan" class="nav-link">
+                <span class="icon">📋</span> Piano Tattico
+            </a>
+            <a href="#financial" class="nav-link">
+                <span class="icon">💰</span> Proiezioni Finanziarie
+            </a>
+            <a href="#roadmap" class="nav-link">
+                <span class="icon">🗺️</span> Roadmap
+            </a>
+            <a href="#kpis" class="nav-link">
+                <span class="icon">📊</span> KPI Dashboard
+            </a>
+            <a href="#risks" class="nav-link">
+                <span class="icon">⚠️</span> Risk Management
+            </a>
+            <a href="#stakeholders" class="nav-link">
+                <span class="icon">🤝</span> Stakeholder Alignment
+            </a>
+        </nav>
+
+        <!-- Export Actions -->
+        <div class="sidebar-actions">
+            <button class="btn btn-primary" onclick="exportPDF('{{ plan_id }}')">
+                📄 Scarica PDF
+            </button>
+            <button class="btn btn-secondary" onclick="exportDOCX('{{ plan_id }}')">
+                📝 Scarica DOCX
+            </button>
+            <button class="btn btn-tertiary" onclick="exportOnePager('{{ plan_id }}')">
+                📊 OnePager
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="plan-content" id="planContent">
+
+        <!-- Executive Summary -->
+        <section id="executive-summary" class="plan-section">
+            <div class="section-header">
+                <h1>📊 Executive Summary</h1>
+                <button class="collapse-btn" data-target="executive-summary-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="executive-summary-content" class="section-content">
+                {{ plan.get('executive_summary', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Market Analysis -->
+        <section id="market-analysis" class="plan-section">
+            <div class="section-header">
+                <h1>📈 Analisi di Mercato</h1>
+                <button class="collapse-btn" data-target="market-analysis-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="market-analysis-content" class="section-content">
+                {{ plan.get('market_analysis', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Competitive Landscape -->
+        <section id="competitive-landscape" class="plan-section">
+            <div class="section-header">
+                <h1>⚔️ Competitive Landscape</h1>
+                <button class="collapse-btn" data-target="competitive-landscape-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="competitive-landscape-content" class="section-content">
+                {{ plan.get('competitive_landscape', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- SWOT Analysis -->
+        <section id="swot" class="plan-section">
+            <div class="section-header">
+                <h1>🎯 SWOT Analysis</h1>
+                <button class="collapse-btn" data-target="swot-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="swot-content" class="section-content">
+                {{ plan.get('swot_analysis', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Strategic Objectives -->
+        <section id="objectives" class="plan-section">
+            <div class="section-header">
+                <h1>🏆 Obiettivi Strategici</h1>
+                <button class="collapse-btn" data-target="objectives-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="objectives-content" class="section-content">
+                {{ plan.get('strategic_objectives', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Tactical Plan -->
+        <section id="tactical-plan" class="plan-section">
+            <div class="section-header">
+                <h1>📋 Piano Tattico</h1>
+                <button class="collapse-btn" data-target="tactical-plan-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="tactical-plan-content" class="section-content">
+                {{ plan.get('tactical_plan', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Financial Projections -->
+        <section id="financial" class="plan-section">
+            <div class="section-header">
+                <h1>💰 Proiezioni Finanziarie</h1>
+                <button class="collapse-btn" data-target="financial-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="financial-content" class="section-content">
+                {{ plan.get('financial_projections', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Implementation Roadmap -->
+        <section id="roadmap" class="plan-section">
+            <div class="section-header">
+                <h1>🗺️ Roadmap Implementazione</h1>
+                <button class="collapse-btn" data-target="roadmap-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="roadmap-content" class="section-content">
+                {{ plan.get('implementation_roadmap', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- KPI Dashboard -->
+        <section id="kpis" class="plan-section">
+            <div class="section-header">
+                <h1>📊 KPI Dashboard</h1>
+                <button class="collapse-btn" data-target="kpis-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="kpis-content" class="section-content">
+                {{ plan.get('kpi_dashboard', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Risk Management -->
+        <section id="risks" class="plan-section">
+            <div class="section-header">
+                <h1>⚠️ Risk Management</h1>
+                <button class="collapse-btn" data-target="risks-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="risks-content" class="section-content">
+                {{ plan.get('risk_management', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+        <!-- Stakeholder Alignment -->
+        <section id="stakeholders" class="plan-section">
+            <div class="section-header">
+                <h1>🤝 Allineamento Stakeholder</h1>
+                <button class="collapse-btn" data-target="stakeholders-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="stakeholders-content" class="section-content">
+                {{ plan.get('stakeholder_alignment', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Export Loading Modal -->
+    <div id="exportModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="spinner"></div>
+            <h3 id="exportModalTitle">Generazione PDF in corso...</h3>
+            <p id="exportModalDesc">Questo potrebbe richiedere fino a 30 secondi</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/plan_viewer.js') }}"></script>
+</body>
+</html>

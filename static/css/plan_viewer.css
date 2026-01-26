@@ -1,0 +1,542 @@
+/* ==================================================================
+   Rooting Future - Strategic Plan Viewer v6.0
+   WebApp interattiva per visualizzare piani strategici
+   ================================================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #667eea;
+    --primary-dark: #764ba2;
+    --secondary-color: #ffffff;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --bg-light: #f8f9fa;
+    --bg-white: #ffffff;
+    --border-color: #dee2e6;
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg-light);
+    color: var(--text-primary);
+}
+
+/* ==================================================================
+   SIDEBAR
+   ================================================================== */
+
+.sidebar {
+    width: 300px;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    flex-shrink: 0;
+}
+
+.sidebar-header {
+    padding: 28px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+.sidebar-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'Montserrat', sans-serif;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.sidebar-header .subtitle {
+    margin: 10px 0 12px 0;
+    opacity: 0.9;
+    font-size: 14px;
+}
+
+.category-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+}
+
+/* Search Box */
+.search-box {
+    padding: 20px 24px;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    font-size: 14px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+}
+
+.search-box input::placeholder {
+    color: rgba(255,255,255,0.7);
+}
+
+.search-box input:focus {
+    outline: none;
+    background: rgba(255,255,255,0.25);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.1);
+}
+
+/* Navigation */
+.section-nav {
+    flex: 1;
+    padding: 8px 0;
+    overflow-y: auto;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    padding: 14px 24px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.2s;
+    font-size: 14px;
+    gap: 14px;
+    border-left: 3px solid transparent;
+}
+
+.nav-link:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.nav-link.active {
+    background: rgba(255,255,255,0.2);
+    border-left-color: white;
+    font-weight: 600;
+}
+
+.nav-link .icon {
+    font-size: 20px;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Sidebar Actions */
+.sidebar-actions {
+    padding: 24px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background: white;
+    color: var(--primary-color);
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    backdrop-filter: blur(10px);
+}
+
+.btn-tertiary {
+    background: transparent;
+    color: white;
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+/* ==================================================================
+   MAIN CONTENT
+   ================================================================== */
+
+.plan-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg-light);
+    padding: 40px 60px;
+}
+
+/* Section */
+.plan-section {
+    background: var(--bg-white);
+    border-radius: 16px;
+    margin-bottom: 28px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: box-shadow 0.3s;
+}
+
+.plan-section:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.plan-section.search-match {
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 28px 36px;
+    background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 3px solid var(--border-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+.section-header:hover {
+    background: linear-gradient(90deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+.section-header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: 'Montserrat', sans-serif;
+}
+
+.collapse-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--text-secondary);
+    transition: transform 0.3s, color 0.2s;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+.collapse-btn:hover {
+    background: rgba(0,0,0,0.05);
+    color: var(--text-primary);
+}
+
+.collapse-btn.collapsed .icon {
+    transform: rotate(-90deg);
+}
+
+.section-content {
+    padding: 36px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+    max-height: 10000px;
+    transition: max-height 0.5s ease-out, padding 0.5s;
+    overflow: hidden;
+}
+
+.section-content.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* Typography */
+.section-content h2 {
+    color: var(--text-primary);
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 28px;
+    margin-bottom: 14px;
+}
+
+.section-content h3 {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 12px;
+}
+
+.section-content h4 {
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.section-content p {
+    margin-bottom: 16px;
+}
+
+.section-content ul,
+.section-content ol {
+    padding-left: 32px;
+    margin-bottom: 16px;
+}
+
+.section-content li {
+    margin-bottom: 10px;
+}
+
+.section-content strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.section-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 24px 0;
+    font-size: 14px;
+}
+
+.section-content th,
+.section-content td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section-content th {
+    background: var(--bg-light);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.section-content tr:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.empty-section {
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    padding: 40px;
+}
+
+/* ==================================================================
+   EXPORT MODAL
+   ================================================================== */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: white;
+    padding: 48px;
+    border-radius: 20px;
+    text-align: center;
+    min-width: 400px;
+    box-shadow: var(--shadow-lg);
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(102, 126, 234, 0.2);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 24px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.modal-content h3 {
+    margin: 0 0 12px 0;
+    font-size: 22px;
+    color: var(--text-primary);
+}
+
+.modal-content p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* ==================================================================
+   RESPONSIVE
+   ================================================================== */
+
+@media (max-width: 1024px) {
+    .plan-content {
+        padding: 30px 40px;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 50vh;
+        flex-shrink: 0;
+    }
+
+    .sidebar-header {
+        padding: 20px;
+    }
+
+    .search-box {
+        padding: 12px 20px;
+    }
+
+    .section-nav {
+        max-height: none;
+    }
+
+    .sidebar-actions {
+        padding: 16px 20px;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    .plan-content {
+        padding: 20px;
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .section-header h1 {
+        font-size: 20px;
+    }
+
+    .section-content {
+        padding: 24px;
+    }
+
+    .modal-content {
+        min-width: 300px;
+        padding: 36px 24px;
+    }
+}
+
+/* ==================================================================
+   PRINT STYLES
+   ================================================================== */
+
+@media print {
+    .sidebar {
+        display: none;
+    }
+
+    .plan-content {
+        padding: 0;
+    }
+
+    .section-header {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .section-content {
+        page-break-inside: avoid;
+    }
+
+    .collapse-btn {
+        display: none;
+    }
+
+    .section-content.collapsed {
+        max-height: none;
+        padding: 36px;
+    }
+}
+
+/* ==================================================================
+   SCROLLBAR STYLING (Chrome/Safari)
+   ================================================================== */
+
+.sidebar::-webkit-scrollbar,
+.plan-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.1);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+.plan-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.plan-content::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.15);
+    border-radius: 4px;
+}
+
+.plan-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.25);
+}

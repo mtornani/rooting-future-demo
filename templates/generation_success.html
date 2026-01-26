@@ -66,14 +66,14 @@
                 </div>
             </a>
 
-            <!-- PIANO STRATEGICO UFFICIALE (PDF) -->
-            <a href="javascript:void(0)" class="doc-card" id="card-pdf">
-                <span class="badge">PROFESSIONALE</span>
-                <div class="icon">📕</div>
-                <div class="doc-title">Piano Strategico Ufficiale</div>
-                <div class="doc-desc">Il Master Plan completo in formato PDF. Impaginazione professionale e grafici.</div>
-                <div class="btn-dl loading">
-                    <span class="spinner"></span> <span class="label">Generazione...</span>
+            <!-- PIANO STRATEGICO WEBAPP -->
+            <a href="/view/{{ plan_id }}" class="doc-card ready" id="card-webapp">
+                <span class="badge">INTERATTIVO</span>
+                <div class="icon">🌐</div>
+                <div class="doc-title">Piano Strategico Completo</div>
+                <div class="doc-desc">Visualizza il Master Plan interattivo. Navigazione, ricerca, export PDF su richiesta.</div>
+                <div class="btn-dl">
+                    <span class="label">VISUALIZZA PIANO</span>
                 </div>
             </a>
         </div>
@@ -92,12 +92,11 @@
                 fetch(`/api/plan-export-status/${planId}`)
                     .then(response => response.json())
                     .then(status => {
-                        updateCard('card-pdf', status.pdf, status.filenames ? status.filenames.pdf : null);
                         updateCard('card-onepager', status.onepager, status.filenames ? status.filenames.onepager : null);
                         updateCard('card-executive', status.executive, status.filenames ? status.filenames.executive : null);
 
                         // Se non tutto è pronto, riprova
-                        if (!status.pdf || !status.onepager || !status.executive) {
+                        if (!status.onepager || !status.executive) {
                             setTimeout(checkExports, 3000);
                         }
                     })
