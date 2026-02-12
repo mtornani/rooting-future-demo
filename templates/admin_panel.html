@@ -67,12 +67,15 @@
         <!-- CONTENUTO PRINCIPALE -->
         <div class="flex-1">
             <!-- TABS NAVIGATION -->
-            <div class="flex gap-8 border-b border-gray-200 mb-6">
+            <div class="flex gap-8 border-b border-gray-200 mb-6 flex-wrap">
                 <button onclick="switchTab('plans')" id="tab-btn-plans" class="pb-4 px-2 font-bold text-lg border-b-4 border-indigo-600 text-indigo-600 transition-all">
                     📦 Master Database <span id="badge-plans-count" class="ml-2 bg-indigo-100 text-indigo-600 text-xs py-0.5 px-2 rounded-full">0</span>
                 </button>
                 <button onclick="switchTab('users')" id="tab-btn-users" class="pb-4 px-2 font-bold text-lg border-b-4 border-transparent text-gray-400 hover:text-gray-600 transition-all">
                     👥 Team Management
+                </button>
+                <button onclick="switchTab('licenses')" id="tab-btn-licenses" class="pb-4 px-2 font-bold text-lg border-b-4 border-transparent text-gray-400 hover:text-gray-600 transition-all">
+                    🔑 Licenze <span id="badge-licenses-count" class="ml-2 bg-gray-100 text-gray-600 text-xs py-0.5 px-2 rounded-full">0</span>
                 </button>
             </div>
 
@@ -118,6 +121,62 @@
             <div id="tab-content-users" class="tab-content hidden">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="users-grid">
                     <!-- Cards injection -->
+                </div>
+            </div>
+
+            <!-- TAB: LICENSES -->
+            <div id="tab-content-licenses" class="tab-content hidden">
+                <!-- License Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="text-gray-400 text-[10px] font-bold uppercase">Totali</div>
+                        <div class="text-2xl font-black text-gray-800" id="lic-stat-total">0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="text-gray-400 text-[10px] font-bold uppercase">Attive</div>
+                        <div class="text-2xl font-black text-green-600" id="lic-stat-active">0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="text-gray-400 text-[10px] font-bold uppercase">Revocate</div>
+                        <div class="text-2xl font-black text-red-600" id="lic-stat-revoked">0</div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div class="text-gray-400 text-[10px] font-bold uppercase">In Scadenza (30gg)</div>
+                        <div class="text-2xl font-black text-amber-600" id="lic-stat-expiring">0</div>
+                    </div>
+                </div>
+
+                <!-- License Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b border-gray-100 bg-gray-50/30 flex flex-wrap gap-3 justify-between items-center">
+                        <div class="flex gap-2">
+                            <select id="filter-lic-status" onchange="loadLicenses()" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-bold">
+                                <option value="">TUTTE</option>
+                                <option value="active">ATTIVE</option>
+                                <option value="revoked">REVOCATE</option>
+                            </select>
+                        </div>
+                        <button onclick="loadLicenses()" class="text-xs text-indigo-600 font-bold hover:underline">🔄 Aggiorna</button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm" id="licenses-table">
+                            <thead class="bg-gray-50 text-[11px] uppercase text-gray-500 tracking-wider">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-bold">Email</th>
+                                    <th class="px-4 py-3 text-left font-bold">HWID</th>
+                                    <th class="px-4 py-3 text-left font-bold">Chiave</th>
+                                    <th class="px-4 py-3 text-left font-bold">Creata</th>
+                                    <th class="px-4 py-3 text-left font-bold">Scadenza</th>
+                                    <th class="px-4 py-3 text-left font-bold">Stato</th>
+                                    <th class="px-4 py-3 text-center font-bold">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody id="licenses-body" class="divide-y divide-gray-100">
+                                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Caricamento...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -203,8 +262,12 @@
     });
 
     async function loadData() {
-        await Promise.all([loadPlans(), loadUsers()]);
+        await Promise.all([loadPlans(), loadUsers(), loadLicenses()]);
         updateGlobalStats();
+    }
+
+    function loadStats() {
+        loadData();
     }
 
     async function loadPlans() {
@@ -500,10 +563,94 @@
                 resultDiv.innerText = data.key;
                 resultDiv.classList.remove('hidden');
                 broadcast_log("INFO", `Generata nuova licenza per ${email}`);
+                // Ricarica la lista licenze se visibile
+                loadLicenses();
             } else {
                 alert("Errore generazione: " + data.error);
             }
         } catch (e) { alert("Errore di rete."); }
+    }
+
+    // =========================================================================
+    // LICENSE MANAGEMENT
+    // =========================================================================
+
+    async function loadLicenses() {
+        const status = document.getElementById('filter-lic-status')?.value || '';
+        const tbody = document.getElementById('licenses-body');
+
+        try {
+            const url = status ? `/api/admin/licenses?status=${status}` : '/api/admin/licenses';
+            const resp = await fetch(url);
+            const data = await resp.json();
+
+            if (data.success) {
+                // Update stats
+                if (data.stats) {
+                    document.getElementById('lic-stat-total').innerText = data.stats.total || 0;
+                    document.getElementById('lic-stat-active').innerText = data.stats.active || 0;
+                    document.getElementById('lic-stat-revoked').innerText = data.stats.revoked || 0;
+                    document.getElementById('lic-stat-expiring').innerText = data.stats.expiring_soon || 0;
+                    document.getElementById('badge-licenses-count').innerText = data.stats.total || 0;
+                }
+
+                // Render table
+                if (!data.licenses || data.licenses.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Nessuna licenza trovata</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.licenses.map(lic => {
+                    const createdDate = lic.created_at ? new Date(lic.created_at).toLocaleDateString('it-IT') : '-';
+                    const expiresDate = lic.expires_at ? new Date(lic.expires_at).toLocaleDateString('it-IT') : 'Perpetua';
+                    const statusBadge = lic.status === 'active'
+                        ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">ATTIVA</span>'
+                        : '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">REVOCATA</span>';
+                    const shortHwid = lic.hwid ? lic.hwid.substring(0, 8) + '...' : '-';
+                    const shortKey = lic.license_key ? lic.license_key.substring(0, 12) + '...' : '-';
+
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium text-gray-900">${lic.email || '-'}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-gray-500">${shortHwid}</td>
+                            <td class="px-4 py-3 font-mono text-xs text-gray-500">${shortKey}</td>
+                            <td class="px-4 py-3 text-gray-500">${createdDate}</td>
+                            <td class="px-4 py-3 text-gray-500">${expiresDate}</td>
+                            <td class="px-4 py-3">${statusBadge}</td>
+                            <td class="px-4 py-3 text-center">
+                                ${lic.status === 'active' ?
+                                    `<button onclick="revokeLicense(${lic.id}, '${lic.email}')" class="text-red-600 hover:text-red-800 text-xs font-bold">Revoca</button>`
+                                    : '<span class="text-gray-400 text-xs">-</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-red-500">Errore caricamento licenze</td></tr>';
+        }
+    }
+
+    async function revokeLicense(licenseId, email) {
+        if (!confirm(`Confermi la revoca della licenza per ${email}? Questa azione è irreversibile.`)) {
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/admin/licenses/${licenseId}/revoke`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await resp.json();
+            if (data.success) {
+                broadcast_log("WARN", `Licenza revocata per ${email}`);
+                loadLicenses();
+            } else {
+                alert("Errore: " + data.error);
+            }
+        } catch (e) {
+            alert("Errore di connessione");
+        }
     }
 
     async function toggleKillswitch() {

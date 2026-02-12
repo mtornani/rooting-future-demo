@@ -1,9 +1,10 @@
 """
 Rooting Future Strategy Engine - Server-Side PDF Export
-Engine: wkhtmltopdf (Primary) with WeasyPrint fallback
+Engine Priority: Playwright/Chromium (PRIMARY) → wkhtmltopdf → WeasyPrint (FALLBACK)
 Design: Tactical Sports Report v3.0 (Anti-Crash Server Edition)
 
 CONSOLIDATO: Include funzionalità di export_pdf.py legacy
+ENGINE PRIORITY (FIX-008): Playwright/Chromium first (2-5s, best quality), then wkhtmltopdf, then WeasyPrint
 """
 
 import re
@@ -13,6 +14,14 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from bs4 import BeautifulSoup
 import weasyprint
+
+# Try to import Playwright (Chromium - BEST ENGINE)
+PLAYWRIGHT_AVAILABLE = False
+try:
+    from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    pass
 
 # Try to import pdfkit (wkhtmltopdf wrapper)
 try:
@@ -25,8 +34,15 @@ except ImportError:
 from export_core import BaseExporter
 from stw_matrix import generate_stw_matrix_html, get_stw_matrix_css
 from config import OUTPUT_DIR
+from domain.error_handling import ExportError
 
 logger = logging.getLogger(__name__)
+
+# Log engine availability
+if PLAYWRIGHT_AVAILABLE:
+    logger.info("✅ Playwright/Chromium disponibile (PRIMARY ENGINE - 2-5s)")
+else:
+    logger.warning("⚠️ Playwright non installato. Installa con: pip install playwright && playwright install chromium")
 
 # Auto-detect wkhtmltopdf path
 WKHTMLTOPDF_PATH = None
@@ -41,11 +57,11 @@ if PDFKIT_AVAILABLE:
     for path in possible_paths:
         if path and Path(path).exists():
             WKHTMLTOPDF_PATH = path
-            logger.info(f"✅ wkhtmltopdf found at: {path}")
+            logger.info(f"✅ wkhtmltopdf found at: {path} (SECONDARY ENGINE)")
             break
 
     if not WKHTMLTOPDF_PATH:
-        logger.warning("⚠️ pdfkit installed but wkhtmltopdf.exe not found. Falling back to WeasyPrint.")
+        logger.warning("⚠️ pdfkit installed but wkhtmltopdf.exe not found.")
         PDFKIT_AVAILABLE = False
 
 # =============================================================================
@@ -132,7 +148,13 @@ th {
 
 class PdfServerExporter(BaseExporter):
     """
-    Esporta piani strategici direttamente in PDF utilizzando WeasyPrint.
+    Esporta piani strategici direttamente in PDF con fallback chain multi-engine.
+
+    ENGINE PRIORITY (FIX-008):
+    1. Playwright/Chromium - FASTEST (2-5s), BEST quality, native Chrome rendering
+    2. wkhtmltopdf - FAST (5-10s), good quality, reliable
+    3. WeasyPrint - SLOW (60-120s), perfect @page CSS support, last resort
+
     Elimina la dipendenza da Paged.js e i problemi di rendering del browser.
     """
 
@@ -144,12 +166,16 @@ class PdfServerExporter(BaseExporter):
         metadata: Dict = None,
     ) -> Path:
         """
-        Genera il file PDF finale.
+        Genera il file PDF finale usando la fallback chain:
+        Playwright/Chromium → wkhtmltopdf → WeasyPrint
         """
+        import time
+        start_time = time.time()
+
         # Estrazione metadati e colori standardizzati
         meta = self._extract_metadata(metadata)
 
-        # Genera l'HTML con il CSS ottimizzato per WeasyPrint
+        # Genera l'HTML con il CSS ottimizzato
         html_content = self._generate_html(
             plan_data=plan_data, club_name=club_name, sources=sources or [], meta=meta
         )
@@ -158,46 +184,44 @@ class PdfServerExporter(BaseExporter):
         filename = self._get_safe_filename(club_name, "pdf", prefix="PianoStrategico")
         filepath = self.output_dir / filename
 
-        # Generazione PDF: Try WeasyPrint first (supports @page CSS), fallback to wkhtmltopdf
-        # WeasyPrint è più lento ma supporta correttamente CSS Paged Media
-        weasyprint_failed = False
+        # =================================================================
+        # ENGINE 1: Playwright/Chromium (PRIMARY - FASTEST & BEST QUALITY)
+        # =================================================================
+        if PLAYWRIGHT_AVAILABLE:
+            logger.info(f"🚀 Inizio generazione PDF per {club_name} via Playwright/Chromium (PRIMARY)...")
+            try:
+                with sync_playwright() as playwright:
+                    browser = playwright.chromium.launch(
+                        headless=True,
+                        args=['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage']
+                    )
+                    page = browser.new_page(viewport={'width': 1240, 'height': 1754})
+                    page.set_content(html_content, wait_until='networkidle', timeout=30000)
+                    page.wait_for_timeout(300)  # Wait for fonts
 
-        logger.info(f"🎨 Inizio generazione PDF per {club_name} via WeasyPrint (CSS Paged Media)...")
-        weasyprint_failed = False
+                    page.pdf(
+                        path=str(filepath),
+                        format='A4',
+                        margin={'top': '20mm', 'right': '15mm', 'bottom': '20mm', 'left': '15mm'},
+                        print_background=True,
+                        prefer_css_page_size=True,
+                    )
+                    browser.close()
 
-        try:
-            import threading
-            pdf_error = None
-
-            def generate_pdf():
-                nonlocal pdf_error
-                try:
-                    weasyprint.HTML(string=html_content).write_pdf(str(filepath))
-                except Exception as e:
-                    pdf_error = e
-
-            # Esegui con timeout di 2 minuti (120s)
-            pdf_thread = threading.Thread(target=generate_pdf, daemon=True)
-            pdf_thread.start()
-            pdf_thread.join(timeout=120)
-
-            if pdf_thread.is_alive():
-                logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 120s per {club_name}")
-                weasyprint_failed = True
-            elif pdf_error:
-                logger.error(f"❌ Errore WeasyPrint: {pdf_error}")
-                weasyprint_failed = True
-            else:
-                logger.info(f"✅ PDF generato con WeasyPrint: {filepath}")
+                elapsed = time.time() - start_time
+                logger.info(f"✅ PDF generato con Playwright/Chromium in {elapsed:.1f}s: {filepath}")
                 return filepath
 
-        except Exception as e:
-            logger.error(f"❌ WeasyPrint exception: {e}")
-            weasyprint_failed = True
+            except Exception as e:
+                logger.error(f"❌ Playwright/Chromium failed: {e}")
+                logger.info("Tentativo fallback con wkhtmltopdf...")
 
-        # Fallback: wkhtmltopdf (fast but doesn't support @page CSS perfectly)
-        if weasyprint_failed and PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
-            logger.warning(f"⚠️ Tentativo fallback con wkhtmltopdf per {club_name}...")
+        # =================================================================
+        # ENGINE 2: wkhtmltopdf (SECONDARY - FAST)
+        # =================================================================
+        wkhtmltopdf_failed = False
+        if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+            logger.info(f"🔄 Tentativo generazione PDF per {club_name} via wkhtmltopdf (SECONDARY)...")
             try:
                 config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
                 options = {
@@ -209,18 +233,57 @@ class PdfServerExporter(BaseExporter):
                     'encoding': 'UTF-8',
                     'enable-local-file-access': None,
                     'no-stop-slow-scripts': None,
-                    'javascript-delay': 1000,
+                    'javascript-delay': 500,
                     'load-error-handling': 'ignore',
                     'load-media-error-handling': 'ignore',
+                    'quiet': '',
                 }
                 pdfkit.from_string(html_content, str(filepath), configuration=config, options=options)
-                logger.info(f"✅ PDF generato con wkhtmltopdf (fallback): {filepath}")
-                return filepath
-            except Exception as e2:
-                logger.error(f"❌ wkhtmltopdf fallback failed: {e2}")
 
-        # Se arriviamo qui, entrambi i metodi sono falliti
-        raise Exception(f"❌ CRITICAL: Tutti i metodi PDF sono falliti per {club_name}. WeasyPrint e wkhtmltopdf non disponibili.")
+                elapsed = time.time() - start_time
+                logger.info(f"✅ PDF generato con wkhtmltopdf in {elapsed:.1f}s: {filepath}")
+                return filepath
+            except Exception as e:
+                logger.error(f"❌ wkhtmltopdf failed: {e}")
+                wkhtmltopdf_failed = True
+
+        # =================================================================
+        # ENGINE 3: WeasyPrint (FALLBACK - SLOW but reliable)
+        # =================================================================
+        if not PLAYWRIGHT_AVAILABLE and (wkhtmltopdf_failed or not PDFKIT_AVAILABLE):
+            logger.warning(f"⚠️ Tentativo fallback con WeasyPrint per {club_name} (lento)...")
+            try:
+                import threading
+                pdf_error = None
+
+                def generate_pdf():
+                    nonlocal pdf_error
+                    try:
+                        weasyprint.HTML(string=html_content).write_pdf(str(filepath))
+                    except Exception as e:
+                        pdf_error = e
+
+                pdf_thread = threading.Thread(target=generate_pdf, daemon=True)
+                pdf_thread.start()
+                pdf_thread.join(timeout=60)
+
+                if pdf_thread.is_alive():
+                    logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 60s per {club_name}")
+                elif pdf_error:
+                    logger.error(f"❌ Errore WeasyPrint: {pdf_error}")
+                else:
+                    elapsed = time.time() - start_time
+                    logger.info(f"✅ PDF generato con WeasyPrint (fallback) in {elapsed:.1f}s: {filepath}")
+                    return filepath
+
+            except Exception as e2:
+                logger.error(f"❌ WeasyPrint fallback failed: {e2}")
+
+        # Se arriviamo qui, tutti i metodi sono falliti
+        raise ExportError(
+            message=f"Tutti i metodi PDF sono falliti per {club_name}.",
+            details={"club_name": club_name, "engines_tried": ["playwright", "wkhtmltopdf", "weasyprint"]}
+        )
 
     def _generate_html(self, plan_data, club_name, sources, meta) -> str:
         # Colori dinamici
@@ -802,9 +865,10 @@ def _prepare_html_for_pdf(html_content: str) -> str:
 
 def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) -> bool:
     """
-    Genera un PDF da HTML usando WeasyPrint (legacy compatibility function).
+    Genera un PDF da HTML usando la fallback chain: Playwright → wkhtmltopdf → WeasyPrint.
 
     CONSOLIDATO da export_pdf.py - mantiene compatibilità con codice esistente.
+    AGGIORNATO (FIX-008): Playwright/Chromium come engine primario.
 
     Args:
         html_content: Contenuto HTML completo
@@ -814,21 +878,56 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
     Returns:
         True se il PDF è stato generato con successo
     """
+    import time
+    start_time = time.time()
+
     # Validazione input
     if not html_content or not isinstance(html_content, str):
         logger.error("html_content non valido")
         return False
 
     pdf_filename = Path(output_path) / f"{plan_name}.pdf"
-    logger.info(f"Generazione PDF legacy: {pdf_filename}")
+    logger.info(f"Generazione PDF: {pdf_filename}")
 
     # Pulisci HTML
     clean_html = _prepare_html_for_pdf(html_content)
 
-    # Try wkhtmltopdf first
+    # =================================================================
+    # ENGINE 1: Playwright/Chromium (PRIMARY - FASTEST & BEST)
+    # =================================================================
+    if PLAYWRIGHT_AVAILABLE:
+        try:
+            logger.info(f"🚀 Generazione PDF via Playwright/Chromium (PRIMARY)...")
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(
+                    headless=True,
+                    args=['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage']
+                )
+                page = browser.new_page(viewport={'width': 1240, 'height': 1754})
+                page.set_content(clean_html, wait_until='networkidle', timeout=30000)
+                page.wait_for_timeout(300)
+
+                page.pdf(
+                    path=str(pdf_filename),
+                    format='A4',
+                    margin={'top': '20mm', 'right': '15mm', 'bottom': '20mm', 'left': '15mm'},
+                    print_background=True,
+                )
+                browser.close()
+
+            if pdf_filename.exists() and pdf_filename.stat().st_size > 0:
+                elapsed = time.time() - start_time
+                logger.info(f"✅ PDF generato con Playwright/Chromium in {elapsed:.1f}s: {pdf_filename}")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Playwright/Chromium fallito: {e}. Tentativo wkhtmltopdf...")
+
+    # =================================================================
+    # ENGINE 2: wkhtmltopdf (SECONDARY)
+    # =================================================================
     if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
         try:
-            logger.info(f"🚀 Generazione PDF legacy via wkhtmltopdf...")
+            logger.info(f"🔄 Generazione PDF via wkhtmltopdf (SECONDARY)...")
             config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
             options = {
                 'page-size': 'A4',
@@ -842,13 +941,17 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
             pdfkit.from_string(clean_html, str(pdf_filename), configuration=config, options=options)
 
             if pdf_filename.exists() and pdf_filename.stat().st_size > 0:
-                logger.info(f"✅ PDF legacy generato con wkhtmltopdf: {pdf_filename} ({pdf_filename.stat().st_size} bytes)")
+                elapsed = time.time() - start_time
+                logger.info(f"✅ PDF generato con wkhtmltopdf in {elapsed:.1f}s: {pdf_filename}")
                 return True
         except Exception as e:
-            logger.error(f"❌ wkhtmltopdf legacy fallito: {e}. Fallback to WeasyPrint...")
+            logger.error(f"❌ wkhtmltopdf fallito: {e}. Tentativo WeasyPrint...")
 
-    # Fallback: WeasyPrint
+    # =================================================================
+    # ENGINE 3: WeasyPrint (FALLBACK - SLOW)
+    # =================================================================
     try:
+        logger.warning(f"⚠️ Tentativo fallback con WeasyPrint (lento)...")
         import threading
         pdf_error = None
         generation_success = False
@@ -863,22 +966,21 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
             except Exception as e:
                 pdf_error = e
 
-        # Esegui con timeout di 2 minuti (120s)
         pdf_thread = threading.Thread(target=generate_pdf_legacy, daemon=True)
         pdf_thread.start()
-        pdf_thread.join(timeout=120)
+        pdf_thread.join(timeout=60)
 
         if pdf_thread.is_alive():
-            logger.error(f"⏱️ TIMEOUT: WeasyPrint legacy bloccato dopo 120s")
+            logger.error(f"⏱️ TIMEOUT: WeasyPrint bloccato dopo 60s")
             return False
 
         if pdf_error:
             logger.error(f"Errore WeasyPrint: {pdf_error}", exc_info=True)
             return False
 
-        # Verifica
         if generation_success and pdf_filename.exists() and pdf_filename.stat().st_size > 0:
-            logger.info(f"PDF generato: {pdf_filename} ({pdf_filename.stat().st_size} bytes)")
+            elapsed = time.time() - start_time
+            logger.info(f"✅ PDF generato con WeasyPrint in {elapsed:.1f}s: {pdf_filename}")
             return True
         else:
             logger.error("PDF generato ma file vuoto o generazione fallita")
@@ -891,22 +993,31 @@ def create_pdf_from_html(html_content: str, output_path: str, plan_name: str) ->
 
 def get_pdf_generator_info() -> dict:
     """Restituisce info sul generatore PDF disponibile."""
-    if PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
+    # Determina engine primario in base a disponibilità
+    if PLAYWRIGHT_AVAILABLE:
+        engine = "Playwright/Chromium"
+        path = "ms-playwright/chromium"
+        performance = "FASTEST (2-5s per PDF, native Chrome rendering)"
+        preferred = "playwright"
+    elif PDFKIT_AVAILABLE and WKHTMLTOPDF_PATH:
         engine = "wkhtmltopdf"
         path = WKHTMLTOPDF_PATH
-        performance = "FAST (2-5s per PDF)"
+        performance = "FAST (5-10s per PDF)"
+        preferred = "wkhtmltopdf"
     else:
         engine = "WeasyPrint"
         path = "Python native"
         performance = "SLOW (30-120s per PDF, timeout protection enabled)"
+        preferred = "weasyprint"
 
     return {
         "engine": engine,
         "path": path,
         "performance": performance,
+        "playwright_available": PLAYWRIGHT_AVAILABLE,
         "pdfkit_installed": PDFKIT_AVAILABLE,
         "wkhtmltopdf_found": bool(WKHTMLTOPDF_PATH),
-        'weasyprint_available': True,
-        'xhtml2pdf_available': False,
-        'preferred': 'weasyprint'
+        "weasyprint_available": True,
+        "preferred": preferred,
+        "fallback_chain": ["Playwright/Chromium", "wkhtmltopdf", "WeasyPrint"]
     }

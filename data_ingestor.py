@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
+from domain.error_handling import StakeholderParsingError
 
 try:
     from docx import Document
@@ -77,8 +78,12 @@ class DocxIngestor:
     def __init__(self): pass
 
     def ingest_file(self, file_path, filename="") -> ExtractedDocxData:
-        if isinstance(file_path, io.BytesIO): doc = Document(file_path)
-        else: doc = Document(file_path); filename = filename or Path(file_path).name
+        try:
+            if isinstance(file_path, io.BytesIO): doc = Document(file_path)
+            else: doc = Document(file_path); filename = filename or Path(file_path).name
+        except Exception as e:
+            logger.error(f"Error loading DOCX file {filename}: {e}")
+            raise StakeholderParsingError(message=f"Impossibile leggere il file {filename}", details=str(e))
         
         name = "Membro Board"
         if filename:

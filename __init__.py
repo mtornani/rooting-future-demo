@@ -46,7 +46,6 @@ from .knowledge_store import (
 
 from .export_docx import (
     ProfessionalDocxExporter,
-    BatchDocxExporter,
 )
 
 from .export_html import (
@@ -90,7 +89,6 @@ __all__ = [
 
     # Export
     "ProfessionalDocxExporter",
-    "BatchDocxExporter",
     "ChunkedHTMLExporter",
 
     # Editor

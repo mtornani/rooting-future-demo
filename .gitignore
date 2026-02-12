@@ -46,3 +46,26 @@ demo_output/
 demo_manual/
 presentation_demo/
 live_demo/
+
+# PyInstaller build artifacts
+build/
+dist/
+release/
+*.spec
+
+# Coverage
+.coverage
+htmlcov/
+
+# Local config (user-specific)
+config.local.json
+requirements-local.txt
+
+# Windows artifacts
+nul
+*.bat
+!Avvia_Rooting_Future.bat
+
+# Test output
+test_*.txt
+test_*.bat

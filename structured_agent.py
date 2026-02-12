@@ -9,7 +9,7 @@ import os
 import json
 import re
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -30,7 +30,11 @@ from config import (
     MODEL_CONFIG,
     KNOWLEDGE_DIR,
     OUTPUT_DIR,
+    AI_PROVIDER,
+    OPENROUTER_API_KEY,
+    OPENROUTER_DEFAULT_MODEL,
 )
+from agents import OpenRouterClient, get_active_provider
 
 from data_models import (
     DataPoint, StructuredSection, StructuredPlan,
@@ -120,22 +124,37 @@ class StructuredAgent:
         self.template = SECTION_DATA_TEMPLATES.get(section_key, {})
         self.file_search_store_name = file_search_store_name
         self.model = None
+        self._provider = get_active_provider()
+        self._openrouter_client = None
 
-        # Setup Gemini con google-generativeai
-        api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if GENAI_AVAILABLE and api_key:
-            try:
-                genai.configure(api_key=api_key)
-                # Inizializza il modello senza tool di ricerca Google
-                # (l'API non supporta più google_search come tool)
-                self.model = genai.GenerativeModel(MODEL_CONFIG.name)
-                self.available = True
-            except Exception as e:
-                logger.error(f"Errore inizializzazione StructuredAgent: {e}")
+        if self._provider == "openrouter":
+            # --- OpenRouter provider ---
+            or_key = OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
+            or_model = os.getenv("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL)
+            if or_key:
+                try:
+                    self._openrouter_client = OpenRouterClient(api_key=or_key, model=or_model)
+                    self.available = self._openrouter_client.available
+                except Exception as e:
+                    logger.error(f"Errore init OpenRouter StructuredAgent: {e}")
+                    self.available = False
+            else:
                 self.available = False
+                logger.warning("OpenRouter API key mancante - agent will use mock data")
         else:
-            self.available = False
-            logger.warning("No Gemini API key or genai not available - agent will use mock data")
+            # --- Gemini provider (default) ---
+            api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if GENAI_AVAILABLE and api_key:
+                try:
+                    genai.configure(api_key=api_key)
+                    self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+                    self.available = True
+                except Exception as e:
+                    logger.error(f"Errore inizializzazione StructuredAgent: {e}")
+                    self.available = False
+            else:
+                self.available = False
+                logger.warning("No Gemini API key or genai not available - agent will use mock data")
 
     def generate(
         self,
@@ -396,11 +415,18 @@ REGOLE CRITICHE:
 '''
 
         try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(temperature=0.3)
-            )
-            text = response.text.strip()
+            # === OpenRouter path ===
+            if self._provider == "openrouter" and self._openrouter_client:
+                text = self._openrouter_client.generate_content(
+                    prompt, temperature=0.3, max_tokens=MODEL_CONFIG.max_tokens
+                ).strip()
+            else:
+                # === Gemini path ===
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(temperature=0.3)
+                )
+                text = response.text.strip()
 
             # Estrai JSON dalla risposta
             json_match = re.search(r'\{[\s\S]*\}', text)
@@ -413,15 +439,21 @@ REGOLE CRITICHE:
                 )
         except Exception as e:
             # Fallback: Se la generazione con strumenti fallisce, riprova senza
-            logger.warning(f"Errore generazione analisi con tool ({type(e).__name__}: {e}). Riprova senza tool...")
+            logger.warning(f"Errore generazione analisi ({type(e).__name__}: {e}). Riprova fallback...")
             try:
-                # Riprova SENZA tools
-                fallback_model = genai.GenerativeModel(MODEL_CONFIG.name) # No tools
-                response = fallback_model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(temperature=0.3)
-                )
-                text = response.text.strip()
+                if self._provider == "openrouter" and self._openrouter_client:
+                    # OpenRouter non ha fallback diverso, riprova
+                    text = self._openrouter_client.generate_content(
+                        prompt, temperature=0.3, max_tokens=MODEL_CONFIG.max_tokens
+                    ).strip()
+                else:
+                    # Riprova SENZA tools
+                    fallback_model = genai.GenerativeModel(MODEL_CONFIG.name)
+                    response = fallback_model.generate_content(
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(temperature=0.3)
+                    )
+                    text = response.text.strip()
 
                 # Estrai JSON dalla risposta
                 json_match = re.search(r'\{[\s\S]*\}', text)
@@ -528,18 +560,26 @@ class StructuredOrchestrator:
 
     def _init_agents(self):
         """Inizializza tutti gli agenti"""
+        # Rileggi api_key da env var per supportare cambio dinamico
+        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         for section_key in SECTION_DATA_TEMPLATES.keys():
             self.agents[section_key] = StructuredAgent(
-                section_key, 
+                section_key,
                 self.api_key,
                 file_search_store_name=self.file_search_store_name
             )
         logger.info(f"Initialized {len(self.agents)} structured agents (RAG enabled: {bool(self.file_search_store_name)})")
 
+    def reinit(self):
+        """Reinizializza tutti gli agenti (es. dopo cambio API key)."""
+        logger.info("Reinitializing structured agents...")
+        self._init_agents()
+
     def generate_plan(
         self,
         club_data: Dict,
-        research_data: Dict = None
+        research_data: Dict = None,
+        on_progress: Optional[Callable[[str, float], None]] = None
     ) -> StructuredPlan:
         """
         Genera piano strutturato completo.
@@ -549,10 +589,18 @@ class StructuredOrchestrator:
             club_name=club_data.get('club_name', 'Club'),
             category=club_data.get('category', 'Serie C')
         )
+        
+        total_sections = len(self.agents)
+        if on_progress:
+            on_progress("Avvio analisi scientifica strutturata...", 70)
 
         # Genera ogni sezione
-        for section_key, agent in self.agents.items():
+        for i, (section_key, agent) in enumerate(self.agents.items()):
             try:
+                if on_progress:
+                    progress = 70 + (i / total_sections) * 15
+                    on_progress(f"Analisi scientifica: {section_key}...", progress)
+                
                 # --- RAG CONTEXT FETCHING ---
                 rag_context = []
                 if self.knowledge_store:

@@ -13,8 +13,14 @@ from dataclasses import dataclass, field
 
 
 # =============================================================================
-# LOAD .env FILE
+# LOAD .env FILE AND config.local.json
 # =============================================================================
+
+import json
+import logging
+
+_config_logger = logging.getLogger(__name__)
+
 
 def load_dotenv():
     """Carica variabili da .env file"""
@@ -34,8 +40,57 @@ def load_dotenv():
                         value = value[1:-1]
                     os.environ.setdefault(key, value)
 
-# Carica .env all'import
-load_dotenv()
+
+def get_config_dir():
+    """Ritorna la directory per i file di configurazione utente.
+    Usa sempre la stessa cartella di config.py (_internal/ per exe)."""
+    return Path(__file__).parent
+
+
+def get_config_path():
+    """Ritorna il path per config.local.json"""
+    return get_config_dir() / "config.local.json"
+
+
+def load_local_config():
+    """Carica config.local.json se esiste (impostazioni salvate da Settings)"""
+    config_path = get_config_path()
+    print(f"[CONFIG] Looking for: {config_path}")
+
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                local_config = json.load(f)
+
+            # Mappa chiavi config.local.json → env vars
+            key_mapping = {
+                "gemini_api_key": "GEMINI_API_KEY",
+                "serper_api_key": "SERPER_API_KEY",
+                "tavily_api_key": "TAVILY_API_KEY",
+                "openrouter_api_key": "OPENROUTER_API_KEY",
+                "openrouter_model": "OPENROUTER_MODEL",
+                "ai_provider": "AI_PROVIDER",
+            }
+
+            loaded_keys = []
+            for config_key, env_key in key_mapping.items():
+                if config_key in local_config and local_config[config_key]:
+                    os.environ[env_key] = local_config[config_key]
+                    loaded_keys.append(config_key)
+
+            if loaded_keys:
+                print(f"[CONFIG] ✓ Loaded {len(loaded_keys)} keys: {loaded_keys}")
+            return True
+        except Exception as e:
+            print(f"[CONFIG] ✗ Failed to load: {e}")
+
+    print("[CONFIG] ✗ No config.local.json found")
+    return False
+
+
+# Carica all'import (ordine importante!)
+load_dotenv()       # Prima .env (valori base/development)
+load_local_config() # Poi config.local.json (sovrascrive con impostazioni utente)
 
 
 # =============================================================================
@@ -68,6 +123,12 @@ GEMINI_API_KEY = GOOGLE_API_KEY  # Alias per retrocompatibilità
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 
+# OpenRouter (provider AI alternativo - OpenAI-compatible)
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+
+# Provider AI attivo: "gemini" (default) o "openrouter"
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini")
+
 # STRIPE PAYMENTS
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_placeholder")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "sk_test_placeholder")
@@ -98,6 +159,21 @@ class ModelConfig:
 
 
 MODEL_CONFIG = ModelConfig()
+
+
+# Modelli OpenRouter consigliati (gratuiti o economici)
+OPENROUTER_MODELS = {
+    "google/gemini-2.0-flash-exp:free": "Gemini 2.0 Flash (free)",
+    "google/gemma-3-27b-it:free": "Google Gemma 3 27B (free)",
+    "deepseek/deepseek-chat-v3-0324:free": "DeepSeek V3 0324 (free)",
+    "meta-llama/llama-4-maverick:free": "Llama 4 Maverick (free)",
+    "qwen/qwen3-235b-a22b:free": "Qwen3 235B (free)",
+}
+
+# Modello OpenRouter di default
+OPENROUTER_DEFAULT_MODEL = os.environ.get(
+    "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
+)
 
 
 # =============================================================================

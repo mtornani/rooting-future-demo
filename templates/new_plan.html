@@ -17,6 +17,7 @@
             <a href="{{ url_for('plans_list') }}">Piani</a>
             <a href="{{ url_for('new_plan') }}" class="active">Nuovo Piano</a>
             <a href="{{ url_for('review_queue') }}">Coda Review</a>
+            <a href="{{ url_for('settings') }}" title="Impostazioni">⚙️</a>
         </div>
     </nav>
 
@@ -174,20 +175,54 @@
             </div>
         </form>
 
-        <!-- Progress Modal -->
+        <!-- Progress Modal (UX-001-B) -->
         <div id="progressModal" class="modal" style="display:none;">
-            <div class="modal-content">
-                <h2>Generazione in corso...</h2>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
+            <div class="modal-content progress-modal-content">
+                <div class="progress-header">
+                    <span class="progress-icon" id="progressIcon">🚀</span>
+                    <h2 id="progressTitle">Generazione in corso...</h2>
                 </div>
-                <p id="progressText">Inizializzazione...</p>
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="progress-percent" id="progressPercent">0%</span>
+                </div>
+                <p class="progress-message" id="progressText">Inizializzazione...</p>
                 <div class="progress-steps">
-                    <div class="step" id="step1">Ricerca Web</div>
-                    <div class="step" id="step2">Agenti AI</div>
-                    <div class="step" id="step3">Verifica Dati</div>
-                    <div class="step" id="step4">Assemblaggio</div>
+                    <div class="step" id="step-upload" data-step="upload">
+                        <span class="step-icon">📁</span>
+                        <span class="step-text">Dati ricevuti</span>
+                    </div>
+                    <div class="step" id="step-research" data-step="web_research">
+                        <span class="step-icon">🔍</span>
+                        <span class="step-text">Ricerca Web</span>
+                    </div>
+                    <div class="step" id="step-agents" data-step="agent_generation">
+                        <span class="step-icon">🤖</span>
+                        <span class="step-text">Agenti AI</span>
+                    </div>
+                    <div class="step" id="step-structured" data-step="structured_data">
+                        <span class="step-icon">📊</span>
+                        <span class="step-text">Dati Strutturati</span>
+                    </div>
+                    <div class="step" id="step-complete" data-step="complete">
+                        <span class="step-icon">🎉</span>
+                        <span class="step-text">Completato</span>
+                    </div>
                 </div>
+                <div class="progress-agents" id="agentsProgress" style="display:none;">
+                    <h4>Agenti AI</h4>
+                    <div class="agents-grid">
+                        <div class="agent-item" id="agent-sportivi">⚽ Sportivi</div>
+                        <div class="agent-item" id="agent-strutturali">🏗️ Strutturali</div>
+                        <div class="agent-item" id="agent-marketing">📢 Marketing</div>
+                        <div class="agent-item" id="agent-sociali">🤝 Sociali</div>
+                        <div class="agent-item" id="agent-financial">💰 Finanziario</div>
+                        <div class="agent-item" id="agent-coordinator">🎯 Coordinatore</div>
+                    </div>
+                </div>
+                <div class="progress-elapsed" id="elapsedTime">Tempo trascorso: 0s</div>
             </div>
         </div>
     </main>
@@ -249,7 +284,109 @@
         setupColorSync('primary_color', 'primary_color_hex');
         setupColorSync('secondary_color', 'secondary_color_hex');
 
-        // Invio form
+        // Progress tracking state
+        let sessionId = null;
+        let eventSource = null;
+        let startTime = null;
+        let elapsedInterval = null;
+
+        // Update progress UI from SSE data
+        function updateProgressUI(data) {
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressText = document.getElementById('progressText');
+            const progressIcon = document.getElementById('progressIcon');
+            const progressTitle = document.getElementById('progressTitle');
+            const agentsProgress = document.getElementById('agentsProgress');
+
+            // Update progress bar
+            progressFill.style.width = data.progress + '%';
+            progressPercent.textContent = Math.round(data.progress) + '%';
+
+            // Update message
+            if (data.message) {
+                progressText.textContent = data.message;
+            }
+
+            // Update steps
+            const stepOrder = ['upload', 'web_research', 'agent_generation', 'structured_data', 'complete'];
+            const currentStepIndex = stepOrder.indexOf(data.status);
+
+            stepOrder.forEach((step, index) => {
+                const stepEl = document.querySelector(`[data-step="${step}"]`);
+                if (stepEl) {
+                    stepEl.classList.remove('active', 'completed');
+                    if (index < currentStepIndex) {
+                        stepEl.classList.add('completed');
+                    } else if (index === currentStepIndex) {
+                        stepEl.classList.add('active');
+                    }
+                }
+            });
+
+            // Show agents progress during agent_generation
+            if (data.status === 'agent_generation' || data.status === 'processing') {
+                agentsProgress.style.display = 'block';
+                if (data.completed_sections) {
+                    data.completed_sections.forEach(section => {
+                        const agentEl = document.getElementById('agent-' + section.replace('stw_', ''));
+                        if (agentEl) agentEl.classList.add('completed');
+                    });
+                }
+            }
+
+            // Handle completion
+            if (data.status === 'completed') {
+                progressIcon.textContent = '🎉';
+                progressTitle.textContent = 'Piano Generato!';
+                progressText.textContent = 'Reindirizzamento...';
+                document.querySelectorAll('.step').forEach(s => s.classList.add('completed'));
+
+                if (data.plan_id) {
+                    setTimeout(() => {
+                        window.location.href = '/success/' + data.plan_id;
+                    }, 1500);
+                }
+            }
+
+            // Handle errors
+            if (data.status === 'error' || data.status === 'failed') {
+                progressIcon.textContent = '❌';
+                progressTitle.textContent = 'Errore';
+                progressText.textContent = data.message || 'Si è verificato un errore';
+                stopTracking();
+            }
+        }
+
+        // Start SSE connection
+        function startSSE(sessionId) {
+            eventSource = new EventSource('/api/progress/' + sessionId);
+
+            eventSource.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                updateProgressUI(data);
+            };
+
+            eventSource.onerror = function() {
+                console.log('SSE connection closed');
+                eventSource.close();
+            };
+        }
+
+        // Update elapsed time
+        function updateElapsedTime() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('elapsedTime').textContent = 'Tempo trascorso: ' + elapsed + 's';
+        }
+
+        // Stop tracking
+        function stopTracking() {
+            if (eventSource) eventSource.close();
+            if (elapsedInterval) clearInterval(elapsedInterval);
+        }
+
+        // Form submission
         document.getElementById('planForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -258,13 +395,17 @@
             const btnLoading = submitBtn.querySelector('.btn-loading');
             const modal = document.getElementById('progressModal');
 
-            // Disabilita form
+            // Disable form
             submitBtn.disabled = true;
             btnText.style.display = 'none';
             btnLoading.style.display = 'inline';
             modal.style.display = 'flex';
 
-            // Raccogli dati
+            // Start elapsed time counter
+            startTime = Date.now();
+            elapsedInterval = setInterval(updateElapsedTime, 1000);
+
+            // Collect form data
             const formData = new FormData(this);
             const data = {
                 club_name: formData.get('club_name'),
@@ -283,61 +424,31 @@
                     : [],
                 notes: formData.get('notes'),
                 enable_research: formData.get('enable_research') === 'on',
-                // Colori club per branding documenti
                 primary_color: formData.get('primary_color') || '#1a365d',
                 secondary_color: formData.get('secondary_color') || '#ffffff',
             };
 
-            // Simula progress
-            let progress = 0;
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-
-            const progressInterval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress > 95) progress = 95;
-                progressFill.style.width = progress + '%';
-
-                // Aggiorna steps
-                if (progress > 20) document.getElementById('step1').classList.add('active');
-                if (progress > 40) document.getElementById('step2').classList.add('active');
-                if (progress > 60) document.getElementById('step3').classList.add('active');
-                if (progress > 80) document.getElementById('step4').classList.add('active');
-
-                const texts = [
-                    'Ricerca informazioni sul club...',
-                    'Analisi competitor e benchmark...',
-                    'Generazione contenuti strategici...',
-                    'Verifica fonti e dati...',
-                    'Assemblaggio documento finale...',
-                ];
-                progressText.textContent = texts[Math.floor(progress / 20)] || texts[0];
-            }, 500);
-
             try {
                 const response = await fetch('/api/generate', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
 
-                clearInterval(progressInterval);
-                progressFill.style.width = '100%';
-
                 const result = await response.json();
 
-                if (result.success) {
-                    progressText.textContent = 'Piano generato con successo!';
-                    setTimeout(() => {
-                        window.location.href = '/success/' + result.plan_id;
-                    }, 1000);
+                if (result.session_id) {
+                    // Start SSE for real-time updates
+                    sessionId = result.session_id;
+                    startSSE(sessionId);
+                } else if (result.success && result.plan_id) {
+                    // Direct completion (fast generation)
+                    updateProgressUI({ status: 'completed', progress: 100, plan_id: result.plan_id });
                 } else {
-                    throw new Error(result.error || 'Errore sconosciuto');
+                    throw new Error(result.error || result.message || 'Errore sconosciuto');
                 }
             } catch (error) {
-                clearInterval(progressInterval);
+                stopTracking();
                 modal.style.display = 'none';
                 alert('Errore durante la generazione: ' + error.message);
                 submitBtn.disabled = false;

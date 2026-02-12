@@ -20,6 +20,7 @@ import logging
 import sqlite3
 import pickle
 from cryptography.fernet import Fernet
+from domain.error_handling import DatabaseError
 
 # =============================================================================
 # ENCRYPTION HELPER
@@ -297,6 +298,24 @@ class SQLiteKnowledgeStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_owner ON generation_sessions(owner_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_updated ON generation_sessions(updated_at DESC)")
 
+            # Licenses table for admin management
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS licenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    hwid TEXT NOT NULL,
+                    license_key TEXT NOT NULL,
+                    duration_days INTEGER,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT,
+                    status TEXT DEFAULT 'active',
+                    revoked_at TEXT,
+                    notes TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_licenses_email ON licenses(email)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status)")
+
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
@@ -555,73 +574,81 @@ class SQLiteKnowledgeStore:
 
     def get_plan(self, plan_id: str) -> Optional[PlanRecord]:
         """Recupera un piano per ID"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute("SELECT * FROM plans WHERE id = ?", (plan_id,)).fetchone()
-            
-            if row:
-                # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
-                decrypted_json = decrypt_data(row["plan_data"])
-                try:
-                    plan_data = json.loads(decrypted_json)
-                except:
-                    plan_data = {}
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute("SELECT * FROM plans WHERE id = ?", (plan_id,)).fetchone()
+                
+                if row:
+                    # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
+                    decrypted_json = decrypt_data(row["plan_data"])
+                    try:
+                        plan_data = json.loads(decrypted_json)
+                    except:
+                        plan_data = {}
 
-                return PlanRecord(
-                    id=row["id"],
-                    club_name=row["club_name"],
-                    category=row["category"],
-                    region=row["region"],
-                    status=row["status"],
-                    plan_data=plan_data,
-                    sources_count=row["sources_count"],
-                    credibility_score=row["credibility_score"],
-                    export_paths=json.loads(row["export_paths"]) if row["export_paths"] else [],
-                    notes=row["notes"],
-                    last_edited_by=row["last_edited_by"],
-                    owner_id=row["owner_id"],
-                    created_at=row["created_at"],
-                )
-        return None
+                    return PlanRecord(
+                        id=row["id"],
+                        club_name=row["club_name"],
+                        category=row["category"],
+                        region=row["region"],
+                        status=row["status"],
+                        plan_data=plan_data,
+                        sources_count=row["sources_count"],
+                        credibility_score=row["credibility_score"],
+                        export_paths=json.loads(row["export_paths"]) if row["export_paths"] else [],
+                        notes=row["notes"],
+                        last_edited_by=row["last_edited_by"],
+                        owner_id=row["owner_id"],
+                        created_at=row["created_at"],
+                    )
+            return None
+        except Exception as e:
+            logger.error(f"Database error in get_plan: {e}")
+            raise DatabaseError(message=f"Errore durante il recupero del piano {plan_id}", details=str(e))
 
     def save_plan(self, plan: PlanRecord, owner_id: int = None) -> str:
         """Salva piano strategico con cifratura del contenuto"""
-        with sqlite3.connect(self.db_path) as conn:
-            # Check if plan exists to preserve owner_id if not provided
-            existing_owner = None
-            if not owner_id:
-                row = conn.execute("SELECT owner_id FROM plans WHERE id = ?", (plan.id,)).fetchone()
-                if row:
-                    existing_owner = row[0]
-            
-            final_owner = owner_id if owner_id else existing_owner
-            
-            # CIFRATURA: Cifriamo il contenuto sensibile del piano
-            encrypted_plan_data = encrypt_data(json.dumps(plan.plan_data))
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Check if plan exists to preserve owner_id if not provided
+                existing_owner = None
+                if not owner_id:
+                    row = conn.execute("SELECT owner_id FROM plans WHERE id = ?", (plan.id,)).fetchone()
+                    if row:
+                        existing_owner = row[0]
+                
+                final_owner = owner_id if owner_id else existing_owner
+                
+                # CIFRATURA: Cifriamo il contenuto sensibile del piano
+                encrypted_plan_data = encrypt_data(json.dumps(plan.plan_data))
 
-            conn.execute("""
-                INSERT OR REPLACE INTO plans
-                (id, club_name, category, region, status, plan_data, sources_count,
-                 credibility_score, export_paths, notes, last_edited_by, owner_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                plan.id,
-                plan.club_name,
-                plan.category,
-                plan.region,
-                plan.status,
-                encrypted_plan_data,
-                plan.sources_count,
-                plan.credibility_score,
-                json.dumps(plan.export_paths),
-                plan.notes,
-                plan.last_edited_by,
-                final_owner,
-                plan.created_at,
-                datetime.now().isoformat(),
-            ))
-            conn.commit()
-        return plan.id
+                conn.execute("""
+                    INSERT OR REPLACE INTO plans
+                    (id, club_name, category, region, status, plan_data, sources_count,
+                     credibility_score, export_paths, notes, last_edited_by, owner_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    plan.id,
+                    plan.club_name,
+                    plan.category,
+                    plan.region,
+                    plan.status,
+                    encrypted_plan_data,
+                    plan.sources_count,
+                    plan.credibility_score,
+                    json.dumps(plan.export_paths),
+                    plan.notes,
+                    plan.last_edited_by,
+                    final_owner,
+                    plan.created_at,
+                    datetime.now().isoformat(),
+                ))
+                conn.commit()
+            return plan.id
+        except Exception as e:
+            logger.error(f"Database error in save_plan: {e}")
+            raise DatabaseError(message=f"Errore durante il salvataggio del piano {plan.id}", details=str(e))
 
         def list_plans(
 
@@ -1557,3 +1584,103 @@ class KnowledgeManager:
         except Exception as e:
             logger.error(f"Failed to delete session {session_id}: {e}")
             return False
+
+    # -------------------------------------------------------------------------
+    # LICENSE MANAGEMENT (Admin Panel)
+    # -------------------------------------------------------------------------
+
+    def save_license_record(
+        self,
+        email: str,
+        hwid: str,
+        license_key: str,
+        duration_days: int = None,
+        notes: str = None
+    ) -> int:
+        """
+        Salva un record di licenza generata nel database.
+        Usato dall'admin per tracciare le licenze emesse.
+        """
+        from datetime import datetime, timedelta
+
+        created_at = datetime.now().isoformat()
+        expires_at = None
+        if duration_days and duration_days > 0:
+            expires_at = (datetime.now() + timedelta(days=duration_days)).isoformat()
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    INSERT INTO licenses (email, hwid, license_key, duration_days, created_at, expires_at, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+                """, (email, hwid, license_key, duration_days, created_at, expires_at, notes))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            logger.error(f"Failed to save license record: {e}")
+            return None
+
+    def list_licenses(self, status: str = None, limit: int = 100) -> list:
+        """
+        Lista tutte le licenze. Filtra per status se specificato.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                if status:
+                    cursor = conn.execute(
+                        "SELECT * FROM licenses WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                        (status, limit)
+                    )
+                else:
+                    cursor = conn.execute(
+                        "SELECT * FROM licenses ORDER BY created_at DESC LIMIT ?",
+                        (limit,)
+                    )
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to list licenses: {e}")
+            return []
+
+    def revoke_license(self, license_id: int) -> bool:
+        """
+        Revoca una licenza (imposta status='revoked').
+        """
+        from datetime import datetime
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE licenses SET status = 'revoked', revoked_at = ? WHERE id = ?",
+                    (datetime.now().isoformat(), license_id)
+                )
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to revoke license {license_id}: {e}")
+            return False
+
+    def get_license_stats(self) -> dict:
+        """
+        Statistiche sulle licenze per dashboard admin.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                total = conn.execute("SELECT COUNT(*) FROM licenses").fetchone()[0]
+                active = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'active'").fetchone()[0]
+                revoked = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'revoked'").fetchone()[0]
+                # Licenze in scadenza nei prossimi 30 giorni
+                from datetime import datetime, timedelta
+                soon = (datetime.now() + timedelta(days=30)).isoformat()
+                expiring = conn.execute(
+                    "SELECT COUNT(*) FROM licenses WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < ?",
+                    (soon,)
+                ).fetchone()[0]
+                return {
+                    "total": total,
+                    "active": active,
+                    "revoked": revoked,
+                    "expiring_soon": expiring
+                }
+        except Exception as e:
+            logger.error(f"Failed to get license stats: {e}")
+            return {"total": 0, "active": 0, "revoked": 0, "expiring_soon": 0}

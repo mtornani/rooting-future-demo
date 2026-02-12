@@ -38,11 +38,95 @@ from config import (
     MODEL_CONFIG,
     AGENT_CONFIG,
     BENCHMARKS,
+    AI_PROVIDER,
+    OPENROUTER_API_KEY,
+    OPENROUTER_DEFAULT_MODEL,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
+from domain.error_handling import (
+    GeminiAPIError,
+    GeminiRateLimitError,
+    GeminiTimeoutError,
+    GenerationError,
+    AgentError,
+    handle_exception,
+    log_exception,
+)
+
+# Structured Logging (STAB-004)
+try:
+    from utils.logging_config import get_logger, log_agent_execution, timed_operation
+    struct_logger = get_logger("agents")
+except ImportError:
+    struct_logger = None
+    log_agent_execution = None
+    timed_operation = None
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# OPENROUTER CLIENT (compatibile OpenAI)
+# =============================================================================
+
+try:
+    from openai import OpenAI as _OpenAI
+    OPENAI_LIB_AVAILABLE = True
+except ImportError:
+    OPENAI_LIB_AVAILABLE = False
+    _OpenAI = None
+
+
+class OpenRouterClient:
+    """
+    Client per OpenRouter API (compatibile OpenAI).
+    Usa la libreria openai puntando a https://openrouter.ai/api/v1
+    """
+
+    def __init__(self, api_key: str = None, model: str = None):
+        self.api_key = api_key or OPENROUTER_API_KEY
+        self.model = model or OPENROUTER_DEFAULT_MODEL
+        self.available = False
+
+        if OPENAI_LIB_AVAILABLE and self.api_key:
+            try:
+                self.client = _OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=self.api_key,
+                )
+                self.available = True
+            except Exception as e:
+                logger.error(f"Errore inizializzazione OpenRouter client: {e}")
+        else:
+            if not OPENAI_LIB_AVAILABLE:
+                logger.warning("Libreria openai non installata. Installa con: pip install openai")
+
+    def generate_content(self, prompt: str, temperature: float = 0.7,
+                         max_tokens: int = 8192) -> str:
+        """
+        Genera contenuto tramite OpenRouter (interfaccia simile a Gemini).
+        Restituisce il testo della risposta.
+        """
+        if not self.available:
+            raise RuntimeError("OpenRouter client non disponibile")
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            extra_headers={
+                "HTTP-Referer": "https://rootingfuture.app",
+                "X-Title": "Rooting Future Strategy Engine",
+            },
+        )
+        return response.choices[0].message.content
+
+
+def get_active_provider() -> str:
+    """Restituisce il provider AI attivo corrente."""
+    return os.environ.get("AI_PROVIDER", AI_PROVIDER)
 
 
 # =============================================================================
@@ -110,17 +194,22 @@ class AsyncGeminiClient:
             Function result
 
         Raises:
-            Last exception if all retries fail
+            GeminiAPIError if all retries fail
         """
+        last_exception = None
         for attempt in range(max_retries):
             try:
                 self._check_rate_limit()
                 result = func()
                 return result
             except Exception as e:
+                last_exception = e
                 if attempt == max_retries - 1:
                     logger.error(f"All {max_retries} retries failed: {e}")
-                    raise
+                    raise GeminiAPIError(
+                        message=f"Gemini API failed after {max_retries} attempts: {str(e)}",
+                        details={"attempts": max_retries, "last_error": str(e)}
+                    ) from e
 
                 sleep_time = min(backoff_factor ** attempt, max_sleep)
                 logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {sleep_time:.1f}s...")
@@ -714,24 +803,44 @@ class StrategicAgent:
         self.file_search_store_name = file_search_store_name
         self.model = None
         self.cache = AICache() # Inizializza cache
+        self._provider = get_active_provider()  # "gemini" o "openrouter"
+        self._openrouter_client = None
 
-        api_key = GEMINI_API_KEY or os.environ.get("GOOGLE_API_KEY")
-        if GENAI_AVAILABLE and api_key:
-            try:
-                genai.configure(api_key=api_key)
-
-                # Inizializza il modello senza tool di ricerca Google
-                # (l'API non supporta più google_search come tool)
-                self.model = genai.GenerativeModel(MODEL_CONFIG.name)
-                self.available = True
-            except Exception as e:
-                logger.error(f"Errore durante l'inizializzazione del client Gemini: {e}")
+        if self._provider == "openrouter":
+            # --- OpenRouter provider ---
+            or_key = OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY", "")
+            or_model = os.environ.get("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL)
+            if or_key:
+                try:
+                    self._openrouter_client = OpenRouterClient(api_key=or_key, model=or_model)
+                    self.available = self._openrouter_client.available
+                    if self.available:
+                        logger.info(f"Agent {spec.name}: OpenRouter inizializzato (model={or_model})")
+                    else:
+                        logger.warning(f"Agent {spec.name}: OpenRouter client non disponibile")
+                except Exception as e:
+                    logger.error(f"Agent {spec.name}: Errore init OpenRouter: {e}")
+                    self.available = False
+            else:
+                self.available = False
+                logger.warning(f"Agent {spec.name}: OpenRouter API key mancante.")
+        else:
+            # --- Gemini provider (default) ---
+            # Priorità: env vars dinamiche prima del valore importato (statico)
+            api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or GEMINI_API_KEY
+            if GENAI_AVAILABLE and api_key:
+                try:
+                    genai.configure(api_key=api_key)
+                    self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+                    self.available = True
+                except Exception as e:
+                    logger.error(f"Errore durante l'inizializzazione del client Gemini: {e}")
+                    self.model = None
+                    self.available = False
+            else:
                 self.model = None
                 self.available = False
-        else:
-            self.model = None
-            self.available = False
-            logger.warning(f"Agent {spec.name}: Gemini non disponibile o API key mancante.")
+                logger.warning(f"Agent {spec.name}: Gemini non disponibile o API key mancante.")
 
     def _get_tone_directive(self, alignment_score: float, conflicts: list = None) -> str:
         """
@@ -839,7 +948,25 @@ e soggette a revisione post-allineamento.
             raw_content = cached_response
             citations = [] # Citations not cached/needed for replay
         else:
-            try:
+            # === OPENROUTER PATH ===
+            if self._provider == "openrouter" and self._openrouter_client:
+                try:
+                    logger.debug(f"Invio richiesta a OpenRouter per {self.spec.name}")
+                    raw_content = self._openrouter_client.generate_content(
+                        prompt_content,
+                        temperature=MODEL_CONFIG.temperature,
+                        max_tokens=MODEL_CONFIG.max_tokens,
+                    )
+                    citations = []
+                    self.cache.set(prompt_content, raw_content)
+                except Exception as e:
+                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_openrouter")
+                    log_exception(wrapped, context=f"agent_{self.spec.name}")
+                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+
+            # === GEMINI PATH (default) ===
+            else:
+              try:
                 logger.debug(f"Invio richiesta a Gemini per {self.spec.name}")
                 response = self.model.generate_content(
                     prompt_content,
@@ -850,11 +977,11 @@ e soggette a revisione post-allineamento.
                 )
                 raw_content = response.text
                 citations = []
-                
+
                 # Salva in cache
                 self.cache.set(prompt_content, raw_content)
 
-            except InvalidArgument as e:
+              except InvalidArgument as e:
                 # FALLBACK: Se errore 400 (spesso per tools non supportati/deprecati), riprova senza tools
                 if "google_search" in str(e) or "tool" in str(e) or "supported" in str(e):
                     logger.warning(f"Agent {self.spec.name} tool error (Fallback triggered): {e}")
@@ -874,15 +1001,25 @@ e soggette a revisione post-allineamento.
                         # Aggiungi nota al contenuto
                         raw_content += "\n\n*(Nota: Ricerca Google disabilitata per questa sezione a causa di restrizioni API)*"
                     except Exception as fallback_e:
-                        logger.error(f"Agent {self.spec.name} fallback failed: {fallback_e}")
-                        return {'content': f"Errore generazione (anche in fallback): {fallback_e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+                        err = AgentError(
+                            message=f"Agent {self.spec.name} fallback failed: {fallback_e}",
+                            details={"agent": self.spec.name, "fallback_error": str(fallback_e)}
+                        )
+                        log_exception(err, context=f"agent_{self.spec.name}")
+                        return {'content': err.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id}}
                 else:
-                    logger.error(f"Agent {self.spec.name} generation error (InvalidArgument): {e}")
-                    return {'content': f"Errore: {e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+                    err = AgentError(
+                        message=f"Agent {self.spec.name} InvalidArgument: {e}",
+                        details={"agent": self.spec.name, "error_type": "InvalidArgument"}
+                    )
+                    log_exception(err, context=f"agent_{self.spec.name}")
+                    return {'content': err.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id}}
 
-            except Exception as e:
-                logger.error(f"Agent {self.spec.name} generation error: {e}")
-                return {'content': f"Errore: {e}", 'sources': [], 'unverified_claims': [], 'metadata': {}}
+              except Exception as e:
+                # Map to appropriate error type
+                wrapped = handle_exception(e, context=f"agent_{self.spec.name}")
+                log_exception(wrapped, context=f"agent_{self.spec.name}")
+                return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
 
         cleaned = self._post_process(raw_content)
         content, sources, unverified = self.sourcer.process_content(cleaned, context=club_data.get('club_name', ''))
@@ -1071,11 +1208,17 @@ class MultiAgentOrchestrator:
             self.agents[role] = StrategicAgent(spec, file_search_store_name=self.file_search_store_name)
         logger.info(f"Initialized {len(self.agents)} agents (RAG learning enabled: {bool(self.file_search_store_name)})")
 
+    def reinit(self):
+        """Reinizializza tutti gli agenti (es. dopo cambio API key)."""
+        logger.info("Reinitializing all agents...")
+        self._init_agents()
+
     def generate_strategic_plan(
         self,
         club_data: Dict,
         research_data: Dict = None,
-        parallel: bool = True
+        parallel: bool = True,
+        on_progress: Optional[Callable[[str, float], None]] = None
     ) -> Dict[str, Any]:
         """
         Genera piano strategico completo.
@@ -1084,6 +1227,7 @@ class MultiAgentOrchestrator:
             club_data: Dati del club
             research_data: Dati da web research
             parallel: Se eseguire agenti in parallelo
+            on_progress: Callback opzionale (messaggio, progresso %)
 
         Returns:
             {
@@ -1095,24 +1239,32 @@ class MultiAgentOrchestrator:
         import time
 
         start_time = time.time()
-        logger.info(f"Generating strategic plan for: {club_data.get('club_name', 'Unknown')}")
+        club_name = club_data.get('club_name', 'Unknown')
+        logger.info(f"Generating strategic plan for: {club_name}")
+        
+        if on_progress:
+            on_progress(f"Avvio orchestrazione multi-agente per {club_name}...", 10)
 
         if parallel and AGENT_CONFIG.parallel_execution:
-            result = self._generate_parallel(club_data, research_data)
+            result = self._generate_parallel(club_data, research_data, on_progress=on_progress)
         else:
-            result = self._generate_sequential(club_data, research_data)
+            result = self._generate_sequential(club_data, research_data, on_progress=on_progress)
 
         # Aggiungi timing totale al metadata
         total_time = time.time() - start_time
         result['metadata']['total_generation_time'] = round(total_time, 2)
         logger.info(f"Plan generation completed in {total_time:.2f}s")
+        
+        if on_progress:
+            on_progress("Generazione multi-agente completata.", 70)
 
         return result
 
     def _generate_sequential(
         self,
         club_data: Dict,
-        research_data: Dict = None
+        research_data: Dict = None,
+        on_progress: Optional[Callable[[str, float], None]] = None
     ) -> Dict[str, Any]:
         """Esecuzione sequenziale agenti"""
         import time
@@ -1128,9 +1280,15 @@ class MultiAgentOrchestrator:
             key=lambda x: AGENT_SPECS[x[0]].priority
         )
 
+        total_agents = len(sorted_agents)
+
         # Esegui agenti specializzati
-        for role, agent in sorted_agents:
+        for i, (role, agent) in enumerate(sorted_agents):
             agent_start = time.time()
+            if on_progress:
+                progress = 10 + (i / total_agents) * 50
+                on_progress(f"Esecuzione agente: {agent.spec.name}...", progress)
+            
             logger.info(f"Running agent: {agent.spec.name}")
             
             # --- RAG CONTEXT FETCHING ---
@@ -1160,6 +1318,15 @@ class MultiAgentOrchestrator:
             agent_timings[agent.spec.name] = round(agent_time, 2)
             logger.info(f"Agent {agent.spec.name} completed in {agent_time:.2f}s")
 
+            # Structured logging (STAB-004)
+            if log_agent_execution:
+                log_agent_execution(
+                    agent_name=agent.spec.name,
+                    plan_id=club_data.get("plan_id", "unknown"),
+                    duration_seconds=agent_time,
+                    success="error_id" not in output.get("metadata", {})
+                )
+
             results[role.value] = output['content']
             all_sources.extend(output.get('sources', []))
             all_unverified.extend(output.get('unverified_claims', []))
@@ -1177,6 +1344,7 @@ class MultiAgentOrchestrator:
         logger.info(f"Coordinator completed in {coord_time:.2f}s")
 
         results['executive_summary'] = coord_output['content']
+        results['coordinator_summary'] = coord_output['content']  # Anche come sintesi strategica
         all_sources.extend(coord_output.get('sources', []))
 
         # Calcola stime finanziarie con sistema Tier 1/2/3
@@ -1215,7 +1383,8 @@ class MultiAgentOrchestrator:
     def _generate_parallel(
         self,
         club_data: Dict,
-        research_data: Dict = None
+        research_data: Dict = None,
+        on_progress: Optional[Callable[[str, float], None]] = None
     ) -> Dict[str, Any]:
         """
         Esecuzione parallela agenti usando ThreadPoolExecutor (OPT-002).
@@ -1225,6 +1394,12 @@ class MultiAgentOrchestrator:
 
         agent_timings = {}
         parallel_start = time.time()
+        
+        # Lock per aggiornamento thread-safe dei progressi
+        import threading
+        progress_lock = threading.Lock()
+        completed_count = [0]
+        total_parallel = len([r for r in self.agents if r != AgentRole.COORDINATOR])
 
         def make_agent_task(role: AgentRole, agent: StrategicAgent):
             """Create a closure that captures role and agent for parallel execution"""
@@ -1254,6 +1429,23 @@ class MultiAgentOrchestrator:
                 agent_time = time.time() - agent_start
                 agent_timings[agent.spec.name] = round(agent_time, 2)
                 logger.info(f"Agent {agent.spec.name} completed in {agent_time:.2f}s")
+                
+                # Update progress
+                if on_progress:
+                    with progress_lock:
+                        completed_count[0] += 1
+                        current_progress = 10 + (completed_count[0] / total_parallel) * 50
+                        on_progress(f"Agente {agent.spec.name} completato.", current_progress)
+
+                # Structured logging (STAB-004)
+                if log_agent_execution:
+                    log_agent_execution(
+                        agent_name=agent.spec.name,
+                        plan_id=club_data.get("plan_id", "unknown"),
+                        duration_seconds=agent_time,
+                        success="error_id" not in output.get("metadata", {})
+                    )
+
                 return (role.value, output)
             return task
 
@@ -1277,8 +1469,12 @@ class MultiAgentOrchestrator:
                 self.async_client.execute_parallel(tasks, task_names, timeout=300)
             )
         except Exception as e:
-            logger.error(f"Fatal error in parallel execution: {e}")
-            results_list = [Exception(f"Execution failed: {e}") for _ in tasks]
+            err = GenerationError(
+                message=f"Fatal error in parallel execution: {e}",
+                details={"parallel_tasks": task_names, "error": str(e)}
+            )
+            log_exception(err, context="parallel_execution")
+            results_list = [Exception(err.user_message) for _ in tasks]
         finally:
             loop.close()
 
@@ -1314,6 +1510,7 @@ class MultiAgentOrchestrator:
         logger.info(f"Coordinator completed in {coord_time:.2f}s")
 
         plan['executive_summary'] = coord_output['content']
+        plan['coordinator_summary'] = coord_output['content']  # Anche come sintesi strategica
         all_sources.extend(coord_output.get('sources', []))
 
         # Calcola stime finanziarie con sistema Tier 1/2/3
