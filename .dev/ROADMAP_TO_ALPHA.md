@@ -5,20 +5,50 @@
 
 ---
 
-## 📊 Stato Attuale (Post REF-006)
+## 📊 Stato Attuale (2026-01-29 Post BUILD Phase)
 
 ```
-✅ Codebase pulito (~20k LOC, -50%)
+✅ Codebase pulito (~20k LOC → 5.5k LOC dopo refactoring)
 ✅ Performance ottimizzate (OPT-001, OPT-002, OPT-003)
-✅ Architettura modulare (REF-001 → REF-006)
+✅ Architettura modulare (REF-001 → REF-004)
+✅ WebApp piano strategico (REF-004) con navigazione, search, collapsible sections
+✅ Content formatting avanzato (UX-001) - markdown parser, styled lists, badges
+✅ Public plan sharing (FEAT-008) - UUID tokens, password protection, analytics
+✅ Structured sections popolate (FIX-005) - 7 sezioni con data points scientifici
+✅ PDF Engine Playwright/Chromium (FIX-008) - 1.3s generation, perfetto CSS rendering
 
-⚠️ Mancano ancora:
-- Testing automatico (0% coverage)
-- Error handling robusto
-- Validazione input utente
-- Logging strutturato
-- UI/UX polish
-- Build process affidabile
+Stato LOC: ~7,400 LOC (aggiornato 2026-01-29)
+
+✅ Completato Fase STAB (Stabilità):
+- STAB-001: Test Suite Foundation - 41 tests, pytest coverage attivo
+- STAB-002: Error Handling System - 20+ exception classes, user-friendly messages
+- STAB-003: Input Validation Layer - Pydantic validators, file upload checks
+- STAB-004: Structured Logging - structlog JSON/console, sensitive data censoring
+
+✅ Completato UX Polish:
+- UX-001: Content formatting (markdown → HTML styled)
+- UX-001-B: Loading States & Progress - SSE streaming, real-time feedback, agent grid
+- UX-002: Confidence Tooltip - Interactive tooltips per Affidabilità
+- FIX-006/007/008: PDF improvements (webapp-first, engine priority, Playwright)
+
+✅ Completato BUILD Phase:
+- BUILD-001: PyInstaller EXE (373 MB) - Flask server starts correctly
+- BUILD-002: Installer script (Inno Setup) + Release ZIP (138 MB)
+- BUILD-003: Documentation (README_ALPHA.md, LEGGIMI_ALPHA.md)
+- EXTRA: License Key Generator Tool (LicenseKeyGen.exe - 10 MB standalone)
+
+**Progresso verso Alpha:** 100% completato ✅
+- ✅ Core functionality (100%)
+- ✅ WebApp interface (100%)
+- ✅ Export layer (100%)
+- ✅ Public sharing (100%)
+- ✅ Content formatting (100%)
+- ✅ Stability (100%) - STAB-001 → STAB-004 completati
+- ✅ UX polish (100%) - UX-001, UX-001-B, UX-002 completati
+- ✅ Build system (100%) - BUILD-001 → BUILD-003 completati
+- ✅ Testing (100%) - 41 tests passing
+
+🎉 ALPHA RELEASE READY - RootingFuture_v6.0.0-alpha.zip (138 MB)
 ```
 
 ---
@@ -197,10 +227,41 @@ logger.info(
 
 ---
 
+---
+
+## ✅ Task Completati (2026-01-23 → 2026-01-26)
+
+### REF-004: WebApp Piano Strategico ✅ COMPLETED
+**Completed:** 2026-01-26 | **LOC:** +860
+- Created `/view/<plan_id>` route as primary interface
+- Interactive webapp with sidebar nav, collapsible sections, search
+- Replaced PDF as primary output (PDF now optional download)
+- Responsive design (desktop/tablet/mobile)
+
+### UX-001: Content Formatting & Readability ✅ COMPLETED
+**Completed:** 2026-01-26 | **LOC:** +396
+- Created ContentFormatter class for markdown → HTML conversion
+- Enhanced CSS with styled lists, priority headers, badges, tables
+- Integrated into `/view` route for automatic formatting
+- Fixed "wall of text" problem - content now scannable
+
+### FEAT-008: Public Plan Sharing ✅ COMPLETED
+**Completed:** 2026-01-26 | **LOC:** +1,046
+- ShareManager class with UUID tokens + expiration
+- Routes: POST /share, GET /public/<token>, revoke API
+- Public viewer template (no login required)
+- Share modal UI in webapp with password, download permissions
+- Use case: Share with external stakeholders (presidents, investors)
+
+**Total completed this session:** +2,302 LOC
+
+---
+
 ### **PHASE 2: UX/UI Polish** (1 settimana)
 
-#### UX-001: Loading States & Progress
+#### UX-001-B: Loading States & Progress (spec da implementare)
 **Priority:** HIGH | **Estimate:** 2 giorni
+**Note:** UX-001 spec esiste ma si riferisce a loading states, non content formatting che è già completato
 
 ```html
 <!-- Current: Generic "Generazione in corso..." -->
@@ -622,16 +683,22 @@ Durata: 1 settimana
 
 ---
 
-## 📅 **Timeline Completa**
+## 📅 **Timeline Aggiornata (2026-01-26)**
 
 ```
-✅ DONE: REF-001 → REF-006 (3 settimane)
+✅ DONE: Optimization + Refactoring (2026-01-23 → 01-26)
+│  - OPT-001: SQLite indexing + WAL
+│  - OPT-002: Real async execution
+│  - OPT-003: Export unification
+│  - REF-004: WebApp piano strategico
+│  - UX-001: Content formatting
+│  - FEAT-008: Public sharing
 │
-├─ Week 1-2: STAB-001 → STAB-004 (stabilità)
-│  └─ Deliverable: Test suite + error handling
+├─ Week 1-2: STAB-001 → STAB-004 (stabilità) ⏳ NEXT
+│  └─ Deliverable: Test suite (>60% coverage) + error handling + validation
 │
-├─ Week 3: UX-001 → UX-004 (polish)
-│  └─ Deliverable: Professional UI/UX
+├─ Week 3: UX-001-B → UX-004 (polish remaining)
+│  └─ Deliverable: Loading states + error messages + form validation
 │
 ├─ Week 4: BUILD-001 → BUILD-003 (build)
 │  └─ Deliverable: RootingFuture_Setup_v0.1.0_alpha.exe
@@ -640,9 +707,19 @@ Durata: 1 settimana
    └─ Deliverable: Feedback → iterate
 ```
 
-**Total: ~6-7 settimane da oggi**
+**Rimangono: ~5 settimane da oggi (2026-01-26)**
 
-**Target Alpha Release:** Metà Marzo 2026
+**Target Alpha Release:** Fine Febbraio / Inizio Marzo 2026
+
+**Progresso verso Alpha:** ~40% completato
+- ✅ Core functionality (100%)
+- ✅ WebApp interface (100%)
+- ✅ Export layer (100%)
+- ✅ Public sharing (100%)
+- ⏳ Stability (0%) ← PROSSIMO
+- ⏳ UX polish (25% - content formatting done)
+- ⏳ Build system (0%)
+- ⏳ Testing (0%)
 
 ---
 
@@ -693,18 +770,58 @@ Durata: 1 settimana
 
 ---
 
-## 📝 **TL;DR - Prossimi Step**
+## 📝 **TL;DR - Prossimi Step (Aggiornato 2026-01-26)**
 
-Dopo REF-006:
+Situazione attuale:
+- ✅ WebApp completa e responsive
+- ✅ Content formatting professionale
+- ✅ Public sharing funzionante
+- ✅ Export multi-formato (PDF/DOCX/OnePager)
+- ✅ RAG learning attivo
 
-1. ✅ **STAB-002**: Error handling (2 giorni) ← START HERE
-2. ✅ **STAB-001**: Test suite (4 giorni)
-3. ✅ **UX-002**: User-friendly errors (1 giorno)
-4. ✅ **BUILD-001**: PyInstaller EXE (2 giorni)
-5. ✅ **Alpha test** con 3-5 persone
+**Prossimi task critici per ALPHA:**
 
-**Total: 2-3 settimane → ALPHA DISTRIBUIBILE**
+1. **STAB-002**: Error handling robusto (2 giorni) ← START HERE
+   - Wrap OGNI chiamata esterna (Gemini, PDF, DOCX, DB)
+   - User-friendly error messages
+   - Fallback graceful per ogni failure
+
+2. **STAB-001**: Test suite foundation (4 giorni)
+   - Pytest con >60% coverage
+   - Test end-to-end plan generation
+   - Test export formats
+   - Test public sharing
+
+3. **STAB-003**: Input validation (2 giorni)
+   - Pydantic validators per tutti gli endpoint
+   - File upload limits e format checks
+   - Sanitize user inputs
+
+4. **UX-001-B**: Loading states & progress (2 giorni)
+   - SSE real-time updates durante generation
+   - Progress bar granulare per agent
+   - "Analyzing stakeholder 3/5..."
+
+5. **BUILD-001**: PyInstaller EXE (2 giorni)
+   - Single EXE distribuibile Windows
+   - Test su PC pulito
+   - Include tutti assets e templates
+
+**Total: 2.5 settimane → ALPHA DISTRIBUIBILE**
+
+**Target:** Fine Febbraio 2026
 
 ---
 
-Vuoi che creiamo task file per STAB-001/002? Oppure preferisci finire prima REF-002 → REF-006?
+## 🎯 Raccomandazione Immediata
+
+**Inizia con STAB-002** (Error Handling):
+- Più critico per alpha distribuibile
+- Evita brutte figure con clienti beta
+- Quick win (2 giorni)
+- Poi STAB-001 per catch bugs prima del rilascio
+
+**Perché non UX polish prima?**
+- App che crasha > app con loading lento
+- Stabilità prima, estetica dopo
+- Ma... webapp già professionale grazie a UX-001! ✅
