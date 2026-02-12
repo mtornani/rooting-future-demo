@@ -69,3 +69,4 @@ nul
 # Test output
 test_*.txt
 test_*.bat
+.claude/
