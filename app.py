@@ -750,6 +750,39 @@ def check_system_lockout():
 # =============================================================================
 
 
+@app.route("/setup-admin")
+def setup_admin():
+    """Endpoint temporaneo per creare l'admin su HF Spaces"""
+    from flask_bcrypt import Bcrypt
+    bcrypt = Bcrypt(app)
+
+    admin_email = 'mirkotornani@gmail.com'
+    admin_password = 'admin'
+
+    try:
+        existing = knowledge_manager.store.get_user_by_email(admin_email)
+        if existing:
+            return jsonify({
+                "status": "exists",
+                "message": f"Admin {admin_email} already exists with id {existing['id']}",
+                "hint": "Try logging in with password: admin"
+            })
+
+        pw_hash = bcrypt.generate_password_hash(admin_password).decode('utf-8')
+        knowledge_manager.store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
+        user = knowledge_manager.store.get_user_by_email(admin_email)
+        if user:
+            knowledge_manager.store.update_user_credits(user['id'], 100)
+
+        return jsonify({
+            "status": "created",
+            "message": f"Admin created: {admin_email} / {admin_password}",
+            "user_id": user['id'] if user else None
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/")
 @login_required
 def index():
