@@ -4,13 +4,17 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for WeasyPrint and document processing
+# Install system dependencies for WeasyPrint, pycairo and document processing
 RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     shared-mime-info \
+    # Build dependencies for pycairo
+    gcc \
+    pkg-config \
+    libcairo2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching
