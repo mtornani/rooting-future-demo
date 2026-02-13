@@ -223,9 +223,16 @@ from data_ingestor import (
     DOCX_AVAILABLE,
 )
 
-# Authentication
-from auth_manager import init_auth
-from flask_login import login_required, current_user
+# Authentication (Simple session-based for HF Spaces compatibility)
+from simple_auth import init_auth, login_required, get_current_user
+
+# Create a property-like access for current_user
+class CurrentUserProxy:
+    """Proxy to get current user on each access"""
+    def __getattr__(self, name):
+        return getattr(get_current_user(), name)
+
+current_user = CurrentUserProxy()
 
 
 # =============================================================================
