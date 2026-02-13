@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ review.club_name }} - Piano Strategico</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- html2pdf.js per generazione PDF lato client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <nav class="navbar">
@@ -210,6 +212,30 @@
         const planId = '{{ review.plan_id }}';
         let currentEditSection = null;
         let currentRegenSection = null;
+
+        // Toast notification helper
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 15px 25px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
 
         function toggleContent(sectionId) {
             const preview = document.querySelector(`#content-${sectionId} .content-preview`);
@@ -428,23 +454,69 @@
             window.location.href = `/api/export/${planId}/html`;
         }
 
-        // Scarica PDF professionale (lato server via WeasyPrint)
+        // Scarica PDF professionale (generazione lato client con html2pdf.js)
         async function exportPdf() {
             const btn = event.target;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generazione...';
+            btn.innerHTML = '⏳ Caricamento HTML...';
             btn.disabled = true;
 
             try {
-                window.location.href = `/api/export/${planId}/pdf`;
-                // Notiamo: window.location.href non blocca l'esecuzione ma non ci dà callback
-                // Per un feedback migliore potremmo usare fetch e blob, ma per ora va bene così
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }, 3000);
+                // Fetch the full HTML view from server
+                const response = await fetch(`/view/${planId}`);
+                if (!response.ok) throw new Error('Errore caricamento piano');
+
+                const htmlContent = await response.text();
+
+                // Create a temporary container
+                const container = document.createElement('div');
+                container.innerHTML = htmlContent;
+
+                // Extract just the main content (body or main element)
+                let contentElement = container.querySelector('main') || container.querySelector('body') || container;
+
+                // Create a wrapper with proper styling for PDF
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = contentElement.innerHTML;
+                wrapper.style.cssText = 'padding: 20px; font-family: Arial, sans-serif; background: white;';
+
+                // Temporarily add to DOM (required by html2pdf)
+                wrapper.style.position = 'absolute';
+                wrapper.style.left = '-9999px';
+                document.body.appendChild(wrapper);
+
+                btn.innerHTML = '⏳ Generazione PDF...';
+
+                // Configure html2pdf options
+                const opt = {
+                    margin: [10, 10, 10, 10],
+                    filename: `Piano_Strategico_${planId}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false
+                    },
+                    jsPDF: {
+                        unit: 'mm',
+                        format: 'a4',
+                        orientation: 'portrait'
+                    },
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                // Generate PDF
+                await html2pdf().set(opt).from(wrapper).save();
+
+                // Cleanup
+                document.body.removeChild(wrapper);
+
+                showToast('PDF generato con successo!', 'success');
+
             } catch (e) {
-                alert('Errore: ' + e.message);
+                console.error('Errore generazione PDF:', e);
+                alert('Errore generazione PDF: ' + e.message + '\n\nSuggerimento: Usa "Completo" per aprire l\'HTML e stampalo come PDF dal browser.');
+            } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
