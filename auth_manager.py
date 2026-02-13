@@ -64,17 +64,17 @@ def init_auth(app, store):
     login_manager.login_view = 'auth.login'
     app.register_blueprint(auth_bp)
 
-    # Create default admin if not exists (with race condition handling for multi-worker)
+    # Create default admin if not exists (with app_context for proper bcrypt init)
     admin_email = 'mirkotornani@gmail.com'
     try:
-        if not store.get_user_by_email(admin_email):
-            pw_hash = bcrypt.generate_password_hash('admin').decode('utf-8')
-            store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
-            # Dai crediti infiniti/alti all'admin per i test
-            user = store.get_user_by_email(admin_email)
-            if user:
-                store.update_user_credits(user['id'], 100)
-            print(f"Created default admin: {admin_email} / admin with 100 credits")
+        with app.app_context():
+            if not store.get_user_by_email(admin_email):
+                pw_hash = bcrypt.generate_password_hash('admin').decode('utf-8')
+                store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
+                user = store.get_user_by_email(admin_email)
+                if user:
+                    store.update_user_credits(user['id'], 100)
+                print(f"Created default admin: {admin_email} / admin with 100 credits")
     except Exception as e:
-        # Race condition: another worker already created the admin
+        # Race condition or other error
         print(f"Admin user already exists or creation skipped: {e}")
