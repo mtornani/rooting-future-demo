@@ -230,7 +230,17 @@ from simple_auth import init_auth, login_required, get_current_user
 class CurrentUserProxy:
     """Proxy to get current user on each access"""
     def __getattr__(self, name):
-        return getattr(get_current_user(), name)
+        user = get_current_user()
+        return getattr(user, name)
+
+    def __bool__(self):
+        return get_current_user().is_authenticated
+
+    def __repr__(self):
+        user = get_current_user()
+        if user.is_authenticated:
+            return f"<User {user.email}>"
+        return "<AnonymousUser>"
 
 current_user = CurrentUserProxy()
 
@@ -362,14 +372,13 @@ def activation():
             licenser.save_license(email, key, duration_days=duration_days)
 
             # Auto-creazione utente se non esiste
-            from auth_manager import bcrypt, User
-            from flask_login import login_user
+            from simple_auth import hash_password, SimpleUser, login_user
 
             existing_user = knowledge_manager.store.get_user_by_email(email)
             if not existing_user:
                 # Genera password temporanea basata su parte della license key
                 temp_password = key[:8]  # Primi 8 caratteri della chiave
-                password_hash = bcrypt.generate_password_hash(temp_password).decode('utf-8')
+                password_hash = hash_password(temp_password)
 
                 # Crea utente con ruolo 'manager' e crediti iniziali
                 user_id = knowledge_manager.store.create_user(
@@ -388,7 +397,7 @@ def activation():
 
             # Auto-login dell'utente
             if existing_user:
-                user = User(existing_user)
+                user = SimpleUser(existing_user)
                 login_user(user)
 
             flash("Sistema Attivato con Successo!", "success")
@@ -1285,9 +1294,9 @@ def api_admin_create_user():
         return jsonify({"success": False, "error": "Utente già esistente"}), 400
 
     # Crea
-    from auth_manager import bcrypt
+    from simple_auth import hash_password
 
-    pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+    pw_hash = hash_password(password)
     user_id = knowledge_manager.store.create_user(
         email, pw_hash, full_name, role="user"
     )
