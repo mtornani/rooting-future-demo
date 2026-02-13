@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Impostazioni - Rooting Future</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 28px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-link {
+            color: #818cf8;
+            text-decoration: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 25px 30px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-desc {
+            color: #94a3b8;
+            font-size: 14px;
+            margin: 0 0 20px 0;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            padding-right: 50px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #6a0dad;
+        }
+
+        .toggle-visibility {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 16px;
+        }
+        .toggle-visibility:hover {
+            color: #94a3b8;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6a0dad, #4f46e5);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(106, 13, 173, 0.5);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #334155;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 25px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+        }
+
+        .status-warning {
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .help-text a {
+            color: #818cf8;
+            text-decoration: none;
+        }
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .alert-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .divider {
+            height: 1px;
+            background: #334155;
+            margin: 25px 0;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .info-item {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+
+        .test-result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .test-result.show {
+            display: block;
+        }
+
+        .test-result.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .test-result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            .container {
+                max-width: 100%;
+            }
+            .header {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            .header h1 {
+                font-size: 22px;
+            }
+            .card {
+                padding: 25px 20px;
+            }
+            .card-title {
+                font-size: 18px;
+            }
+            /* Provider radio buttons stack on mobile */
+            .form-group > div[style*="display: flex"] {
+                flex-direction: column !important;
+            }
+            .form-group label[style*="flex: 1"] {
+                width: 100% !important;
+            }
+            .form-group input,
+            .form-group select {
+                font-size: 16px; /* Prevents iOS zoom */
+            }
+            .btn-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .btn {
+                width: 100%;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 18px;
+            }
+            .card {
+                padding: 20px 15px;
+            }
+            .card-title {
+                font-size: 16px;
+            }
+            .help-text {
+                font-size: 12px;
+            }
+            .status-badge {
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>&#9881; Impostazioni</h1>
+            <a href="/" class="back-link">&#8592; Torna alla Dashboard</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">
+                {% if category == 'error' %}&#9888;{% else %}&#10003;{% endif %}
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <!-- AI Provider Section -->
+        <div class="card">
+            <h2 class="card-title">
+                &#129302; Provider AI
+            </h2>
+            <p class="card-desc">
+                Seleziona il provider AI da utilizzare per la generazione dei piani strategici.
+            </p>
+
+            <form method="POST" id="settingsForm">
+                <div class="form-group">
+                    <label>Provider attivo</label>
+                    <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 14px 20px; background: #0f172a; border-radius: 10px; border: 2px solid {{ '#6a0dad' if config.ai_provider == 'gemini' else '#334155' }}; flex: 1; text-transform: none; font-size: 14px; letter-spacing: 0;">
+                            <input type="radio" name="ai_provider" value="gemini" {{ 'checked' if config.ai_provider == 'gemini' }} onchange="toggleProvider()" style="accent-color: #6a0dad;">
+                            <span>
+                                <strong style="color: white;">Google Gemini</strong><br>
+                                <span style="font-size: 12px; color: #64748b;">API diretta Google AI</span>
+                            </span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 14px 20px; background: #0f172a; border-radius: 10px; border: 2px solid {{ '#6a0dad' if config.ai_provider == 'openrouter' else '#334155' }}; flex: 1; text-transform: none; font-size: 14px; letter-spacing: 0;">
+                            <input type="radio" name="ai_provider" value="openrouter" {{ 'checked' if config.ai_provider == 'openrouter' }} onchange="toggleProvider()" style="accent-color: #6a0dad;">
+                            <span>
+                                <strong style="color: white;">OpenRouter</strong><br>
+                                <span style="font-size: 12px; color: #64748b;">Modelli gratuiti alternativi</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Gemini Section -->
+                <div id="geminiSection" style="{{ '' if config.ai_provider == 'gemini' else 'display:none;' }}">
+                    <div class="form-group">
+                        <label>Gemini API Key</label>
+                        <div class="input-wrapper">
+                            <input type="password"
+                                   name="gemini_api_key"
+                                   id="geminiApiKey"
+                                   value="{{ config.gemini_api_key or '' }}"
+                                   placeholder="AIzaSy...">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('geminiApiKey')">
+                                &#128065;
+                            </button>
+                        </div>
+                        <p class="help-text">
+                            Ottieni una chiave gratuita su <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>
+                        </p>
+                        {% if config.gemini_api_key %}
+                        <div style="margin-top: 10px;">
+                            <span class="status-badge status-success">&#10003; Configurata</span>
+                        </div>
+                        {% else %}
+                        <div style="margin-top: 10px;">
+                            <span class="status-badge status-warning">&#9888; Non configurata</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- OpenRouter Section -->
+                <div id="openrouterSection" style="{{ '' if config.ai_provider == 'openrouter' else 'display:none;' }}">
+                    <div class="form-group">
+                        <label>OpenRouter API Key</label>
+                        <div class="input-wrapper">
+                            <input type="password"
+                                   name="openrouter_api_key"
+                                   id="openrouterApiKey"
+                                   value="{{ config.openrouter_api_key or '' }}"
+                                   placeholder="sk-or-v1-...">
+                            <button type="button" class="toggle-visibility" onclick="toggleVisibility('openrouterApiKey')">
+                                &#128065;
+                            </button>
+                        </div>
+                        <p class="help-text">
+                            Registrati gratuitamente su <a href="https://openrouter.ai/keys" target="_blank">OpenRouter.ai</a> per ottenere una API key.
+                            Molti modelli sono gratuiti!
+                        </p>
+                        {% if config.openrouter_api_key %}
+                        <div style="margin-top: 10px;">
+                            <span class="status-badge status-success">&#10003; Configurata</span>
+                        </div>
+                        {% else %}
+                        <div style="margin-top: 10px;">
+                            <span class="status-badge status-warning">&#9888; Non configurata</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label>Modello OpenRouter</label>
+                        <select name="openrouter_model" id="openrouterModel"
+                                style="width: 100%; padding: 14px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: white; font-size: 14px; cursor: pointer;">
+                            {% for model_id, model_name in openrouter_models.items() %}
+                            <option value="{{ model_id }}" {{ 'selected' if config.openrouter_model == model_id }}>{{ model_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="help-text">
+                            Seleziona il modello AI da utilizzare via OpenRouter. I modelli marcati (free) non hanno costi.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-group">
+                    <label>Serper API Key (Opzionale)</label>
+                    <div class="input-wrapper">
+                        <input type="password"
+                               name="serper_api_key"
+                               id="serperApiKey"
+                               value="{{ config.serper_api_key or '' }}"
+                               placeholder="Chiave per ricerca web avanzata">
+                        <button type="button" class="toggle-visibility" onclick="toggleVisibility('serperApiKey')">
+                            &#128065;
+                        </button>
+                    </div>
+                    <p class="help-text">
+                        Per ricerche web avanzate. Ottieni una chiave su <a href="https://serper.dev" target="_blank">Serper.dev</a>
+                    </p>
+                </div>
+
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary" id="saveBtn">
+                        Salva Impostazioni
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="testBtn" onclick="testConnection()">
+                        Testa Connessione
+                    </button>
+                </div>
+
+                <div id="testResult" class="test-result"></div>
+            </form>
+        </div>
+
+        <!-- System Info Section -->
+        <div class="card">
+            <h2 class="card-title">
+                &#128187; Informazioni Sistema
+            </h2>
+            <p class="card-desc">
+                Stato attuale del sistema e licenza.
+            </p>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Versione</div>
+                    <div class="info-value">v6.0.0-alpha</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Licenza</div>
+                    <div class="info-value">
+                        {% if license_valid %}
+                        <span style="color: #34d399;">&#10003; Attiva</span>
+                        {% else %}
+                        <span style="color: #f87171;">&#10007; Non attiva</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Utente</div>
+                    <div class="info-value">{{ current_user.email if current_user else 'N/A' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Codice Macchina</div>
+                    <div class="info-value" style="font-family: monospace; font-size: 12px;">{{ hwid }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function toggleProvider() {
+            const provider = document.querySelector('input[name="ai_provider"]:checked').value;
+            document.getElementById('geminiSection').style.display = provider === 'gemini' ? '' : 'none';
+            document.getElementById('openrouterSection').style.display = provider === 'openrouter' ? '' : 'none';
+
+            // Aggiorna bordo selezionato
+            document.querySelectorAll('input[name="ai_provider"]').forEach(radio => {
+                radio.closest('label').style.borderColor = radio.checked ? '#6a0dad' : '#334155';
+            });
+        }
+
+        function testConnection() {
+            const provider = document.querySelector('input[name="ai_provider"]:checked').value;
+            if (provider === 'gemini') {
+                testGeminiKey();
+            } else {
+                testOpenRouterKey();
+            }
+        }
+
+        function testGeminiKey() {
+            const apiKey = document.getElementById('geminiApiKey').value;
+            const resultDiv = document.getElementById('testResult');
+
+            if (!apiKey) {
+                resultDiv.className = 'test-result show error';
+                resultDiv.innerHTML = '&#9888; Inserisci prima una chiave Gemini API';
+                return;
+            }
+
+            showTestLoading(resultDiv);
+
+            fetch('/api/test-gemini-key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey })
+            })
+            .then(response => response.json())
+            .then(data => showTestResult(resultDiv, data))
+            .catch(error => showTestError(resultDiv, error.message));
+        }
+
+        function testOpenRouterKey() {
+            const apiKey = document.getElementById('openrouterApiKey').value;
+            const model = document.getElementById('openrouterModel').value;
+            const resultDiv = document.getElementById('testResult');
+
+            if (!apiKey) {
+                resultDiv.className = 'test-result show error';
+                resultDiv.innerHTML = '&#9888; Inserisci prima una chiave OpenRouter API';
+                return;
+            }
+
+            showTestLoading(resultDiv);
+
+            fetch('/api/test-openrouter-key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: apiKey, model: model })
+            })
+            .then(response => response.json())
+            .then(data => showTestResult(resultDiv, data))
+            .catch(error => showTestError(resultDiv, error.message));
+        }
+
+        function showTestLoading(div) {
+            div.className = 'test-result show';
+            div.innerHTML = '&#8987; Test in corso...';
+            div.style.background = 'rgba(99, 102, 241, 0.1)';
+            div.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+            div.style.color = '#818cf8';
+        }
+
+        function showTestResult(div, data) {
+            if (data.success) {
+                div.className = 'test-result show success';
+                div.innerHTML = '&#10003; ' + (data.message || 'Connessione riuscita!');
+                div.style.color = '#34d399';
+            } else {
+                div.className = 'test-result show error';
+                div.innerHTML = '&#9888; Errore: ' + (data.error || 'Chiave non valida');
+                div.style.color = '#f87171';
+            }
+        }
+
+        function showTestError(div, message) {
+            div.className = 'test-result show error';
+            div.innerHTML = '&#9888; Errore di connessione: ' + message;
+            div.style.color = '#f87171';
+        }
+    </script>
+</body>
+</html>

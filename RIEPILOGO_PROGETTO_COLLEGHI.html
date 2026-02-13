@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future v5.4 - Riepilogo Aggiornamenti</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --secondary: #1e293b;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 1rem;
+        }
+        h1 { color: var(--primary); margin-bottom: 0.5rem; }
+        .version { font-size: 0.9rem; color: var(--text-muted); }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 0.5rem;
+        }
+        ul { padding-left: 1.5rem; }
+        li { margin-bottom: 0.75rem; }
+        code {
+            background: rgba(0,0,0,0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            color: #fbbf24;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: var(--success);
+            color: #000;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 4rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Rooting Future Strategy Engine</h1>
+            <div class="version">Versione 5.4.9 | Aggiornamento 15 Gennaio 2026</div>
+        </header>
+
+        <div class="card">
+            <h2><span>✅</span> Ultimi Fix Implementati</h2>
+            <ul>
+                <li><strong>Risolto Errore "Unauthorized":</strong> Corretta la validazione delle chiamate API tra frontend e backend. Ora la generazione dei piani tramite dashboard è fluida e autorizzata per gli utenti loggati.</li>
+                <li><strong>Cleanup Brand:</strong> Rimosse tutte le occorrenze residue del vecchio nome "Sironi", uniformando il sistema sotto il brand <strong>Rooting Future</strong>.</li>
+                <li><strong>Sistema di Build Ripristinato:</strong> Corretto il file <code>build_dist.bat</code> e configurato l'ambiente per la generazione automatica dell'eseguibile.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2><span>📦</span> Distribuzione per i Colleghi</h2>
+            <p>È stata generata una nuova build pronta per il test. La cartella si trova in:</p>
+            <code>dist\RootingFuture</code>
+            <p style="margin-top: 1rem;"><strong>Come procedere:</strong></p>
+            <ol>
+                <li>Comprimere (Zippare) la cartella <code>dist\RootingFuture</code>.</li>
+                <li>Inviarla ai colleghi.</li>
+                <li>Istruzioni per loro: estrarre tutto e avviare <code>RootingFuture.exe</code>.</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h2><span>🚀</span> Funzionalità Core Disponibili</h2>
+            <ul>
+                <li><strong>Generazione Scientifica:</strong> Analisi basata su dati reali e benchmark del calcio italiano.</li>
+                <li><strong>Multi-Stakeholder:</strong> Ingestione dati da file Word (.docx) per sintetizzare la visione di diversi dirigenti.</li>
+                <li><strong>Live Console:</strong> Monitoraggio in tempo reale del processo di generazione tramite AI.</li>
+                <li><strong>Export Professionali:</strong> Generazione automatica di PDF, One-Pager infografici e Executive Report.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2><span>🛠️</span> Stato del Sistema</h2>
+            <p><span class="status-badge">PRONTO AL TEST</span></p>
+            <p style="margin-top:1rem;">Il sistema è stato verificato e la generazione dei piani è operativa al 100%.</p>
+        </div>
+
+        <div class="footer">
+            &copy; 2026 Rooting Future | Confidential & Proprietary
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ review.club_name }} - Piano Strategico</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- html2pdf.js per generazione PDF lato client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">🌱</span>
+            <span class="brand-text">Rooting Future</span>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}">Review Queue</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="page-header">
+            <div class="header-top">
+                <div>
+                    <h1>{{ review.club_name }}</h1>
+                    <p class="subtitle">{{ review.category }}</p>
+                </div>
+                <div class="header-actions">
+                    <span class="status-badge status-{{ review.status.value }}">
+                        {{ review.status.value }}
+                    </span>
+                    <div class="export-buttons">
+                        <button onclick="launchPitchMode()" class="btn btn-primary" title="Avvia Presentazione Live (Pitch Mode)">
+                            🎤 Pitch Mode
+                        </button>
+                        <button onclick="viewExecutive()" class="btn btn-success" title="Executive Report A4 (sintesi per stampa)">
+                            📋 Executive
+                        </button>
+                        <button onclick="viewPlan()" class="btn btn-secondary" title="Anteprima completa nel browser">
+                            👁 Completo
+                        </button>
+                        <button onclick="exportHtml()" class="btn btn-secondary" title="Scarica HTML completo">
+                            📄 HTML
+                        </button>
+                        <button onclick="exportPdf()" class="btn btn-danger" title="Scarica PDF professionale (lato server)">
+                            📕 PDF
+                        </button>
+                        <button onclick="exportZip()" class="btn btn-primary" title="Scarica pacchetto completo">
+                            📥 ZIP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Plan Summary -->
+        <section class="plan-summary">
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <span class="stat-num">{{ review.sections|length }}</span>
+                    <span class="stat-label">Sezioni</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-num">{{ sections_needing_review|length }}</span>
+                    <span class="stat-label">Da Revisionare</span>
+                </div>
+                <div class="summary-stat">
+                    <span class="stat-num">
+                        {{ (review.sections.values()|selectattr('status.value', 'eq', 'approved')|list|length) }}
+                    </span>
+                    <span class="stat-label">Approvate</span>
+                </div>
+            </div>
+
+            {% if sections_needing_review %}
+            <div class="alert alert-warning">
+                <strong>Attenzione:</strong> {{ sections_needing_review|length }} sezioni contengono dati non verificati.
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Sections List -->
+        <section class="sections-list">
+            <h2>Sezioni del Piano</h2>
+
+            {% for section_id, section in review.sections.items() %}
+            <div class="section-card" id="section-{{ section_id }}">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h3>{{ section.section_title }}</h3>
+                        <span class="status-badge status-{{ section.status.value }}">
+                            {{ section.status.value }}
+                        </span>
+                    </div>
+                    <div class="section-meta">
+                        <span class="credibility-score" title="Credibilità dati">
+                            📊 {{ section.credibility_score|round(1) }}%
+                        </span>
+                        <span class="sources-count" title="Fonti">
+                            📚 {{ section.sources_count }}
+                        </span>
+                    </div>
+                </div>
+
+                {% if section.unverified_claims %}
+                <div class="unverified-claims">
+                    <strong>⚠️ Dati da verificare:</strong>
+                    <ul>
+                        {% for claim in section.unverified_claims[:3] %}
+                        <li>{{ claim }}</li>
+                        {% endfor %}
+                        {% if section.unverified_claims|length > 3 %}
+                        <li><em>... e altri {{ section.unverified_claims|length - 3 }}</em></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <div class="section-content" id="content-{{ section_id }}">
+                    <div class="content-preview">
+                        {{ section.content[:500]|safe }}{% if section.content|length > 500 %}...{% endif %}
+                    </div>
+                    <div class="content-full" style="display: none;">
+                        {{ section.content|safe }}
+                    </div>
+                </div>
+
+                <div class="section-actions">
+                    <button onclick="toggleContent('{{ section_id }}')" class="btn btn-sm">
+                        👁️ Espandi/Comprimi
+                    </button>
+                    <button onclick="editSection('{{ section_id }}')" class="btn btn-sm">
+                        ✏️ Modifica
+                    </button>
+                    <button onclick="regenerateSection('{{ section_id }}')" class="btn btn-sm">
+                        🔄 Rigenera
+                    </button>
+                    {% if section.status.value != 'approved' %}
+                    <button onclick="approveSection('{{ section_id }}')" class="btn btn-sm btn-success">
+                        ✅ Approva
+                    </button>
+                    {% endif %}
+                </div>
+
+                {% if section.notes %}
+                <div class="section-notes">
+                    <strong>Note:</strong>
+                    <pre>{{ section.notes }}</pre>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Bulk Actions -->
+        <section class="bulk-actions">
+            <button onclick="approveAll()" class="btn btn-success">
+                ✅ Approva Tutte le Sezioni
+            </button>
+            <button onclick="finalizePlan()" class="btn btn-primary"
+                    {% if sections_needing_review %}disabled{% endif %}>
+                🏁 Finalizza Piano
+            </button>
+        </section>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal" style="display:none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="editModalTitle">Modifica Sezione</h2>
+                <button onclick="closeEditModal()" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="editContent" rows="20"></textarea>
+                <div class="form-group">
+                    <label for="editReason">Motivo modifica:</label>
+                    <input type="text" id="editReason" placeholder="es. Corretto dato non verificato">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="saveEdit()" class="btn btn-primary">Salva Modifiche</button>
+                <button onclick="closeEditModal()" class="btn btn-secondary">Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Regenerate Modal -->
+    <div id="regenerateModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Rigenera Sezione con AI</h2>
+                <button onclick="closeRegenerateModal()" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Inserisci istruzioni specifiche per l'AI (es. "Aggiorna il budget a 500k", "Sii più sintetico").</p>
+                <p class="text-muted"><small>Il contenuto attuale verrà sovrascritto.</small></p>
+                <textarea id="regenerateContext" rows="4" placeholder="Istruzioni per la rigenerazione..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button onclick="confirmRegenerate()" class="btn btn-primary">🔄 Avvia Rigenerazione</button>
+                <button onclick="closeRegenerateModal()" class="btn btn-secondary">Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const planId = '{{ review.plan_id }}';
+        let currentEditSection = null;
+        let currentRegenSection = null;
+
+        // Toast notification helper
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                padding: 15px 25px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function toggleContent(sectionId) {
+            const preview = document.querySelector(`#content-${sectionId} .content-preview`);
+            const full = document.querySelector(`#content-${sectionId} .content-full`);
+
+            if (preview.style.display === 'none') {
+                preview.style.display = 'block';
+                full.style.display = 'none';
+            } else {
+                preview.style.display = 'none';
+                full.style.display = 'block';
+            }
+        }
+
+        async function editSection(sectionId) {
+            currentEditSection = sectionId;
+
+            try {
+                const resp = await fetch(`/api/section/${planId}/${sectionId}`);
+                const data = await resp.json();
+
+                if (data.success) {
+                    document.getElementById('editModalTitle').textContent =
+                        'Modifica: ' + data.section.section_title;
+                    document.getElementById('editContent').value = data.section.content;
+                    document.getElementById('editReason').value = '';
+                    document.getElementById('editModal').style.display = 'flex';
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            currentEditSection = null;
+        }
+
+        async function saveEdit() {
+            if (!currentEditSection) return;
+
+            const content = document.getElementById('editContent').value;
+            const reason = document.getElementById('editReason').value;
+
+            try {
+                const resp = await fetch(`/api/section/${planId}/${currentEditSection}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content, reason, editor: 'user'})
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    // Update DOM directly without reload
+                    const fullContentDiv = document.querySelector(`#content-${currentEditSection} .content-full`);
+                    if (fullContentDiv) fullContentDiv.innerHTML = content;
+                    
+                    closeEditModal();
+                    showToast('Sezione aggiornata con successo!', 'success');
+                } else {
+                    alert('Errore: ' + (data.error || 'Sconosciuto'));
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+
+        function regenerateSection(sectionId) {
+            currentRegenSection = sectionId;
+            document.getElementById('regenerateContext').value = '';
+            document.getElementById('regenerateModal').style.display = 'flex';
+        }
+
+        function closeRegenerateModal() {
+            document.getElementById('regenerateModal').style.display = 'none';
+            currentRegenSection = null;
+        }
+
+        async function confirmRegenerate() {
+            if (!currentRegenSection) return;
+            
+            const context = document.getElementById('regenerateContext').value;
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Elaborazione AI...';
+
+            try {
+                const resp = await fetch('/api/regenerate-section', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        plan_id: planId,
+                        section_id: currentRegenSection,
+                        context: context || ''
+                    })
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    closeRegenerateModal();
+                    alert('Sezione rigenerata! La pagina verrà ricaricata.');
+                    location.reload();
+                } else {
+                    alert('Errore: ' + (data.error || 'Sconosciuto'));
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async function approveSection(sectionId, skipReload = false) {
+            try {
+                const resp = await fetch(`/api/section/${planId}/${sectionId}/approve`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({approver: 'user'})
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    if (!skipReload) {
+                        // Update UI to reflect approval
+                        const badge = document.querySelector(`#section-${sectionId} .status-badge`);
+                        if (badge) {
+                            badge.className = 'status-badge status-approved';
+                            badge.innerText = 'approved';
+                        }
+                        const approveBtn = document.querySelector(`#section-${sectionId} .btn-success`);
+                        if (approveBtn) approveBtn.remove();
+                        
+                        if(!skipReload) showToast('Sezione approvata', 'success');
+                    }
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                if (!skipReload) {
+                    alert('Errore: ' + e.message);
+                }
+                return false;
+            }
+        }
+
+
+        async function approveAll() {
+            if (!confirm('Approvare tutte le sezioni?')) return;
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            {% for section_id in review.sections.keys() %}
+            const result{{ loop.index }} = await approveSection('{{ section_id }}', true);
+            if (result{{ loop.index }}) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+            {% endfor %}
+
+            if (errorCount > 0) {
+                alert(`Approvate ${successCount} sezioni. ${errorCount} errori.`);
+            }
+
+            location.reload();
+        }
+
+        async function finalizePlan() {
+            const notes = prompt('Note di approvazione (opzionale):');
+
+            try {
+                const resp = await fetch(`/api/plan/${planId}/finalize`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({notes: notes || ''})
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    alert('Piano finalizzato!');
+                    location.reload();
+                } else {
+                    alert('Errore: ' + (data.error || 'Sconosciuto'));
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+
+        // Apre anteprima HTML nel browser (con pulsante stampa)
+        function viewPlan() {
+            window.open(`/view/${planId}`, '_blank');
+        }
+
+        // Apre Executive Report A4 nel browser (sintesi ottimizzata per stampa)
+        function viewExecutive() {
+            window.open(`/view/${planId}/executive`, '_blank');
+        }
+
+        // Avvia la Pitch Mode in una nuova finestra/tab
+        function launchPitchMode() {
+            window.open(`/plan/${planId}/pitch`, '_blank');
+        }
+
+        // Scarica Executive Report HTML
+        function exportExecutive() {
+            window.location.href = `/api/export/${planId}/executive`;
+        }
+
+        // Scarica file HTML (l'utente può stamparlo come PDF dal browser)
+        function exportHtml() {
+            window.location.href = `/api/export/${planId}/html`;
+        }
+
+        // Scarica PDF professionale (generazione lato client con html2pdf.js)
+        async function exportPdf() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Caricamento HTML...';
+            btn.disabled = true;
+
+            try {
+                // Fetch the full HTML view from server
+                const response = await fetch(`/view/${planId}`);
+                if (!response.ok) throw new Error('Errore caricamento piano');
+
+                const htmlContent = await response.text();
+
+                // Create a temporary container
+                const container = document.createElement('div');
+                container.innerHTML = htmlContent;
+
+                // Extract just the main content (body or main element)
+                let contentElement = container.querySelector('main') || container.querySelector('body') || container;
+
+                // Create a wrapper with proper styling for PDF
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = contentElement.innerHTML;
+                wrapper.style.cssText = 'padding: 20px; font-family: Arial, sans-serif; background: white;';
+
+                // Temporarily add to DOM (required by html2pdf)
+                wrapper.style.position = 'absolute';
+                wrapper.style.left = '-9999px';
+                document.body.appendChild(wrapper);
+
+                btn.innerHTML = '⏳ Generazione PDF...';
+
+                // Configure html2pdf options
+                const opt = {
+                    margin: [10, 10, 10, 10],
+                    filename: `Piano_Strategico_${planId}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false
+                    },
+                    jsPDF: {
+                        unit: 'mm',
+                        format: 'a4',
+                        orientation: 'portrait'
+                    },
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                // Generate PDF
+                await html2pdf().set(opt).from(wrapper).save();
+
+                // Cleanup
+                document.body.removeChild(wrapper);
+
+                showToast('PDF generato con successo!', 'success');
+
+            } catch (e) {
+                console.error('Errore generazione PDF:', e);
+                alert('Errore generazione PDF: ' + e.message + '\n\nSuggerimento: Usa "Completo" per aprire l\'HTML e stampalo come PDF dal browser.');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Scarica pacchetto ZIP (DOCX + HTML + PDF se disponibile)
+        async function exportZip() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Preparazione...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch(`/api/export/${planId}/package`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                });
+
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    const filenameHeader = resp.headers.get('Content-Disposition');
+                    let filename = 'export.zip';
+                    if (filenameHeader) {
+                        const parts = filenameHeader.split('filename=');
+                        if (parts.length > 1) {
+                            filename = parts[1].replaceAll('"', '');
+                        }
+                    }
+
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                } else {
+                    const errorData = await resp.json();
+                    alert('Errore: ' + (errorData.error || 'Generazione fallita'));
+                }
+            } catch (e) {
+                alert('Errore di rete: ' + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

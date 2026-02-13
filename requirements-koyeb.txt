@@ -1,0 +1,63 @@
+# Rooting Future - Requirements for Koyeb Deploy
+# Python 3.12
+
+# Web Framework
+Flask==3.1.2
+flask-cors==6.0.2
+Flask-Login==0.6.3
+Flask-Bcrypt==1.0.1
+gunicorn==21.2.0
+Werkzeug==3.1.4
+
+# AI / Gemini
+google-generativeai==0.8.5
+google-genai==1.55.0
+google-ai-generativelanguage==0.6.15
+google-api-core==2.28.1
+google-api-python-client==2.187.0
+google-auth==2.43.0
+
+# Data Processing
+pandas==2.3.3
+numpy==2.3.5
+openpyxl==3.1.5
+
+# PDF Generation
+reportlab==4.4.6
+weasyprint==67.0
+pypdf==6.4.2
+xhtml2pdf==0.2.17
+
+# Document Generation
+python-docx==1.2.0
+Jinja2==3.1.6
+
+# Charts
+matplotlib==3.10.8
+plotly==6.5.0
+seaborn==0.13.2
+kaleido==1.2.0
+
+# Web Scraping / HTTP
+requests==2.32.5
+httpx==0.28.1
+beautifulsoup4==4.14.3
+lxml==6.0.2
+
+# Security
+cryptography==46.0.3
+bcrypt==5.0.0
+PyJWT==2.10.1
+
+# Utils
+python-dateutil==2.9.0.post0
+pytz==2025.2
+PyYAML==6.0.3
+tenacity==9.1.2
+tqdm==4.67.1
+pydantic==2.12.5
+
+# Other
+pillow==12.0.0
+simplejson==3.20.2
+colorama==0.4.6

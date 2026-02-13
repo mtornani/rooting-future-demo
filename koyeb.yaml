@@ -1,0 +1,39 @@
+# Koyeb deployment configuration
+# https://www.koyeb.com/docs/reference/koyeb-yaml
+
+name: rooting-future
+
+service:
+  type: web
+
+  # Git deployment
+  git:
+    repository: github.com/tuouser/rooting-future
+    branch: main
+
+  # Build configuration
+  build:
+    builder: buildpack
+
+  # Run configuration
+  run:
+    command: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+
+  # Instance
+  instance_type: free
+
+  # Scaling
+  scaling:
+    min: 1
+    max: 1
+
+  # Health check
+  health_checks:
+    - type: http
+      path: /
+      port: 8000
+
+  # Ports
+  ports:
+    - port: 8000
+      protocol: http

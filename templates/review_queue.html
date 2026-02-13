@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Queue - Rooting Future</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">🌱</span>
+            <span class="brand-text">Rooting Future</span>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
+            <a href="{{ url_for('review_queue') }}" class="active">Review Queue</a>
+            <a href="{{ url_for('settings') }}" title="Impostazioni">⚙️</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="page-header">
+            <h1>Coda di Review</h1>
+            <p class="subtitle">Sezioni prioritizzate per revisione</p>
+        </header>
+
+        <!-- Workload Summary -->
+        <section class="workload-summary">
+            <div class="workload-cards">
+                <div class="workload-card">
+                    <div class="wl-icon">📋</div>
+                    <div class="wl-content">
+                        <div class="wl-value">{{ workload.sections_needing_review }}</div>
+                        <div class="wl-label">Sezioni da revisionare</div>
+                    </div>
+                </div>
+
+                <div class="workload-card">
+                    <div class="wl-icon">⏱️</div>
+                    <div class="wl-content">
+                        <div class="wl-value">{{ workload.estimated_review_hours }}h</div>
+                        <div class="wl-label">Tempo stimato</div>
+                    </div>
+                </div>
+
+                <div class="workload-card">
+                    <div class="wl-icon">📊</div>
+                    <div class="wl-content">
+                        <div class="wl-value">{{ workload.average_credibility }}%</div>
+                        <div class="wl-label">Credibilità media</div>
+                    </div>
+                </div>
+
+                <div class="workload-card">
+                    <div class="wl-icon">📅</div>
+                    <div class="wl-content">
+                        <div class="wl-value">{{ workload.suggested_daily_quota }}</div>
+                        <div class="wl-label">Quota giornaliera suggerita</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="workload-actions">
+                <button onclick="bulkApprove()" class="btn btn-success">
+                    ⚡ Auto-Approva (credibilità ≥80%)
+                </button>
+            </div>
+        </section>
+
+        <!-- Priority Queue -->
+        <section class="section">
+            <h2>Sezioni Prioritarie</h2>
+
+            {% if queue %}
+            <div class="queue-list">
+                {% for item in queue %}
+                <div class="queue-item priority-{{ 'high' if item.priority > 80 else 'medium' if item.priority > 50 else 'low' }}">
+                    <div class="queue-priority">
+                        <span class="priority-badge">{{ item.priority|round(0)|int }}</span>
+                    </div>
+
+                    <div class="queue-content">
+                        <div class="queue-title">
+                            <strong>{{ item.club_name }}</strong>
+                            <span class="queue-section">{{ item.section_title }}</span>
+                        </div>
+                        <div class="queue-meta">
+                            <span class="credibility {% if item.credibility >= 70 %}high{% elif item.credibility >= 50 %}medium{% else %}low{% endif %}">
+                                📊 {{ item.credibility|round(1) }}%
+                            </span>
+                            <span class="unverified">
+                                ⚠️ {{ item.unverified_count }} non verificati
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="queue-actions">
+                        <a href="{{ url_for('plan_detail', plan_id=item.plan_id) }}#section-{{ item.section_id }}"
+                           class="btn btn-sm btn-primary">
+                            Revisiona
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state success">
+                <div class="empty-icon">🎉</div>
+                <h3>Tutto revisionato!</h3>
+                <p>Non ci sono sezioni in attesa di revisione.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Quick Stats by Status -->
+        <section class="section">
+            <h2>Riepilogo per Status</h2>
+            <div class="status-grid">
+                {% for status, count in workload.by_status.items() %}
+                <div class="status-card">
+                    <div class="status-count">{{ count }}</div>
+                    <div class="status-label">{{ status }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <script>
+        async function bulkApprove() {
+            if (!confirm('Auto-approvare tutte le sezioni con credibilità ≥80%?')) return;
+
+            try {
+                const resp = await fetch('/api/bulk-approve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({min_credibility: 80})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    alert(`Approvate ${data.approved_count} sezioni`);
+                    location.reload();
+                }
+            } catch (e) {
+                alert('Errore: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

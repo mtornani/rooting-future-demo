@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategia Pronta - Rooting Future</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #10b981; --secondary: #1e293b; --bg: #0f172a; --text: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { max-width: 1000px; width: 90%; text-align: center; padding: 2rem; }
+        .header { margin-bottom: 3rem; }
+        .header h1 { font-size: 2.5rem; color: var(--primary); margin-bottom: 0.5rem; }
+        .trilogy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 3rem; }
+        .doc-card { background: var(--secondary); border: 1px solid #334155; border-radius: 20px; padding: 2.5rem 1.5rem; transition: all 0.3s; text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; position: relative; overflow: hidden; opacity: 0.6; pointer-events: none; cursor: not-allowed; }
+        .doc-card.ready { opacity: 1; pointer-events: all; cursor: pointer; border-color: var(--primary); }
+        .doc-card.ready:hover { transform: translateY(-5px); background: #243147; }
+        
+        .icon { font-size: 4rem; margin-bottom: 1rem; }
+        .doc-title { font-size: 1.4rem; font-weight: 800; margin-bottom: 0.75rem; }
+        .doc-desc { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; margin-bottom: 2rem; height: 60px; }
+        
+        .btn-dl { background: #334155; color: #94a3b8; padding: 0.8rem 1.5rem; border-radius: 10px; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; width: 100%; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .doc-card.ready .btn-dl { background: var(--primary); color: #000; }
+        .doc-card.ready:hover .btn-dl { background: #fff; }
+
+        .spinner { width: 14px; height: 14px; border: 2px solid #ffffff; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; display: none; }
+        .loading .spinner { display: block; border-color: #94a3b8; border-top-color: transparent; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .badge { position: absolute; top: 15px; right: 15px; background: rgba(16, 185, 129, 0.2); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; }
+        .actions { display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; }
+        .btn-back { background: #334155; color: #fff; padding: 1rem 2.5rem; border-radius: 12px; text-decoration: none; font-weight: 600; transition: 0.2s; }
+        .btn-back:hover { background: #475569; }
+    </style>
+</head>
+<body>
+<script>var planId = "{{ plan_id|default('') }}";</script>
+    <div class="container">
+        <div class="header">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">🏆</div>
+            <h1>Generazione Completata!</h1>
+            <p>I documenti per <strong>{{ club_name }}</strong> sono in fase di finalizzazione.</p>
+        </div>
+
+        <div class="trilogy-grid">
+            <!-- ONE PAGER -->
+            <a href="javascript:void(0)" class="doc-card" id="card-onepager">
+                <span class="badge">INFOGRAFICA</span>
+                <div class="icon">📊</div>
+                <div class="doc-title">One-Pager</div>
+                <div class="doc-desc">Sintesi visiva A4 per presentazioni rapide.</div>
+                <div class="btn-dl loading">
+                    <span class="spinner"></span> <span class="label">Attendere...</span>
+                </div>
+            </a>
+
+            <!-- EXECUTIVE -->
+            <a href="javascript:void(0)" class="doc-card" id="card-executive">
+                <span class="badge">BOARD READY</span>
+                <div class="icon">📋</div>
+                <div class="doc-title">Executive Report</div>
+                <div class="doc-desc">Documento sintetico per la presidenza.</div>
+                <div class="btn-dl loading">
+                    <span class="spinner"></span> <span class="label">Attendere...</span>
+                </div>
+            </a>
+
+            <!-- PIANO STRATEGICO WEBAPP -->
+            <a href="/view/{{ plan_id }}" class="doc-card ready" id="card-webapp">
+                <span class="badge">INTERATTIVO</span>
+                <div class="icon">🌐</div>
+                <div class="doc-title">Piano Strategico Completo</div>
+                <div class="doc-desc">Visualizza il Master Plan interattivo. Navigazione, ricerca, export PDF su richiesta.</div>
+                <div class="btn-dl">
+                    <span class="label">VISUALIZZA PIANO</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="actions">
+            <a href="/" class="btn-back">Torna alla Dashboard</a>
+            <a href="/boardroom/{{ plan_id }}" class="btn-back" style="background: transparent; border: 1px solid #334155;">Accedi alla Boardroom 🚀</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const planId = "{{ plan_id }}";
+
+            function checkExports() {
+                fetch(`/api/plan-export-status/${planId}`)
+                    .then(response => response.json())
+                    .then(status => {
+                        updateCard('card-onepager', status.onepager, status.filenames ? status.filenames.onepager : null);
+                        updateCard('card-executive', status.executive, status.filenames ? status.filenames.executive : null);
+
+                        // Se non tutto è pronto, riprova
+                        if (!status.onepager || !status.executive) {
+                            setTimeout(checkExports, 3000);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Status check failed", err);
+                        setTimeout(checkExports, 5000);
+                    });
+            }
+
+            function updateCard(cardId, isReady, filename) {
+                const card = document.getElementById(cardId);
+                if (!card) return;
+
+                if (isReady && !card.classList.contains('ready')) {
+                    if (filename) {
+                        card.href = `/download/${filename}`;
+                    }
+                    card.classList.add('ready');
+                    card.querySelector('.loading').classList.remove('loading');
+                    const spinner = card.querySelector('.spinner');
+                    if(spinner) spinner.style.display = 'none';
+                    card.querySelector('.label').textContent = 'SCARICA ORA';
+                    card.onclick = null; 
+                }
+            }
+
+            // Avvia loop
+            setTimeout(checkExports, 1000);
+        });
+</script>
+<script>
+  (function(){
+    if (!planId) return;
+    fetch(`/api/plan-export-status/${planId}`)
+      .then(r => r.json())
+      .then(data => {
+        const container = document.getElementById('download-links');
+        if (!container || !data) return;
+        container.innerHTML = '<p>Scarica i documenti esportati:</p>';
+        const items = [];
+        if (data.pdf && data.filenames && data.filenames.pdf) {
+          items.push({name: 'Piano Strategico (PDF)', file: data.filenames.pdf});
+        }
+        if (data.docx && data.filenames && data.filenames.docx) {
+          items.push({name: 'Piano Strategico (DOCX)', file: data.filenames.docx});
+        }
+        if (data.onepager && data.filenames && data.filenames.onepager) {
+          items.push({name: 'OnePager', file: data.filenames.onepager});
+        }
+        items.forEach(it => {
+          const a = document.createElement('a');
+          a.href = '/download/' + it.file;
+          a.textContent = it.name;
+          a.style.display = 'block';
+          a.className = 'download-link';
+          container.appendChild(a);
+        });
+      })
+      .catch(err => console.error('Status fetch error', err));
+  })();
+  </script>
+</body>
+</html>

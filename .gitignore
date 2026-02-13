@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+output/
+knowledge_base/
+*.log
+*.tmp
+file_search_store_id.txt
+
+# Test files
+test_*.py
+diagnose.py
+boot_test.py
+start_simple.py
+
+# Secrets
+*.pem
+*.key
+credentials.json
+
+# Development context (optional - track if you want)
+.dev/context/
+.dev/handoff_*.md
+
+# Demo/presentation files (optional)
+demo_output/
+demo_manual/
+presentation_demo/
+live_demo/
+
+# PyInstaller build artifacts
+build/
+dist/
+release/
+*.spec
+
+# Large binaries (not needed for HF deployment)
+ngrok.exe
+ngrok
+*.exe
+*.dll
+
+# Coverage
+.coverage
+htmlcov/
+
+# Local config (user-specific)
+config.local.json
+requirements-local.txt
+
+# Windows artifacts
+nul
+*.bat
+!Avvia_Rooting_Future.bat
+
+# Test output
+test_*.txt
+test_*.bat
+.claude/

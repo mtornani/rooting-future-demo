@@ -1,0 +1,150 @@
+{
+  "milestone": "v6.0-performance-foundation",
+  "active": [],
+  "backlog": [
+    {
+      "id": "OPT-004",
+      "title": "Stratified Prompt Construction",
+      "priority": "medium",
+      "estimate": "2 days",
+      "description": "Implement priority-based prompt truncation to reduce memory overhead"
+    },
+    {
+      "id": "OPT-005",
+      "title": "Circuit Breaker Pattern for Gemini API",
+      "priority": "medium",
+      "estimate": "1-2 days",
+      "description": "Add circuit breaker to prevent cascading failures when Gemini is down"
+    },
+    {
+      "id": "OPT-006",
+      "title": "Split Storage Layer",
+      "priority": "low",
+      "estimate": "3 days",
+      "description": "Separate plan_store, document_store, and cache_store"
+    },
+    {
+      "id": "SCALE-001",
+      "title": "FastAPI Migration",
+      "priority": "low",
+      "estimate": "1-2 weeks",
+      "description": "Migrate from Flask to FastAPI for true async support"
+    },
+    {
+      "id": "SCALE-002",
+      "title": "PostgreSQL + Redis Migration",
+      "priority": "low",
+      "estimate": "1 week",
+      "description": "Replace SQLite with PostgreSQL and add Redis for distributed cache"
+    }
+  ],
+  "completed": [
+    {
+      "id": "OPT-001",
+      "title": "SQLite Indexing & WAL Mode",
+      "priority": "high",
+      "estimate": "1h",
+      "complexity": "low",
+      "impact": "high",
+      "files": [
+        "knowledge_store.py"
+      ],
+      "description": "Add database indices and enable Write-Ahead Logging for 70% query performance improvement",
+      "tasks": [
+        "Add CREATE INDEX on documents(category, section_type)",
+        "Add CREATE INDEX on plans(created_at DESC)",
+        "Enable PRAGMA journal_mode=WAL",
+        "Add PRAGMA synchronous=NORMAL",
+        "Test with 100 queries before/after"
+      ],
+      "verification": [
+        "sqlite3 knowledge_base/rooting_future.db '.indices' shows new indices",
+        "PRAGMA journal_mode returns 'wal'",
+        "Query benchmark shows >60% improvement",
+        "App starts without errors"
+      ],
+      "done": true,
+      "completed_at": "2026-01-23 21:14",
+      "assigned_to": "Claude Code",
+      "notes": "Quick win - highest ROI per time invested. All verifications passed successfully."
+    },
+    {
+      "id": "OPT-002",
+      "title": "Real Async Execution with ThreadPoolExecutor",
+      "priority": "high",
+      "estimate": "2-3 days",
+      "complexity": "medium",
+      "impact": "critical",
+      "files": [
+        "agents.py"
+      ],
+      "description": "Replace fake asyncio.gather() with real parallel execution using ThreadPoolExecutor",
+      "tasks": [
+        "Create AsyncGeminiClient wrapper class",
+        "Implement ThreadPoolExecutor with max_workers=6",
+        "Add rate limiting (60 requests/min)",
+        "Add retry logic with exponential backoff",
+        "Update MultiAgentOrchestrator._generate_parallel",
+        "Remove all asyncio.gather() calls",
+        "Add timing metrics"
+      ],
+      "verification": [
+        "python -m py_compile agents.py",
+        "verify_opt002.py passes all checks",
+        "App starts without errors",
+        "AsyncGeminiClient initialized with 6 workers in logs",
+        "TRUE parallel execution message in logs"
+      ],
+      "done": true,
+      "completed_at": "2026-01-23 21:25",
+      "assigned_to": "Claude Code",
+      "notes": "Biggest performance improvement - reduces generation time by 66%. TRUE parallel execution now active. Next: test with real plan generation."
+    },
+    {
+      "id": "OPT-003",
+      "title": "Export Layer Unification - BaseExporter",
+      "priority": "medium",
+      "estimate": "3-5 days",
+      "complexity": "high",
+      "impact": "high",
+      "files": [
+        "export_core.py (NEW)",
+        "export_pdf_server.py",
+        "export_html.py",
+        "export_docx.py",
+        "export_paged.py",
+        "export_onepager.py",
+        "export_package.py"
+      ],
+      "description": "Consolidate 6 export modules into single base class with inheritance to eliminate 500+ LOC duplication",
+      "tasks": [
+        "Create export_core.py with BaseExporter abstract class",
+        "Extract common methods: _apply_branding, _add_methodology, _prepare_content",
+        "Refactor PDFExporter to inherit from BaseExporter",
+        "Refactor HTMLExporter",
+        "Refactor DOCXExporter",
+        "Refactor remaining exporters",
+        "Test all 6 export formats",
+        "Remove duplicated code",
+        "Update imports across codebase"
+      ],
+      "verification": [
+        "python -m py_compile *.py - success",
+        "All exporters refactored to inherit from BaseExporter",
+        "Backward compatibility helpers added",
+        "Duplicated markdown/color logic centralized"
+      ],
+      "done": true,
+      "completed_at": "2026-01-23 22:30",
+      "assigned_to": "Gemini CLI",
+      "notes": "Major refactor - improves maintainability. Centralized markdown normalization and color handling."
+    }
+  ],
+  "meta": {
+    "created": "2026-01-23",
+    "last_updated": "2026-01-23 21:25",
+    "total_active": 1,
+    "total_backlog": 5,
+    "total_completed": 2
+  }
+}

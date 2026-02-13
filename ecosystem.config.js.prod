@@ -1,0 +1,18 @@
+module.exports = {
+  apps: [
+    {
+      name: "rooting-future",
+      script: "./venv/bin/waitress-serve",
+      cwd: "/home/ubuntu/rooting_future",
+      args: "--listen=*:5000 --threads=12 --channel-timeout=300 --max-request-body-size=1073741824 app:app",
+      interpreter: "none",
+      error_file: "./output/error.log",
+      out_file: "./output/access.log",
+      merge_logs: true,
+      env: {
+        NODE_ENV: "production",
+        FLASK_ENV: "production"
+      },
+    },
+  ],
+};
