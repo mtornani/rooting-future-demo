@@ -78,14 +78,14 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST">
+        <form method="POST" action="{{ url_for('auth.login') }}">
             <div class="mb-3">
                 <label class="form-label text-muted small fw-bold">EMAIL</label>
-                <input type="email" name="email" class="form-control" required placeholder="name@example.com">
+                <input type="email" name="email" class="form-control" required placeholder="name@example.com" value="{{ request.form.get('email', '') }}" autocomplete="email">
             </div>
             <div class="mb-3">
                 <label class="form-label text-muted small fw-bold">PASSWORD</label>
-                <input type="password" name="password" class="form-control" required placeholder="••••••••">
+                <input type="password" name="password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
             </div>
             <button type="submit" class="btn btn-primary">Accedi</button>
         </form>
