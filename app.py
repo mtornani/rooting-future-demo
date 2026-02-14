@@ -343,7 +343,12 @@ def check_system_activation():
     Verifica l'attivazione della licenza prima di ogni richiesta.
     Controlla sia la validità della chiave che la scadenza temporale.
     Esclude rotte di login, static e la pagina di attivazione stessa.
+    Skip entirely on HF Spaces (no HWID licensing in cloud).
     """
+    # Skip license check on HF Spaces - cloud uses session auth only
+    if os.environ.get("HF_SPACES"):
+        return
+
     allowed_routes = ["activation", "static", "auth.login", "auth.logout"]
     if request.endpoint in allowed_routes or not request.endpoint:
         return
@@ -769,8 +774,7 @@ def check_system_lockout():
 @app.route("/setup-admin")
 def setup_admin():
     """Endpoint temporaneo per creare l'admin su HF Spaces"""
-    from flask_bcrypt import Bcrypt
-    bcrypt = Bcrypt(app)
+    from simple_auth import hash_password
 
     admin_email = 'mirkotornani@gmail.com'
     admin_password = 'admin'
@@ -778,13 +782,20 @@ def setup_admin():
     try:
         existing = knowledge_manager.store.get_user_by_email(admin_email)
         if existing:
+            # Re-hash password with simple_auth to fix any bcrypt legacy hashes
+            pw_hash = hash_password(admin_password)
+            knowledge_manager.store.cursor.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (pw_hash, existing['id'])
+            )
+            knowledge_manager.store.conn.commit()
             return jsonify({
-                "status": "exists",
-                "message": f"Admin {admin_email} already exists with id {existing['id']}",
-                "hint": "Try logging in with password: admin"
+                "status": "exists_rehashed",
+                "message": f"Admin {admin_email} exists (id {existing['id']}), password re-hashed with simple_auth",
+                "hint": "Login with password: admin"
             })
 
-        pw_hash = bcrypt.generate_password_hash(admin_password).decode('utf-8')
+        pw_hash = hash_password(admin_password)
         knowledge_manager.store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
         user = knowledge_manager.store.get_user_by_email(admin_email)
         if user:

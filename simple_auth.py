@@ -126,30 +126,10 @@ def login():
             flash('Email o password non validi', 'error')
             return render_template('login.html')
 
-        # Check password
+        # Check password with simple_auth hash
         stored_hash = user_data.get('password_hash', '')
-
-        # Handle both bcrypt and simple hash
-        password_valid = False
-
-        # Try bcrypt first (legacy)
-        try:
-            from flask_bcrypt import check_password_hash
-            # This might fail if bcrypt not initialized
-            password_valid = check_password_hash(stored_hash, password)
-            print(f"[AUTH] Bcrypt check: {password_valid}")
-        except Exception as e:
-            print(f"[AUTH] Bcrypt failed, trying simple: {e}")
-
-        # Fallback: simple hash or direct comparison for 'admin'
-        if not password_valid:
-            password_valid = verify_password(password, stored_hash)
-            print(f"[AUTH] Simple hash check: {password_valid}")
-
-        # Special case: admin user with password 'admin' (initial setup)
-        if not password_valid and email == 'mirkotornani@gmail.com' and password == 'admin':
-            print("[AUTH] Using admin override for initial setup")
-            password_valid = True
+        password_valid = verify_password(password, stored_hash)
+        print(f"[AUTH] Password check: {password_valid}")
 
         if password_valid:
             user = SimpleUser(user_data)
