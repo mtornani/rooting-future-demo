@@ -155,10 +155,15 @@ def init_auth(app, store):
     global _store
     _store = store
 
-    # Session config for HF Spaces (behind proxy)
-    app.config['SESSION_COOKIE_SECURE'] = False  # HF uses HTTP internally
+    # Session config for HF Spaces (behind reverse proxy, served in iframe)
+    is_hf = os.environ.get('HF_SPACES')
+    if is_hf:
+        app.config['SESSION_COOKIE_SECURE'] = True   # HF proxy is HTTPS externally
+        app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Required for iframe cross-origin
+    else:
+        app.config['SESSION_COOKIE_SECURE'] = False
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 7  # 7 days
 
     # Register blueprint

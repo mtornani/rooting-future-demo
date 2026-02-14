@@ -253,6 +253,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
 
+# ProxyFix for HF Spaces (behind reverse proxy)
+if os.environ.get("HF_SPACES"):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # Configurazione Logging Aggressiva (Anti-Noise)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
