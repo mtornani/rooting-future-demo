@@ -488,6 +488,151 @@
             100% { transform: translateX(400%); width: 30%; }
         }
 
+        .progress-fill.determinate {
+            animation: none !important;
+            transform: none !important;
+            transition: width 0.5s ease-out;
+        }
+
+        .progress-text {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* System Health Card */
+        .health-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 0.75rem;
+        }
+
+        .health-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .health-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+        }
+
+        .health-dot.offline {
+            background: var(--error);
+            box-shadow: 0 0 6px var(--error);
+        }
+
+        .health-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .health-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        /* License Card */
+        .license-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .license-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            margin-top: 0.75rem;
+        }
+
+        .license-badge.cloud {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+        }
+
+        .license-badge.active {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+        }
+
+        .license-badge.inactive {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+
+        .license-icon { font-size: 1.5rem; }
+
+        .license-status-text {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .license-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .license-details {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg-input);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .license-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+        }
+
+        .license-detail-row + .license-detail-row {
+            border-top: 1px solid var(--border);
+            margin-top: 0.25rem;
+            padding-top: 0.5rem;
+        }
+
+        .license-detail-label { color: var(--text-muted); }
+        .license-detail-value { color: var(--text); font-family: monospace; }
+
+        @media (max-width: 768px) {
+            .health-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
         .progress-text {
             margin-top: 0.75rem;
             font-size: 0.9rem;
@@ -654,6 +799,103 @@
                     <div class="stat-value">{{ stats.average_credibility }}%</div>
                     <div class="stat-label">Credibilita Media</div>
                 </div>
+            </div>
+
+            <!-- System Health -->
+            <div class="health-card">
+                <div class="section-title" style="font-size: 0.85rem; font-weight: 600;">
+                    <span>💚</span> System Health
+                </div>
+                <div class="health-grid">
+                    <div class="health-item">
+                        <div class="health-label">Stato</div>
+                        <div class="health-indicator">
+                            <span class="health-dot" id="healthDot"></span>
+                            <span id="healthStatusText">Online</span>
+                        </div>
+                    </div>
+                    <div class="health-item">
+                        <div class="health-label">Clients</div>
+                        <div class="health-value" id="healthClients">0</div>
+                    </div>
+                    <div class="health-item">
+                        <div class="health-label">DOCX Engine</div>
+                        <div class="health-value" id="healthDocx">
+                            {{ '✅ Attivo' if docx_available else '⚠️ N/D' }}
+                        </div>
+                    </div>
+                    <div class="health-item">
+                        <div class="health-label">Piani Draft</div>
+                        <div class="health-value" id="healthDrafts">{{ stats.by_status.get('draft', 0) }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- License & Activation -->
+            <div class="license-card">
+                <div class="section-title" style="font-size: 0.85rem; font-weight: 600;">
+                    <span>🔐</span> Licenza & Attivazione
+                </div>
+
+                {% if hf_spaces_mode %}
+                <div class="license-badge cloud">
+                    <span class="license-icon">☁️</span>
+                    <div>
+                        <div class="license-status-text">Cloud Mode</div>
+                        <div class="license-subtitle">Attivazione non richiesta - Sessioni utente</div>
+                    </div>
+                </div>
+                {% elif license_valid %}
+                <div class="license-badge active">
+                    <span class="license-icon">✅</span>
+                    <div>
+                        <div class="license-status-text">Licenza Attiva</div>
+                        <div class="license-subtitle">
+                            {% if license_status.get('expires_at') %}
+                                Scade: {{ license_status.expires_at[:10] }}
+                            {% else %}
+                                Perpetua
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="license-details">
+                    <div class="license-detail-row">
+                        <span class="license-detail-label">Email</span>
+                        <span class="license-detail-value">{{ license_status.get('email', '-') }}</span>
+                    </div>
+                    <div class="license-detail-row">
+                        <span class="license-detail-label">HWID</span>
+                        <span class="license-detail-value">{{ hwid }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="license-badge inactive">
+                    <span class="license-icon">⚠️</span>
+                    <div>
+                        <div class="license-status-text">Sistema Non Attivato</div>
+                        <div class="license-subtitle">
+                            {% if license_status.get('expired') %}
+                                Licenza scaduta
+                            {% else %}
+                                Attivazione richiesta
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="license-details">
+                    <div class="license-detail-row">
+                        <span class="license-detail-label">Codice Macchina</span>
+                        <span class="license-detail-value">{{ hwid }}</span>
+                    </div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">
+                    Comunica il codice macchina al referente per ricevere la chiave.
+                </p>
+                <a href="{{ url_for('activation') }}" class="btn btn-primary" style="display: block; text-align: center; margin-top: 0.75rem; padding: 0.6rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem;">
+                    🔓 Attiva Sistema
+                </a>
+                {% endif %}
             </div>
 
             <!-- Upload Form -->
@@ -1019,9 +1261,11 @@
             }
 
             // Show progress
+            const progressFill = document.querySelector('.progress-fill');
+            const progressText = document.getElementById('progressText');
             progressContainer.classList.add('active');
             submitBtn.disabled = true;
-            document.getElementById('progressText').textContent = 'Caricamento file...';
+            progressText.textContent = 'Caricamento file...';
 
             // Build FormData
             const formData = new FormData();
@@ -1037,7 +1281,7 @@
             });
 
             try {
-                document.getElementById('progressText').textContent = 'Elaborazione DOCX in corso...';
+                progressText.textContent = 'Invio file al server...';
 
                 const response = await fetch('/api/generate-from-docx', {
                     method: 'POST',
@@ -1046,30 +1290,69 @@
 
                 const result = await response.json();
                 console.log('[DEBUG] API Response:', result);
-                console.log('[DEBUG] Success status:', result.success);
-                console.log('[DEBUG] Plan ID:', result.plan_id);
-                console.log('[DEBUG] Edit URL:', result.edit_url);
 
-                if (result.success) {
-                    document.getElementById('progressText').textContent = 'Piano generato con successo!';
+                if (result.success && result.session_id) {
+                    // Async mode: connect to SSE progress stream
+                    const sessionId = result.session_id;
+                    progressText.textContent = 'Generazione avviata...';
+                    progressFill.classList.add('determinate');
+                    progressFill.style.width = '2%';
 
-                    const redirectUrl = result.edit_url || `/success/${result.plan_id}`;
-                    console.log('[DEBUG] Will redirect to:', redirectUrl);
+                    const progressSource = new EventSource('/api/progress/' + sessionId);
 
-                    // Redirect after 2 seconds
-                    setTimeout(() => {
-                        console.log('[DEBUG] Executing redirect NOW to:', redirectUrl);
-                        window.location.href = redirectUrl;
-                    }, 2000);
+                    progressSource.onmessage = function(event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('[Progress]', data);
+
+                            const percent = Math.round(data.progress || 0);
+                            progressFill.style.width = percent + '%';
+                            progressText.textContent = (data.message || 'Elaborazione...') + ' (' + percent + '%)';
+
+                            if (data.status === 'completed' && data.plan_id) {
+                                progressSource.close();
+                                progressFill.style.width = '100%';
+                                progressText.textContent = '✅ Piano generato con successo!';
+                                setTimeout(() => {
+                                    window.location.href = '/success/' + data.plan_id;
+                                }, 1500);
+                            } else if (data.status === 'failed' || data.status === 'error') {
+                                progressSource.close();
+                                throw new Error(data.message || 'Generazione fallita');
+                            }
+                        } catch (parseErr) {
+                            if (parseErr.message && parseErr.message !== 'Generazione fallita') {
+                                console.error('SSE parse error:', parseErr);
+                            } else {
+                                progressSource.close();
+                                progressText.innerHTML = '<span style="color:var(--error)">❌ ' + parseErr.message + '</span>';
+                                submitBtn.disabled = false;
+                            }
+                        }
+                    };
+
+                    progressSource.onerror = function() {
+                        console.error('SSE connection error');
+                        progressSource.close();
+                        progressText.innerHTML = '<span style="color:var(--error)">❌ Connessione persa. Controlla la lista piani.</span>';
+                        submitBtn.disabled = false;
+                    };
+
+                } else if (result.success && result.plan_id) {
+                    // Sync fallback (legacy): direct plan_id response
+                    progressFill.classList.add('determinate');
+                    progressFill.style.width = '100%';
+                    progressText.textContent = '✅ Piano generato con successo!';
+                    const redirectUrl = result.edit_url || '/success/' + result.plan_id;
+                    setTimeout(() => { window.location.href = redirectUrl; }, 2000);
+
                 } else {
-                    console.error('[DEBUG] Generation failed:', result.error);
                     throw new Error(result.error || 'Errore sconosciuto');
                 }
 
             } catch (error) {
                 console.error('Upload error:', error);
-                document.getElementById('progressText').innerHTML = `<span style="color:var(--error)">❌ Errore: ${error.message}</span>`;
-                alert(`Errore durante la generazione: ${error.message}`);
+                progressText.innerHTML = '<span style="color:var(--error)">❌ Errore: ' + error.message + '</span>';
                 progressContainer.classList.remove('active');
                 submitBtn.disabled = false;
             }
@@ -1081,17 +1364,27 @@
         document.addEventListener('DOMContentLoaded', () => {
             connectSSE();
 
-            // Update system status periodically
+            // Update system status + health widget periodically
             setInterval(async () => {
                 try {
                     const resp = await fetch('/api/system/status');
                     const data = await resp.json();
                     if (data.success) {
+                        // Header badge
                         document.getElementById('systemStatus').textContent =
-                            `Online | ${data.connected_clients} client`;
+                            `Online | ${data.connected_clients || 0} client`;
+                        // Health widget
+                        document.getElementById('healthStatusText').textContent = 'Online';
+                        document.getElementById('healthDot').classList.remove('offline');
+                        document.getElementById('healthClients').textContent = data.connected_clients || 0;
+                        if (data.stats) {
+                            document.getElementById('healthDrafts').textContent = data.stats.draft_plans || 0;
+                        }
                     }
                 } catch (e) {
                     document.getElementById('systemStatus').textContent = 'Errore connessione';
+                    document.getElementById('healthStatusText').textContent = 'Offline';
+                    document.getElementById('healthDot').classList.add('offline');
                 }
             }, 10000);
         });
