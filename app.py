@@ -844,6 +844,19 @@ def index():
             "recent_plans": [],
         }
 
+    # License info for dashboard
+    hf_spaces_mode = bool(os.environ.get("HF_SPACES"))
+    license_valid = False
+    license_status_info = {}
+    hwid = ""
+    if not hf_spaces_mode:
+        try:
+            license_valid = check_license_valid()
+            license_status_info = licenser.get_license_status()
+            hwid = licenser.get_machine_code()
+        except Exception:
+            pass
+
     return render_template(
         "dashboard_hybrid.html",
         stats=stats,
@@ -855,6 +868,10 @@ def index():
         docx_available=DOCX_AVAILABLE,
         user=current_user,
         stripe_public_key=STRIPE_PUBLIC_KEY,
+        hf_spaces_mode=hf_spaces_mode,
+        license_valid=license_valid,
+        license_status=license_status_info,
+        hwid=hwid,
     )
 
 
@@ -1474,12 +1491,12 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
     try:
         def report_progress(message, percent):
             session_manager.save_checkpoint(
-                session_id, 
-                "progress", 
-                percent, 
-                metadata_update={"last_message": message}
+                session_id,
+                "progress",
+                percent,
+                metadata_update={"last_message": message, "actual_percent": percent}
             )
-            # Compatibilità con vecchio HUD
+            # Compatibilita con vecchio HUD
             update_project_status(session_id, "processing", progress=percent, message=message)
 
         report_progress("Inizializzazione sistema...", 5)
@@ -1609,6 +1626,254 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         update_project_status(session_id, "error", message=f"Errore: {str(e)}")
 
 
+def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
+                               project_id: str, hard_data: dict, request_mode: str, user_id: int):
+    """
+    Background task per generazione piano da DOCX upload.
+    Replica la logica di /api/generate-from-docx ma in un thread separato con progress tracking.
+    """
+    from auditor_agent import AuditorAgent
+
+    try:
+        def report_progress(message, percent):
+            session_manager.save_checkpoint(
+                session_id, "progress", percent,
+                metadata_update={"last_message": message, "actual_percent": percent}
+            )
+            update_project_status(session_id, "processing", progress=percent, message=message)
+
+        report_progress("Inizializzazione sistema...", 5)
+
+        # 1. Process DOCX files -> Payload
+        report_progress("Elaborazione file DOCX...", 8)
+        payload = process_docx_files_to_payload(
+            files=files_data,
+            club_name=club_name,
+            project_id=project_id,
+            hard_data=hard_data,
+        )
+        payload["request_mode"] = request_mode
+        logger.info(f"[DOCX BG] Extracted {len(payload['stakeholders_inputs'])} stakeholders")
+
+        # 2. Data Ingestor - Conflict Resolution
+        report_progress("Sintesi stakeholder multi-source...", 15)
+        synthesized, generation_params = process_n8n_webhook_payload(payload)
+        logger.info(f"[DOCX BG] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}")
+
+        # 3. Web Research (production mode)
+        research_data = {}
+        if request_mode == "production":
+            report_progress("Ricerca web strategica in corso...", 25)
+            try:
+                research_data = research_aggregator.comprehensive_club_research(
+                    club_name=generation_params["club_name"],
+                    city=generation_params.get("city", ""),
+                    category=generation_params.get("category", ""),
+                    competitors=[],
+                    region=generation_params.get("region", ""),
+                )
+                research_aggregator.export_research_report(research_data)
+            except Exception as e:
+                logger.warning(f"[DOCX BG] Research failed: {e}")
+
+        # 4. Generate strategic plan
+        report_progress("Generazione contenuti con Multi-Agent Orchestrator...", 35)
+        club_data = generation_params.copy()
+        club_data["synthesized_vision"] = synthesized.unified_vision
+        club_data["swot_aggregated"] = {
+            k: [item for item, _, _ in v[:5]]
+            for k, v in synthesized.swot_aggregated.items()
+        }
+        club_data["priority_ranking"] = []
+        for p in synthesized.priority_ranking[:5]:
+            if isinstance(p, (list, tuple)) and len(p) >= 1:
+                club_data["priority_ranking"].append(p[0])
+            else:
+                club_data["priority_ranking"].append(p)
+
+        result = orchestrator.generate_strategic_plan(
+            club_data=club_data,
+            research_data=research_data.get("club", {}),
+            parallel=True,
+            on_progress=report_progress,
+        )
+
+        # 5. Generate Structured Plan (Scientific) v6.0
+        report_progress("Generazione analisi scientifica v6.0...", 75)
+        try:
+            structured_plan = structured_orchestrator.generate_plan(
+                club_data=club_data, research_data=research_data,
+                on_progress=report_progress,
+            )
+        except Exception as e:
+            logger.error(f"[DOCX BG] Structured generation failed: {e}")
+            structured_plan = None
+
+        plan = result["plan"]
+        sources = result["sources"]
+        metadata = result["metadata"]
+
+        # Merge structured sections
+        if structured_plan:
+            from utils.structured_converter import structured_plan_to_markdown
+            structured_sections = structured_plan_to_markdown(structured_plan)
+            plan.update(structured_sections)
+            logger.info(f"[DOCX BG] Merged {len(structured_sections)} structured sections")
+
+        # 6. DOCX metadata
+        metadata["source"] = "docx_upload"
+        metadata["files_processed"] = payload["files_processed"]
+        metadata["document_types"] = payload["document_types_detected"]
+        metadata["stakeholder_count"] = len(payload["stakeholders_inputs"])
+        metadata["stakeholder_alignment"] = synthesized.stakeholder_alignment_score
+        metadata["conflicts_count"] = len(synthesized.conflicts_detected)
+        metadata["project_id"] = payload.get("project_id")
+        metadata["total_questionnaires"] = len(payload["files_processed"])
+        total_fields = sum(
+            len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
+        )
+        metadata["verified_data_count"] = max(total_fields, len(payload["files_processed"]) * 15)
+        metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
+
+        # 7. Club identity (colors)
+        club_identity = get_club_identity(
+            club_name=generation_params["club_name"],
+            custom_primary=hard_data.get("primary_color"),
+            custom_secondary=hard_data.get("secondary_color"),
+        )
+        metadata["primary_color"] = club_identity["primary"]
+        metadata["secondary_color"] = club_identity["secondary"]
+        metadata["category"] = generation_params.get("category", "")
+
+        # 8. Reports generation
+        report_progress("Generazione report (PDF, One-Pager, Executive)...", 85)
+        export_paths = []
+
+        if request_mode == "production":
+            safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # PDF
+            try:
+                from export_pdf_server import PdfServerExporter
+                pdf_exporter = PdfServerExporter()
+                pdf_path = pdf_exporter.export(
+                    plan_data=plan,
+                    club_name=generation_params["club_name"],
+                    sources=sources,
+                    metadata=metadata,
+                )
+                export_paths.append(pdf_path.name)
+                logger.info(f"[DOCX BG] PDF: {pdf_path.name}")
+            except Exception as e:
+                logger.warning(f"[DOCX BG] PDF failed: {e}")
+
+            # One-Pager
+            try:
+                from export_onepager import create_onepager
+                from stw_analyzer import STWAnalyzer
+                analyzer = STWAnalyzer()
+                full_stw_data = analyzer.analyze_plan_coverage(plan)
+                onepager_path = create_onepager(
+                    plan_data=plan,
+                    club_name=generation_params["club_name"],
+                    metadata=metadata,
+                    stw_progress=full_stw_data,
+                )
+                export_paths.append(onepager_path.name)
+                logger.info(f"[DOCX BG] One-Pager: {onepager_path.name}")
+            except Exception as e:
+                logger.warning(f"[DOCX BG] One-Pager failed: {e}")
+
+            # Executive Report
+            try:
+                exec_html = plan_renderer.render_executive_html(
+                    plan_data=plan,
+                    club_name=generation_params["club_name"],
+                    category=generation_params.get("category", "Eccellenza"),
+                    metadata=metadata,
+                )
+                exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+                exec_path = OUTPUT_DIR / exec_filename
+                with open(exec_path, "w", encoding="utf-8") as f:
+                    f.write(exec_html)
+                export_paths.append(exec_filename)
+                logger.info(f"[DOCX BG] Executive: {exec_filename}")
+            except Exception as e:
+                logger.warning(f"[DOCX BG] Executive failed: {e}")
+
+            # Scientific Report
+            try:
+                if structured_plan:
+                    sci_path_str = plan_renderer.render_structured(structured_plan)
+                    sci_path = Path(sci_path_str)
+                    export_paths.append(sci_path.name)
+                    logger.info(f"[DOCX BG] Scientific: {sci_path.name}")
+            except Exception as e:
+                logger.warning(f"[DOCX BG] Scientific failed: {e}")
+
+        # 9. Review + Audit
+        report_progress("Esecuzione Audit Qualita...", 90)
+        review = editor.create_review_from_plan(
+            plan_data=plan,
+            club_name=generation_params["club_name"],
+            sources=sources,
+            metadata=metadata,
+            owner_id=user_id,
+        )
+
+        auditor = AuditorAgent()
+        audit_report = auditor.audit_plan(plan, club_data, metadata.get("financial_estimates", {}))
+        metadata["audit_report"] = audit_report
+
+        # 10. Save plan record
+        plan_record = PlanRecord(
+            id=review.plan_id,
+            club_name=generation_params["club_name"],
+            category=generation_params.get("category", ""),
+            region=generation_params.get("region", ""),
+            created_at=datetime.now().isoformat(),
+            status="draft",
+            plan_data=plan,
+            sources_count=len(sources),
+            credibility_score=audit_report.get("overall_quality_score", 0),
+            owner_id=user_id,
+            metadata=metadata,
+        )
+        if export_paths:
+            plan_record.export_paths = export_paths
+        knowledge_manager.store.save_plan(plan_record)
+
+        # 11. Structured logging
+        log_plan_generation_completed(
+            plan_id=review.plan_id,
+            club_name=generation_params["club_name"],
+            duration_seconds=0,
+            agent_count=6,
+            sections_count=len(plan),
+            stakeholder_count=len(payload.get("stakeholders_inputs", [])),
+            source="docx_upload_async",
+        )
+
+        # 12. Mark completed
+        session_manager.mark_completed(session_id, plan, sources=sources)
+        session_manager.save_checkpoint(
+            session_id, "final", 100,
+            metadata_update={"plan_id": review.plan_id, "last_message": "Piano generato con successo!"}
+        )
+        update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": review.plan_id})
+
+        # 13. Deduct credits
+        knowledge_manager.store.deduct_credits(user_id, 1)
+
+        logger.info(f"[DOCX BG] Generation completed: {review.plan_id}")
+
+    except Exception as e:
+        logger.error(f"[DOCX BG] Error in background task for {session_id}: {e}", exc_info=True)
+        session_manager.mark_failed(session_id, str(e))
+        update_project_status(session_id, "error", message=f"Errore: {str(e)}")
+
+
 @app.route("/api/progress/<session_id>")
 def api_progress_stream(session_id):
     """
@@ -1617,34 +1882,37 @@ def api_progress_stream(session_id):
     def generate():
         last_progress = -1
         last_status = ""
-        
+        last_message = ""
+
         while True:
             session_data = session_manager.get_session(session_id)
             if not session_data:
                 yield f"data: {json.dumps({'status': 'error', 'message': 'Sessione non trovata'})}\n\n"
                 break
-            
-            # Invia aggiornamento se cambiato
-            current_progress = session_data.progress_percentage
+
+            # Use actual_percent from metadata (set by report_progress) instead of section-based %
+            current_progress = session_data.metadata.get("actual_percent", session_data.progress_percentage)
             current_status = session_data.status.value
-            
-            if current_progress != last_progress or current_status != last_status:
+            current_message = session_data.metadata.get("last_message", "")
+
+            if current_progress != last_progress or current_status != last_status or current_message != last_message:
                 data = {
                     "progress": round(current_progress, 1),
                     "status": current_status,
-                    "message": session_data.metadata.get("last_message", ""),
+                    "message": current_message,
                     "completed_sections": session_data.completed_sections,
                     "plan_id": session_data.metadata.get("plan_id")
                 }
                 yield f"data: {json.dumps(data)}\n\n"
                 last_progress = current_progress
                 last_status = current_status
-            
+                last_message = current_message
+
             if current_status in ["completed", "failed"]:
                 break
-                
+
             time.sleep(1)
-            
+
     return Response(generate(), mimetype="text/event-stream")
 
 
@@ -3068,11 +3336,13 @@ def api_browse_folder():
 
 @app.route("/api/generate-from-docx", methods=["POST"])
 @route_error_handler
+@login_required
 def api_generate_from_docx():
     """
-    Endpoint completo: upload DOCX + generazione piano.
+    Endpoint DOCX upload + generazione piano (ASYNC).
+    Restituisce session_id immediatamente, il client si connette a SSE per il progresso.
     """
-    # Verifica disponibilità python-docx
+    # Verifica disponibilita python-docx
     if not DOCX_AVAILABLE:
         return jsonify(
             {
@@ -3113,7 +3383,7 @@ def api_generate_from_docx():
         f"[DOCX Generate] Processing {len(valid_files)} files for {club_name}"
     )
 
-    # Prepara file per processing
+    # Read file bytes before request context closes
     import io
 
     files_to_process = []
@@ -3121,278 +3391,47 @@ def api_generate_from_docx():
         content = io.BytesIO(f.read())
         files_to_process.append((content, f.filename))
 
-    # 1. Processa DOCX -> Payload
-    payload = process_docx_files_to_payload(
-        files=files_to_process,
+    # Get user_id before request context closes
+    user_id = int(current_user.id) if current_user.is_authenticated else None
+
+    # Create session for progress tracking
+    gen_session = session_manager.create_session(
         club_name=club_name,
-        project_id=project_id,
-        hard_data=hard_data,
-    )
-    payload["request_mode"] = request_mode
-
-    logger.info(
-        f"[DOCX Generate] Extracted {len(payload['stakeholders_inputs'])} stakeholders"
-    )
-
-    # 2. Process con Data Ingestor (Conflict Resolution)
-    synthesized, generation_params = process_n8n_webhook_payload(payload)
-
-    logger.info(
-        f"[DOCX Generate] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}"
+        club_data={
+            "club_name": club_name,
+            "request_mode": request_mode,
+            "files_count": len(files_to_process),
+        },
+        sections_to_generate=[
+            "upload", "stakeholder_analysis", "web_research",
+            "agent_generation", "structured_data", "review_creation", "complete"
+        ],
+        owner_id=user_id,
     )
 
-    # 3. Web Research (se production mode)
-    research_data = {}
-    if request_mode == "production":
-        try:
-            research_data = research_aggregator.comprehensive_club_research(
-                club_name=generation_params["club_name"],
-                city=generation_params.get("city", ""),
-                category=generation_params.get("category", ""),
-                competitors=[],
-                region=generation_params.get("region", ""),
-            )
-            research_aggregator.export_research_report(research_data)
-        except Exception as e:
-            logger.warning(f"[DOCX Generate] Research failed: {e}")
+    session_id = gen_session.session_id
+    logger.info(f"[DOCX Generate] Created session {session_id}, submitting background task")
 
-    # 4. Genera piano
-    logger.info(
-        "[DOCX Generate] Activating Multi-Agent Orchestrator (Recipe #RF-2026)..."
+    # Submit background task
+    analysis_executor.submit(
+        _run_docx_generation_task,
+        session_id,
+        files_to_process,
+        club_name,
+        project_id,
+        hard_data,
+        request_mode,
+        user_id,
     )
 
-    club_data = generation_params.copy()
-    club_data["synthesized_vision"] = synthesized.unified_vision
-    club_data["swot_aggregated"] = {
-        k: [item for item, _, _ in v[:5]]
-        for k, v in synthesized.swot_aggregated.items()
-    }
-    club_data["priority_ranking"] = []
-    for p in synthesized.priority_ranking[:5]:
-        if isinstance(p, (list, tuple)) and len(p) >= 1:
-            club_data["priority_ranking"].append(p[0])
-        else:
-            club_data["priority_ranking"].append(p)
-
-    result = orchestrator.generate_strategic_plan(
-        club_data=club_data,
-        research_data=research_data.get("club", {}),
-        parallel=True,
-    )
-
-    # 4b. Genera Piano Strutturato (Scientifico) v6.0
-    logger.info("[DOCX Generate] Extracting Scientific Data Points...")
-    try:
-        structured_plan = structured_orchestrator.generate_plan(
-            club_data=club_data, research_data=research_data
-        )
-    except Exception as e:
-        logger.error(f"Structured generation failed: {e}")
-        structured_plan = None
-
-    plan = result["plan"]
-    sources = result["sources"]
-    metadata = result["metadata"]
-
-    # 4c. Merge structured sections into plan_data
-    if structured_plan:
-        from utils.structured_converter import structured_plan_to_markdown
-        structured_sections = structured_plan_to_markdown(structured_plan)
-        plan.update(structured_sections)  # Sovrascrivi/aggiungi sezioni strutturate
-        logger.info(f"[DOCX Generate] Merged {len(structured_sections)} structured sections into plan_data")
-
-    # Aggiungi info DOCX al metadata
-    metadata["source"] = "docx_upload"
-    metadata["files_processed"] = payload["files_processed"]
-    metadata["document_types"] = payload["document_types_detected"]
-    metadata["stakeholder_count"] = len(payload["stakeholders_inputs"])
-    metadata["stakeholder_alignment"] = synthesized.stakeholder_alignment_score
-    metadata["conflicts_count"] = len(synthesized.conflicts_detected)
-    metadata["project_id"] = payload.get("project_id")
-
-    # Conteggio questionari compilati
-    metadata["total_questionnaires"] = len(payload["files_processed"])
-    total_fields = sum(
-        len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
-    )
-    metadata["verified_data_count"] = max(
-        total_fields, len(payload["files_processed"]) * 15
-    )
-    metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
-
-    # 5. Ottieni colori club
-    club_identity = get_club_identity(
-        club_name=generation_params["club_name"],
-        custom_primary=hard_data.get("primary_color"),
-        custom_secondary=hard_data.get("secondary_color"),
-    )
-    metadata["primary_color"] = club_identity["primary"]
-    metadata["secondary_color"] = club_identity["secondary"]
-    metadata["category"] = generation_params.get("category", "")
-
-    # 6. Crea review
-    review = editor.create_review_from_plan(
-        plan_data=plan,
-        club_name=generation_params["club_name"],
-        sources=sources,
-        metadata=metadata,
-    )
-
-    # 7. Salva in knowledge store
-    plan_record = PlanRecord(
-        id=review.plan_id,
-        club_name=generation_params["club_name"],
-        category=generation_params.get("category", ""),
-        region=generation_params.get("region", ""),
-        created_at=datetime.now().isoformat(),
-        status="draft",
-        plan_data=plan,
-        sources_count=len(sources),
-        credibility_score=metadata.get("credibility_score", 0),
-    )
-    knowledge_manager.add_plan_to_knowledge(
-        plan_record, owner_id=int(current_user.id)
-    )
-
-    logger.info(f"[DOCX Generate] Plan successfully locked: {review.plan_id}")
-
-    # Structured logging (STAB-004)
-    log_plan_generation_completed(
-        plan_id=review.plan_id,
-        club_name=generation_params["club_name"],
-        duration_seconds=0,  # TODO: Add timing
-        agent_count=6,
-        sections_count=len(plan),
-        stakeholder_count=len(payload.get("stakeholders_inputs", [])),
-        source="docx_upload"
-    )
-
-    # 8. Genera report automaticamente
-    pdf_url = None
-    onepager_url = None
-    executive_url = None
-    scientific_url = None
-    export_paths = []
-
-    if request_mode == "production":  # Genera tutti i report
-        safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # 8a. PDF (può fallire se Playwright non è installato)
-        try:
-            from export_pdf_server import PdfServerExporter
-            pdf_exporter = PdfServerExporter()
-            pdf_path = pdf_exporter.export(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                sources=sources,
-                metadata=metadata,
-            )
-            pdf_url = f"/download/{pdf_path.name}"
-            export_paths.append(pdf_path.name)
-            logger.info(f"PDF generato: {pdf_path.name}")
-        except Exception as pdf_error:
-            logger.warning(f"[DOCX Generate] PDF generation failed (non-blocking): {pdf_error}")
-
-        # 8b. One-Pager (non richiede Playwright)
-        try:
-            from export_onepager import create_onepager
-            from stw_analyzer import STWAnalyzer
-            analyzer = STWAnalyzer()
-            full_stw_data = analyzer.analyze_plan_coverage(plan)
-            onepager_path = create_onepager(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                metadata=metadata,
-                stw_progress=full_stw_data,
-            )
-            onepager_url = f"/download/{onepager_path.name}"
-            export_paths.append(onepager_path.name)
-            logger.info(f"One-Pager generato: {onepager_path.name}")
-        except Exception as op_error:
-            logger.warning(f"[DOCX Generate] One-Pager generation failed: {op_error}")
-
-        # 8c. Executive Report (non richiede Playwright)
-        try:
-            exec_html = plan_renderer.render_executive_html(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                category=generation_params.get("category", "Eccellenza"),
-                metadata=metadata,
-            )
-            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
-            exec_path = OUTPUT_DIR / exec_filename
-            with open(exec_path, "w", encoding="utf-8") as f:
-                f.write(exec_html)
-            executive_url = f"/download/{exec_filename}"
-            export_paths.append(exec_filename)
-            logger.info(f"Executive Report generato: {exec_filename}")
-        except Exception as exec_error:
-            logger.warning(f"[DOCX Generate] Executive Report generation failed: {exec_error}")
-
-        # 8d. Scientific Report
-        try:
-            if structured_plan:
-                sci_path_str = plan_renderer.render_structured(structured_plan)
-                sci_path = Path(sci_path_str)
-                scientific_url = f"/download/{sci_path.name}"
-                export_paths.append(sci_path.name)
-                logger.info(f"Scientific Report generato: {sci_path.name}")
-        except Exception as sci_error:
-            logger.warning(f"[DOCX Generate] Scientific Report generation failed: {sci_error}")
-
-    # Salva export_paths anche se vuoto (in caso di errore)
-    if export_paths:
-        plan_record.export_paths = export_paths
-        knowledge_manager.store.save_plan(
-            plan_record, owner_id=int(current_user.id)
-        )
-
-    # Response
+    # Return immediately with session_id
     return jsonify(
         {
             "success": True,
-            "plan_id": review.plan_id,
-            "project_id": payload.get("project_id"),
-            "club_name": generation_params["club_name"],
-            "docx_processing": {
-                "files_processed": payload["files_processed"],
-                "document_types_detected": payload["document_types_detected"],
-                "stakeholders_extracted": len(payload["stakeholders_inputs"]),
-            },
-            "synthesis_report": {
-                "stakeholders_processed": len(payload["stakeholders_inputs"]),
-                "alignment_score": synthesized.stakeholder_alignment_score,
-                "unified_vision_preview": synthesized.unified_vision[:500] + "...",
-                "top_priorities": [
-                    p[0] if isinstance(p, (list, tuple)) else p
-                    for p in synthesized.priority_ranking[:3]
-                ],
-            },
-            "conflicts_detected": [
-                {
-                    "area": c.area,
-                    "description": c.description,
-                    "severity": c.severity,
-                    "resolution": c.resolution_applied,
-                }
-                for c in synthesized.conflicts_detected
-            ],
-            "sections_count": len(plan),
-            "sources_count": len(sources),
-            "pdf_url": pdf_url,
-            "onepager_url": onepager_url,
-            "executive_url": executive_url,
-            "scientific_url": scientific_url,
-            "edit_url": f"/success/{review.plan_id}",
-            "view_url": f"/view/{review.plan_id}",
-            "next_steps": {
-                "export_pdf": f"/api/export/{review.plan_id}/pdf",
-                "export_package": f"/api/export/{review.plan_id}/package",
-                "finalize": f"/api/plan/{review.plan_id}/finalize",
-            },
+            "session_id": session_id,
+            "message": "Generazione avviata in background.",
         }
-    )
+    ), 202
 
 
 # =============================================================================
