@@ -1616,7 +1616,7 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": review.plan_id})
         
         # Detrai crediti al completamento
-        knowledge_manager.store.deduct_credits(user_id, 1)
+        knowledge_manager.store.update_user_credits(user_id, -1)
         
         logger.info(f"Background generation completed for {club_name}: {review.plan_id}")
 
@@ -1645,19 +1645,30 @@ def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
         report_progress("Inizializzazione sistema...", 5)
 
         # 1. Process DOCX files -> Payload
-        report_progress("Elaborazione file DOCX...", 8)
-        payload = process_docx_files_to_payload(
-            files=files_data,
-            club_name=club_name,
-            project_id=project_id,
-            hard_data=hard_data,
-        )
+        report_progress(f"Elaborazione {len(files_data)} file DOCX...", 8)
+        logger.info(f"[DOCX BG] Starting DOCX processing for {len(files_data)} files")
+        try:
+            payload = process_docx_files_to_payload(
+                files=files_data,
+                club_name=club_name,
+                project_id=project_id,
+                hard_data=hard_data,
+            )
+        except Exception as e:
+            logger.error(f"[DOCX BG] DOCX processing failed: {e}", exc_info=True)
+            raise RuntimeError(f"Errore elaborazione DOCX: {str(e)}")
         payload["request_mode"] = request_mode
+        report_progress(f"DOCX elaborati: {len(payload['stakeholders_inputs'])} stakeholder trovati", 12)
         logger.info(f"[DOCX BG] Extracted {len(payload['stakeholders_inputs'])} stakeholders")
 
         # 2. Data Ingestor - Conflict Resolution
         report_progress("Sintesi stakeholder multi-source...", 15)
-        synthesized, generation_params = process_n8n_webhook_payload(payload)
+        logger.info("[DOCX BG] Starting stakeholder synthesis...")
+        try:
+            synthesized, generation_params = process_n8n_webhook_payload(payload)
+        except Exception as e:
+            logger.error(f"[DOCX BG] Stakeholder synthesis failed: {e}", exc_info=True)
+            raise RuntimeError(f"Errore sintesi stakeholder: {str(e)}")
         logger.info(f"[DOCX BG] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}")
 
         # 3. Web Research (production mode)
@@ -1691,12 +1702,17 @@ def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
             else:
                 club_data["priority_ranking"].append(p)
 
-        result = orchestrator.generate_strategic_plan(
-            club_data=club_data,
-            research_data=research_data.get("club", {}),
-            parallel=True,
-            on_progress=report_progress,
-        )
+        logger.info("[DOCX BG] Starting Multi-Agent Orchestrator...")
+        try:
+            result = orchestrator.generate_strategic_plan(
+                club_data=club_data,
+                research_data=research_data.get("club", {}),
+                parallel=True,
+                on_progress=report_progress,
+            )
+        except Exception as e:
+            logger.error(f"[DOCX BG] Orchestrator failed: {e}", exc_info=True)
+            raise RuntimeError(f"Errore generazione piano: {str(e)}")
 
         # 5. Generate Structured Plan (Scientific) v6.0
         report_progress("Generazione analisi scientifica v6.0...", 75)
@@ -1864,7 +1880,7 @@ def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
         update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": review.plan_id})
 
         # 13. Deduct credits
-        knowledge_manager.store.deduct_credits(user_id, 1)
+        knowledge_manager.store.update_user_credits(user_id, -1)
 
         logger.info(f"[DOCX BG] Generation completed: {review.plan_id}")
 
@@ -1883,6 +1899,8 @@ def api_progress_stream(session_id):
         last_progress = -1
         last_status = ""
         last_message = ""
+        stall_count = 0  # Detect stalled progress
+        MAX_STALL = 300  # 5 minutes without progress change = stalled
 
         while True:
             session_data = session_manager.get_session(session_id)
@@ -1907,13 +1925,41 @@ def api_progress_stream(session_id):
                 last_progress = current_progress
                 last_status = current_status
                 last_message = current_message
+                stall_count = 0  # Reset stall counter on any change
+            else:
+                stall_count += 1
 
             if current_status in ["completed", "failed"]:
+                break
+
+            # Detect stalled task (no progress for MAX_STALL seconds)
+            if stall_count >= MAX_STALL:
+                yield f"data: {json.dumps({'status': 'failed', 'message': 'Generazione bloccata (nessun progresso per 5 minuti). Riprova.'})}\n\n"
+                session_manager.mark_failed(session_id, "Stalled - no progress for 5 minutes")
                 break
 
             time.sleep(1)
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/api/session-status/<session_id>")
+def api_session_status(session_id):
+    """Debug endpoint: controlla lo stato di una sessione di generazione."""
+    session_data = session_manager.get_session(session_id)
+    if not session_data:
+        return jsonify({"error": "Session not found", "session_id": session_id}), 404
+    return jsonify({
+        "session_id": session_id,
+        "status": session_data.status.value,
+        "progress": session_data.metadata.get("actual_percent", session_data.progress_percentage),
+        "message": session_data.metadata.get("last_message", ""),
+        "error_log": session_data.error_log,
+        "completed_sections": session_data.completed_sections,
+        "pending_sections": session_data.pending_sections,
+        "created_at": session_data.created_at,
+        "updated_at": session_data.updated_at,
+    })
 
 
 @app.route("/api/generate", methods=["POST"])
