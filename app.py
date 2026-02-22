@@ -3336,12 +3336,15 @@ def api_browse_folder():
 
 @app.route("/api/generate-from-docx", methods=["POST"])
 @route_error_handler
-@login_required
 def api_generate_from_docx():
     """
     Endpoint DOCX upload + generazione piano (ASYNC).
     Restituisce session_id immediatamente, il client si connette a SSE per il progresso.
     """
+    # Auth check (JSON-friendly, no redirect)
+    if not current_user.is_authenticated:
+        return jsonify({"success": False, "error": "Sessione scaduta. Ricarica la pagina e accedi di nuovo."}), 401
+
     # Verifica disponibilita python-docx
     if not DOCX_AVAILABLE:
         return jsonify(

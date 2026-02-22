@@ -1275,14 +1275,27 @@
 
             try {
                 progressText.textContent = 'Invio file al server...';
+                console.log('[UPLOAD] Sending', selectedFiles.length, 'files for', companyName);
 
                 const response = await fetch('/api/generate-from-docx', {
                     method: 'POST',
                     body: formData
                 });
 
+                console.log('[UPLOAD] Response status:', response.status);
+
+                if (!response.ok) {
+                    // Handle non-200 responses (401, 500, etc.)
+                    let errMsg = 'Errore server (HTTP ' + response.status + ')';
+                    try {
+                        const errData = await response.json();
+                        errMsg = errData.error || errMsg;
+                    } catch (e) { /* response wasn't JSON */ }
+                    throw new Error(errMsg);
+                }
+
                 const result = await response.json();
-                console.log('[DEBUG] API Response:', result);
+                console.log('[UPLOAD] API Response:', result);
 
                 if (result.success && result.session_id) {
                     // Async mode: connect to SSE progress stream
@@ -1339,10 +1352,11 @@
                 }
 
             } catch (error) {
-                console.error('Upload error:', error);
+                console.error('[UPLOAD] Error:', error);
                 progressText.innerHTML = '<span style="color:var(--error)">❌ Errore: ' + error.message + '</span>';
-                progressContainer.classList.remove('active');
+                // Keep progress container visible to show error, re-enable button
                 submitBtn.disabled = false;
+                alert('Errore: ' + error.message);
             }
         });
 
