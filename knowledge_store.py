@@ -650,98 +650,54 @@ class SQLiteKnowledgeStore:
             logger.error(f"Database error in save_plan: {e}")
             raise DatabaseError(message=f"Errore durante il salvataggio del piano {plan.id}", details=str(e))
 
-        def list_plans(
+    def list_plans(
+        self,
+        status: str = "",
+        category: str = "",
+        club_name: str = "",
+        owner_id: int = None,
+        plan_ids: List[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        exclude_status: str = ""
+    ) -> Tuple[List[PlanRecord], int]:
+        """
+        Lista piani con filtri e paginazione.
+        Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
+        """
+        conditions = []
+        params = []
 
-            self,
+        # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
+        if owner_id:
+            assigned_ids = self.get_assigned_plans(owner_id)
+            if assigned_ids:
+                placeholders = ",".join(["?" for _ in assigned_ids])
+                conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
+                params.append(owner_id)
+                params.extend(assigned_ids)
+            else:
+                conditions.append("owner_id = ?")
+                params.append(owner_id)
 
-            status: str = "",
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
 
-            category: str = "",
+        if exclude_status:
+            conditions.append("status != ?")
+            params.append(exclude_status)
 
-            club_name: str = "",
+        if category:
+            conditions.append("category = ?")
+            params.append(category)
 
-            owner_id: int = None,
+        if club_name:
+            conditions.append("club_name LIKE ?")
+            params.append(f"%{club_name}%")
 
-            plan_ids: List[str] = None,
-
-            limit: int = 50,
-
-            offset: int = 0,
-
-            exclude_status: str = ""
-
-        ) -> Tuple[List[PlanRecord], int]:
-
-            """
-
-            Lista piani con filtri e paginazione.
-
-            Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
-
-            """
-
-            conditions = []
-
-            params = []
-
-    
-
-            # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
-
-            if owner_id:
-
-                # Mostra i piani di cui è owner O quelli che gli sono stati assegnati
-
-                assigned_ids = self.get_assigned_plans(owner_id)
-
-                if assigned_ids:
-
-                    placeholders = ",".join(["?" for _ in assigned_ids])
-
-                    conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
-
-                    params.append(owner_id)
-
-                    params.extend(assigned_ids)
-
-                else:
-
-                    conditions.append("owner_id = ?")
-
-                    params.append(owner_id)
-
-    
-
-            if status:
-
-                conditions.append("status = ?")
-
-                params.append(status)
-
-            
-
-            if exclude_status:
-
-                conditions.append("status != ?")
-
-                params.append(exclude_status)
-
-    
-
-            if category:
-
-                conditions.append("category = ?")
-
-                params.append(category)
-
-            if club_name:
-
-                conditions.append("club_name LIKE ?")
-
-                params.append(f"%{club_name}%")
-        
         if plan_ids is not None:
-            if not plan_ids: 
+            if not plan_ids:
                 return [], 0
             placeholders = ",".join(["?" for _ in plan_ids])
             conditions.append(f"id IN ({placeholders})")
@@ -766,11 +722,10 @@ class SQLiteKnowledgeStore:
 
             plans = []
             for row in rows:
-                # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
                 decrypted_json = decrypt_data(row["plan_data"])
                 try:
                     plan_data = json.loads(decrypted_json)
-                except:
+                except Exception:
                     plan_data = {}
 
                 plans.append(PlanRecord(
