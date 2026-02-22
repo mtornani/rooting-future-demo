@@ -1047,6 +1047,247 @@ class SQLiteKnowledgeStore:
 
             return stats
 
+    # -------------------------------------------------------------------------
+    # GENERATION SESSIONS (REF-003)
+    # -------------------------------------------------------------------------
+
+    def save_generation_session(self, session_data: Dict) -> bool:
+        """
+        Save or update a generation session.
+
+        Args:
+            session_data: Dictionary with session fields
+
+        Returns:
+            True if saved successfully
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO generation_sessions
+                    (session_id, club_name, status, created_at, updated_at,
+                     completed_sections, pending_sections, partial_plan, metadata, error_log, owner_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    session_data['session_id'],
+                    session_data['club_name'],
+                    session_data['status'],
+                    session_data['created_at'],
+                    session_data['updated_at'],
+                    json.dumps(session_data.get('completed_sections', [])),
+                    json.dumps(session_data.get('pending_sections', [])),
+                    json.dumps(session_data.get('partial_plan', {})),
+                    json.dumps(session_data.get('metadata', {})),
+                    json.dumps(session_data.get('error_log', [])),
+                    session_data.get('owner_id')
+                ))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save session: {e}")
+            return False
+
+    def get_generation_session(self, session_id: str) -> Optional[Dict]:
+        """
+        Retrieve a generation session by ID.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Session data dict or None
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("""
+                SELECT * FROM generation_sessions WHERE session_id = ?
+            """, (session_id,)).fetchone()
+
+            if not row:
+                return None
+
+            return {
+                'session_id': row['session_id'],
+                'club_name': row['club_name'],
+                'status': row['status'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at'],
+                'completed_sections': json.loads(row['completed_sections'] or '[]'),
+                'pending_sections': json.loads(row['pending_sections'] or '[]'),
+                'partial_plan': json.loads(row['partial_plan'] or '{}'),
+                'metadata': json.loads(row['metadata'] or '{}'),
+                'error_log': json.loads(row['error_log'] or '[]'),
+                'owner_id': row['owner_id']
+            }
+
+    def get_user_sessions(self, owner_id: int, status_filter: Optional[str] = None) -> List[Dict]:
+        """
+        Get all sessions for a user.
+
+        Args:
+            owner_id: User ID
+            status_filter: Optional status to filter by
+
+        Returns:
+            List of session summary dicts
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            if status_filter:
+                rows = conn.execute("""
+                    SELECT session_id, club_name, status, created_at, updated_at
+                    FROM generation_sessions
+                    WHERE owner_id = ? AND status = ?
+                    ORDER BY updated_at DESC
+                """, (owner_id, status_filter)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT session_id, club_name, status, created_at, updated_at
+                    FROM generation_sessions
+                    WHERE owner_id = ?
+                    ORDER BY updated_at DESC
+                """, (owner_id,)).fetchall()
+
+            return [dict(row) for row in rows]
+
+    def delete_expired_sessions(self, cutoff_time: str) -> int:
+        """
+        Delete sessions older than cutoff time.
+
+        Args:
+            cutoff_time: ISO format datetime string
+
+        Returns:
+            Number of sessions deleted
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                DELETE FROM generation_sessions
+                WHERE updated_at < ? AND status IN ('completed', 'failed', 'cancelled')
+            """, (cutoff_time,))
+            conn.commit()
+            return cursor.rowcount
+
+    def delete_generation_session(self, session_id: str) -> bool:
+        """
+        Delete a specific session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if deleted
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM generation_sessions WHERE session_id = ?", (session_id,))
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete session {session_id}: {e}")
+            return False
+
+    # -------------------------------------------------------------------------
+    # LICENSE MANAGEMENT (Admin Panel)
+    # -------------------------------------------------------------------------
+
+    def save_license_record(
+        self,
+        email: str,
+        hwid: str,
+        license_key: str,
+        duration_days: int = None,
+        notes: str = None
+    ) -> int:
+        """
+        Salva un record di licenza generata nel database.
+        Usato dall'admin per tracciare le licenze emesse.
+        """
+        from datetime import datetime, timedelta
+
+        created_at = datetime.now().isoformat()
+        expires_at = None
+        if duration_days and duration_days > 0:
+            expires_at = (datetime.now() + timedelta(days=duration_days)).isoformat()
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    INSERT INTO licenses (email, hwid, license_key, duration_days, created_at, expires_at, status, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+                """, (email, hwid, license_key, duration_days, created_at, expires_at, notes))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            logger.error(f"Failed to save license record: {e}")
+            return None
+
+    def list_licenses(self, status: str = None, limit: int = 100) -> list:
+        """
+        Lista tutte le licenze. Filtra per status se specificato.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                if status:
+                    cursor = conn.execute(
+                        "SELECT * FROM licenses WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+                        (status, limit)
+                    )
+                else:
+                    cursor = conn.execute(
+                        "SELECT * FROM licenses ORDER BY created_at DESC LIMIT ?",
+                        (limit,)
+                    )
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to list licenses: {e}")
+            return []
+
+    def revoke_license(self, license_id: int) -> bool:
+        """
+        Revoca una licenza (imposta status='revoked').
+        """
+        from datetime import datetime
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE licenses SET status = 'revoked', revoked_at = ? WHERE id = ?",
+                    (datetime.now().isoformat(), license_id)
+                )
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to revoke license {license_id}: {e}")
+            return False
+
+    def get_license_stats(self) -> dict:
+        """
+        Statistiche sulle licenze per dashboard admin.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                total = conn.execute("SELECT COUNT(*) FROM licenses").fetchone()[0]
+                active = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'active'").fetchone()[0]
+                revoked = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'revoked'").fetchone()[0]
+                # Licenze in scadenza nei prossimi 30 giorni
+                from datetime import datetime, timedelta
+                soon = (datetime.now() + timedelta(days=30)).isoformat()
+                expiring = conn.execute(
+                    "SELECT COUNT(*) FROM licenses WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < ?",
+                    (soon,)
+                ).fetchone()[0]
+                return {
+                    "total": total,
+                    "active": active,
+                    "revoked": revoked,
+                    "expiring_soon": expiring
+                }
+        except Exception as e:
+            logger.error(f"Failed to get license stats: {e}")
+            return {"total": 0, "active": 0, "revoked": 0, "expiring_soon": 0}
+
 
 # =============================================================================
 # GEMINI FILE SEARCH / RAG
@@ -1443,244 +1684,3 @@ class KnowledgeManager:
 
         logger.info(f"Imported: {counts}")
         return counts
-
-    # -------------------------------------------------------------------------
-    # GENERATION SESSIONS (REF-003)
-    # -------------------------------------------------------------------------
-
-    def save_generation_session(self, session_data: Dict) -> bool:
-        """
-        Save or update a generation session.
-
-        Args:
-            session_data: Dictionary with session fields
-
-        Returns:
-            True if saved successfully
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT OR REPLACE INTO generation_sessions
-                    (session_id, club_name, status, created_at, updated_at,
-                     completed_sections, pending_sections, partial_plan, metadata, error_log, owner_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    session_data['session_id'],
-                    session_data['club_name'],
-                    session_data['status'],
-                    session_data['created_at'],
-                    session_data['updated_at'],
-                    json.dumps(session_data.get('completed_sections', [])),
-                    json.dumps(session_data.get('pending_sections', [])),
-                    json.dumps(session_data.get('partial_plan', {})),
-                    json.dumps(session_data.get('metadata', {})),
-                    json.dumps(session_data.get('error_log', [])),
-                    session_data.get('owner_id')
-                ))
-                conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save session: {e}")
-            return False
-
-    def get_generation_session(self, session_id: str) -> Optional[Dict]:
-        """
-        Retrieve a generation session by ID.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Session data dict or None
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute("""
-                SELECT * FROM generation_sessions WHERE session_id = ?
-            """, (session_id,)).fetchone()
-
-            if not row:
-                return None
-
-            return {
-                'session_id': row['session_id'],
-                'club_name': row['club_name'],
-                'status': row['status'],
-                'created_at': row['created_at'],
-                'updated_at': row['updated_at'],
-                'completed_sections': json.loads(row['completed_sections'] or '[]'),
-                'pending_sections': json.loads(row['pending_sections'] or '[]'),
-                'partial_plan': json.loads(row['partial_plan'] or '{}'),
-                'metadata': json.loads(row['metadata'] or '{}'),
-                'error_log': json.loads(row['error_log'] or '[]'),
-                'owner_id': row['owner_id']
-            }
-
-    def get_user_sessions(self, owner_id: int, status_filter: Optional[str] = None) -> List[Dict]:
-        """
-        Get all sessions for a user.
-
-        Args:
-            owner_id: User ID
-            status_filter: Optional status to filter by
-
-        Returns:
-            List of session summary dicts
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-
-            if status_filter:
-                rows = conn.execute("""
-                    SELECT session_id, club_name, status, created_at, updated_at
-                    FROM generation_sessions
-                    WHERE owner_id = ? AND status = ?
-                    ORDER BY updated_at DESC
-                """, (owner_id, status_filter)).fetchall()
-            else:
-                rows = conn.execute("""
-                    SELECT session_id, club_name, status, created_at, updated_at
-                    FROM generation_sessions
-                    WHERE owner_id = ?
-                    ORDER BY updated_at DESC
-                """, (owner_id,)).fetchall()
-
-            return [dict(row) for row in rows]
-
-    def delete_expired_sessions(self, cutoff_time: str) -> int:
-        """
-        Delete sessions older than cutoff time.
-
-        Args:
-            cutoff_time: ISO format datetime string
-
-        Returns:
-            Number of sessions deleted
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
-                DELETE FROM generation_sessions
-                WHERE updated_at < ? AND status IN ('completed', 'failed', 'cancelled')
-            """, (cutoff_time,))
-            conn.commit()
-            return cursor.rowcount
-
-    def delete_generation_session(self, session_id: str) -> bool:
-        """
-        Delete a specific session.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            True if deleted
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("DELETE FROM generation_sessions WHERE session_id = ?", (session_id,))
-                conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete session {session_id}: {e}")
-            return False
-
-    # -------------------------------------------------------------------------
-    # LICENSE MANAGEMENT (Admin Panel)
-    # -------------------------------------------------------------------------
-
-    def save_license_record(
-        self,
-        email: str,
-        hwid: str,
-        license_key: str,
-        duration_days: int = None,
-        notes: str = None
-    ) -> int:
-        """
-        Salva un record di licenza generata nel database.
-        Usato dall'admin per tracciare le licenze emesse.
-        """
-        from datetime import datetime, timedelta
-
-        created_at = datetime.now().isoformat()
-        expires_at = None
-        if duration_days and duration_days > 0:
-            expires_at = (datetime.now() + timedelta(days=duration_days)).isoformat()
-
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("""
-                    INSERT INTO licenses (email, hwid, license_key, duration_days, created_at, expires_at, status, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
-                """, (email, hwid, license_key, duration_days, created_at, expires_at, notes))
-                conn.commit()
-                return cursor.lastrowid
-        except Exception as e:
-            logger.error(f"Failed to save license record: {e}")
-            return None
-
-    def list_licenses(self, status: str = None, limit: int = 100) -> list:
-        """
-        Lista tutte le licenze. Filtra per status se specificato.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                if status:
-                    cursor = conn.execute(
-                        "SELECT * FROM licenses WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                        (status, limit)
-                    )
-                else:
-                    cursor = conn.execute(
-                        "SELECT * FROM licenses ORDER BY created_at DESC LIMIT ?",
-                        (limit,)
-                    )
-                return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to list licenses: {e}")
-            return []
-
-    def revoke_license(self, license_id: int) -> bool:
-        """
-        Revoca una licenza (imposta status='revoked').
-        """
-        from datetime import datetime
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE licenses SET status = 'revoked', revoked_at = ? WHERE id = ?",
-                    (datetime.now().isoformat(), license_id)
-                )
-                conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to revoke license {license_id}: {e}")
-            return False
-
-    def get_license_stats(self) -> dict:
-        """
-        Statistiche sulle licenze per dashboard admin.
-        """
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                total = conn.execute("SELECT COUNT(*) FROM licenses").fetchone()[0]
-                active = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'active'").fetchone()[0]
-                revoked = conn.execute("SELECT COUNT(*) FROM licenses WHERE status = 'revoked'").fetchone()[0]
-                # Licenze in scadenza nei prossimi 30 giorni
-                from datetime import datetime, timedelta
-                soon = (datetime.now() + timedelta(days=30)).isoformat()
-                expiring = conn.execute(
-                    "SELECT COUNT(*) FROM licenses WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < ?",
-                    (soon,)
-                ).fetchone()[0]
-                return {
-                    "total": total,
-                    "active": active,
-                    "revoked": revoked,
-                    "expiring_soon": expiring
-                }
-        except Exception as e:
-            logger.error(f"Failed to get license stats: {e}")
-            return {"total": 0, "active": 0, "revoked": 0, "expiring_soon": 0}
