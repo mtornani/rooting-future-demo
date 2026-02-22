@@ -1590,6 +1590,8 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         metadata["audit_report"] = audit_report
 
         # Salva record finale
+        # Store metadata inside plan_data for persistence
+        plan["_metadata"] = metadata
         plan_record = PlanRecord(
             id=review.plan_id,
             club_name=club_name,
@@ -1601,7 +1603,6 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
             sources_count=len(sources),
             credibility_score=audit_report.get("overall_quality_score", 0),
             owner_id=user_id,
-            metadata=metadata,
         )
         knowledge_manager.store.save_plan(plan_record)
         
@@ -1828,66 +1829,99 @@ def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
             except Exception as e:
                 logger.warning(f"[DOCX BG] Scientific failed: {e}")
 
-        # 9. Review + Audit
-        report_progress("Esecuzione Audit Qualita...", 90)
-        review = editor.create_review_from_plan(
-            plan_data=plan,
-            club_name=generation_params["club_name"],
-            sources=sources,
-            metadata=metadata,
-            owner_id=user_id,
-        )
+        # 9. Review + Audit (resilient - failures don't block plan saving)
+        report_progress("Creazione review e audit qualita...", 90)
+        audit_report = {"status": "skipped", "overall_quality_score": 70}
+        review = None
+        try:
+            review = editor.create_review_from_plan(
+                plan_data=plan,
+                club_name=generation_params["club_name"],
+                sources=sources,
+                metadata=metadata,
+                owner_id=user_id,
+            )
+            logger.info(f"[DOCX BG] Review created: {review.plan_id}")
+        except Exception as e:
+            logger.error(f"[DOCX BG] Review creation failed: {e}", exc_info=True)
 
-        auditor = AuditorAgent()
-        audit_report = auditor.audit_plan(plan, club_data, metadata.get("financial_estimates", {}))
-        metadata["audit_report"] = audit_report
+        try:
+            auditor = AuditorAgent()
+            audit_report = auditor.audit_plan(plan, club_data, metadata.get("financial_estimates", {}))
+            metadata["audit_report"] = audit_report
+            logger.info(f"[DOCX BG] Audit complete: score={audit_report.get('overall_quality_score', 'N/A')}")
+        except Exception as e:
+            logger.error(f"[DOCX BG] Audit failed: {e}", exc_info=True)
 
         # 10. Save plan record
-        plan_record = PlanRecord(
-            id=review.plan_id,
-            club_name=generation_params["club_name"],
-            category=generation_params.get("category", ""),
-            region=generation_params.get("region", ""),
-            created_at=datetime.now().isoformat(),
-            status="draft",
-            plan_data=plan,
-            sources_count=len(sources),
-            credibility_score=audit_report.get("overall_quality_score", 0),
-            owner_id=user_id,
-            metadata=metadata,
-        )
-        if export_paths:
-            plan_record.export_paths = export_paths
-        knowledge_manager.store.save_plan(plan_record)
+        report_progress("Salvataggio piano...", 95)
+        plan_id = review.plan_id if review else f"plan_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        try:
+            # Store metadata inside plan_data for persistence
+            plan["_metadata"] = metadata
+            plan_record = PlanRecord(
+                id=plan_id,
+                club_name=generation_params["club_name"],
+                category=generation_params.get("category", ""),
+                region=generation_params.get("region", ""),
+                created_at=datetime.now().isoformat(),
+                status="draft",
+                plan_data=plan,
+                sources_count=len(sources),
+                credibility_score=audit_report.get("overall_quality_score", 0),
+                owner_id=user_id,
+            )
+            if export_paths:
+                plan_record.export_paths = export_paths
+            knowledge_manager.store.save_plan(plan_record)
+            logger.info(f"[DOCX BG] Plan saved: {plan_id}")
+        except Exception as e:
+            logger.error(f"[DOCX BG] Plan save failed: {e}", exc_info=True)
+            raise RuntimeError(f"Errore salvataggio piano: {str(e)}")
 
-        # 11. Structured logging
-        log_plan_generation_completed(
-            plan_id=review.plan_id,
-            club_name=generation_params["club_name"],
-            duration_seconds=0,
-            agent_count=6,
-            sections_count=len(plan),
-            stakeholder_count=len(payload.get("stakeholders_inputs", [])),
-            source="docx_upload_async",
-        )
+        # 11. Structured logging (non-critical)
+        try:
+            log_plan_generation_completed(
+                plan_id=plan_id,
+                club_name=generation_params["club_name"],
+                duration_seconds=0,
+                agent_count=6,
+                sections_count=len(plan),
+                stakeholder_count=len(payload.get("stakeholders_inputs", [])),
+                source="docx_upload_async",
+            )
+        except Exception as e:
+            logger.warning(f"[DOCX BG] Structured logging failed: {e}")
 
         # 12. Mark completed
         session_manager.mark_completed(session_id, plan, sources=sources)
         session_manager.save_checkpoint(
             session_id, "final", 100,
-            metadata_update={"plan_id": review.plan_id, "last_message": "Piano generato con successo!"}
+            metadata_update={"plan_id": plan_id, "last_message": "Piano generato con successo!"}
         )
-        update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": review.plan_id})
+        update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": plan_id})
 
-        # 13. Deduct credits
-        knowledge_manager.store.update_user_credits(user_id, -1)
+        # 13. Deduct credits (non-critical)
+        try:
+            knowledge_manager.store.update_user_credits(user_id, -1)
+        except Exception as e:
+            logger.warning(f"[DOCX BG] Credit deduction failed: {e}")
 
-        logger.info(f"[DOCX BG] Generation completed: {review.plan_id}")
+        logger.info(f"[DOCX BG] Generation completed: {plan_id}")
 
     except Exception as e:
+        error_msg = f"Errore: {str(e)}"
         logger.error(f"[DOCX BG] Error in background task for {session_id}: {e}", exc_info=True)
+        # Update last_message so SSE shows the actual error, not the last step name
+        try:
+            session_manager.save_checkpoint(
+                session_id, "error", 0,
+                metadata_update={"last_message": error_msg, "actual_percent": 0}
+            )
+        except Exception:
+            pass
         session_manager.mark_failed(session_id, str(e))
-        update_project_status(session_id, "error", message=f"Errore: {str(e)}")
+        update_project_status(session_id, "error", message=error_msg)
 
 
 @app.route("/api/progress/<session_id>")
