@@ -1042,42 +1042,35 @@
         // =================================================================
         // SSE LOG STREAMING
         // =================================================================
+        let logPollingInterval = null;
+        let lastLogCount = 0;
+
         function connectSSE() {
-            if (eventSource) {
-                eventSource.close();
-            }
+            // Live Console uses polling (SSE was disabled for stability)
+            updateConnectionStatus(true);
+            addLogEntry({
+                timestamp: new Date().toISOString(),
+                level: 'INFO',
+                message: 'Connesso al server - Polling attivo'
+            });
 
-            eventSource = new EventSource('/api/stream/logs');
-
-            eventSource.onopen = function() {
-                updateConnectionStatus(true);
-                addLogEntry({
-                    timestamp: new Date().toISOString(),
-                    level: 'INFO',
-                    message: 'Connesso al server - Streaming attivo'
-                });
-            };
-
-            eventSource.onmessage = function(event) {
+            // Poll logs every 3 seconds
+            if (logPollingInterval) clearInterval(logPollingInterval);
+            logPollingInterval = setInterval(async () => {
                 try {
-                    const logEntry = JSON.parse(event.data);
-                    addLogEntry(logEntry);
-                } catch (e) {
-                    console.error('Error parsing log:', e);
-                }
-            };
-
-            eventSource.onerror = function(error) {
-                updateConnectionStatus(false);
-                console.error('SSE error:', error);
-
-                // Riconnetti dopo 3 secondi
-                setTimeout(() => {
-                    if (eventSource.readyState === EventSource.CLOSED) {
-                        connectSSE();
+                    const resp = await fetch('/api/stream/logs');
+                    const data = await resp.json();
+                    if (data.success && data.logs) {
+                        // Only show new logs
+                        const newLogs = data.logs.slice(lastLogCount);
+                        newLogs.forEach(log => addLogEntry(log));
+                        lastLogCount = data.logs.length;
+                        updateConnectionStatus(true);
                     }
-                }, 3000);
-            };
+                } catch (e) {
+                    updateConnectionStatus(false);
+                }
+            }, 3000);
         }
 
         function updateConnectionStatus(connected) {
@@ -1318,16 +1311,11 @@
                                 }, 1500);
                             } else if (data.status === 'failed' || data.status === 'error') {
                                 progressSource.close();
-                                throw new Error(data.message || 'Generazione fallita');
-                            }
-                        } catch (parseErr) {
-                            if (parseErr.message && parseErr.message !== 'Generazione fallita') {
-                                console.error('SSE parse error:', parseErr);
-                            } else {
-                                progressSource.close();
-                                progressText.innerHTML = '<span style="color:var(--error)">❌ ' + parseErr.message + '</span>';
+                                progressText.innerHTML = '<span style="color:var(--error)">❌ ' + (data.message || 'Generazione fallita') + '</span>';
                                 submitBtn.disabled = false;
                             }
+                        } catch (parseErr) {
+                            console.error('SSE parse error:', parseErr);
                         }
                     };
 
@@ -1391,9 +1379,8 @@
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
-            if (eventSource) {
-                eventSource.close();
-            }
+            if (eventSource) { eventSource.close(); }
+            if (logPollingInterval) { clearInterval(logPollingInterval); }
         });
     </script>
 </body>
