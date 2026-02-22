@@ -827,12 +827,33 @@ def index():
     try:
         db_stats = knowledge_manager.store.get_statistics()
         plans_stats = db_stats.get("plans", {})
+        # Get recent plans for dashboard
+        recent_plans = []
+        try:
+            owner_filter = None
+            if current_user.role not in ("super_admin", "admin"):
+                owner_filter = int(current_user.id)
+            recent_raw, _ = knowledge_manager.store.list_plans(
+                owner_id=owner_filter, limit=5, offset=0
+            )
+            recent_plans = [
+                {
+                    "plan_id": p.id,
+                    "club_name": p.club_name,
+                    "status": p.status,
+                    "last_modified": p.created_at,
+                }
+                for p in recent_raw
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to load recent plans: {e}")
+
         stats = {
             "total_plans": plans_stats.get("total", 0),
             "by_status": plans_stats.get("by_status", {"draft": 0}),
             "sections_needing_review": plans_stats.get("by_status", {}).get("review", 0),
             "average_credibility": plans_stats.get("avg_credibility", 0),
-            "recent_plans": [],  # TODO: implementare lista piani recenti
+            "recent_plans": recent_plans,
         }
     except Exception as e:
         logger.error(f"Errore caricamento statistiche: {e}")
