@@ -1289,7 +1289,8 @@
                     let errMsg = 'Errore server (HTTP ' + response.status + ')';
                     try {
                         const errData = await response.json();
-                        errMsg = errData.error || errMsg;
+                        console.log('[UPLOAD] Error response body:', errData);
+                        errMsg = errData.error || errData.message || errData.user_message || errMsg;
                     } catch (e) { /* response wasn't JSON */ }
                     throw new Error(errMsg);
                 }

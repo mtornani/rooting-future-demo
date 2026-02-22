@@ -3397,44 +3397,62 @@ def api_generate_from_docx():
     # Get user_id before request context closes
     user_id = int(current_user.id) if current_user.is_authenticated else None
 
-    # Create session for progress tracking
-    gen_session = session_manager.create_session(
-        club_name=club_name,
-        club_data={
-            "club_name": club_name,
-            "request_mode": request_mode,
-            "files_count": len(files_to_process),
-        },
-        sections_to_generate=[
-            "upload", "stakeholder_analysis", "web_research",
-            "agent_generation", "structured_data", "review_creation", "complete"
-        ],
-        owner_id=user_id,
-    )
+    # Check credits before starting
+    if user_id:
+        try:
+            user_data = knowledge_manager.store.get_user_by_id(user_id)
+            user_credits = user_data.get("credits", 0) if user_data else 0
+            if user_credits <= 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Crediti insufficienti. Contatta il referente per ottenere nuovi crediti."
+                }), 403
+        except Exception as e:
+            logger.warning(f"[DOCX Generate] Credit check failed (proceeding anyway): {e}")
 
-    session_id = gen_session.session_id
-    logger.info(f"[DOCX Generate] Created session {session_id}, submitting background task")
+    try:
+        # Create session for progress tracking
+        gen_session = session_manager.create_session(
+            club_name=club_name,
+            club_data={
+                "club_name": club_name,
+                "request_mode": request_mode,
+                "files_count": len(files_to_process),
+            },
+            sections_to_generate=[
+                "upload", "stakeholder_analysis", "web_research",
+                "agent_generation", "structured_data", "review_creation", "complete"
+            ],
+            owner_id=user_id,
+        )
 
-    # Submit background task
-    analysis_executor.submit(
-        _run_docx_generation_task,
-        session_id,
-        files_to_process,
-        club_name,
-        project_id,
-        hard_data,
-        request_mode,
-        user_id,
-    )
+        session_id = gen_session.session_id
+        logger.info(f"[DOCX Generate] Created session {session_id}, submitting background task")
 
-    # Return immediately with session_id
-    return jsonify(
-        {
-            "success": True,
-            "session_id": session_id,
-            "message": "Generazione avviata in background.",
-        }
-    ), 202
+        # Submit background task
+        analysis_executor.submit(
+            _run_docx_generation_task,
+            session_id,
+            files_to_process,
+            club_name,
+            project_id,
+            hard_data,
+            request_mode,
+            user_id,
+        )
+
+        # Return immediately with session_id
+        return jsonify(
+            {
+                "success": True,
+                "session_id": session_id,
+                "message": "Generazione avviata in background.",
+            }
+        ), 202
+
+    except Exception as e:
+        logger.exception(f"[DOCX Generate] Failed to create session or submit task: {e}")
+        return jsonify({"success": False, "error": f"Errore avvio generazione: {str(e)}"}), 500
 
 
 # =============================================================================
