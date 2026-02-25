@@ -1914,12 +1914,13 @@ def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
         except Exception as e:
             logger.warning(f"[DOCX BG] Structured logging failed: {e}")
 
-        # 12. Mark completed
-        session_manager.mark_completed(session_id, plan, sources=sources)
+        # 12. Mark completed (set plan_id in metadata BEFORE marking completed
+        # to avoid race condition where SSE sees "completed" but plan_id is null)
         session_manager.save_checkpoint(
             session_id, "final", 100,
             metadata_update={"plan_id": plan_id, "last_message": "Piano generato con successo!"}
         )
+        session_manager.mark_completed(session_id, plan, sources=sources)
         update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": plan_id})
 
         # 13. Deduct credits (non-critical)
