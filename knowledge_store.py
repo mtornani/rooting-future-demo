@@ -1260,15 +1260,94 @@ Rispondi basandoti sul contesto fornito. Se l'informazione non è presente nel c
 # UNIFIED KNOWLEDGE MANAGER
 # =============================================================================
 
+class ProviderKnowledgeRAG:
+    """
+    RAG alternativo che usa le interfacce ai_providers.
+    Drop-in replacement per GeminiKnowledgeRAG quando LOCAL_RAG=1.
+    Interfaccia identica a GeminiKnowledgeRAG (.available, .semantic_search()).
+    """
+
+    def __init__(self, embedding_provider=None, vector_store=None):
+        self._embedding_provider = embedding_provider
+        self._vector_store = vector_store  # ChromaVectorStore (opzionale)
+        self.available = embedding_provider is not None
+
+    def semantic_search(
+        self,
+        query: str,
+        documents: List["Document"],
+        top_k: int = 5,
+    ) -> List["SearchResult"]:
+        """
+        Ricerca semantica nei documenti via EmbeddingProvider.
+        Stesso contratto di GeminiKnowledgeRAG.semantic_search().
+        """
+        if not self.available or self._embedding_provider is None:
+            return self._keyword_search(query, documents, top_k)
+
+        # Se abbiamo ChromaDB, usa quello
+        if self._vector_store is not None:
+            try:
+                hits = self._vector_store.search(query, top_k=top_k)
+                hit_ids = {h["id"] for h in hits}
+                # Reordina i Document corrispondenti
+                id_to_doc = {d.id: d for d in documents}
+                results = []
+                for h in hits:
+                    doc = id_to_doc.get(h["id"])
+                    if doc:
+                        results.append(SearchResult(document=doc, score=h["score"]))
+                if results:
+                    return results
+            except Exception as e:
+                logger.warning(f"ProviderKnowledgeRAG ChromaDB search fallito: {e}")
+
+        # Fallback: calcola similarità in-memory via EmbeddingProvider
+        query_emb = self._embedding_provider.embed_text(query)
+        if query_emb is None:
+            return self._keyword_search(query, documents, top_k)
+
+        import math
+
+        def _cosine(a, b):
+            dot = sum(x * y for x, y in zip(a, b))
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(x * x for x in b))
+            return dot / (na * nb) if na and nb else 0.0
+
+        results = []
+        for doc in documents:
+            doc_emb = self._embedding_provider.embed_text(doc.content[:2000])
+            if doc_emb is not None:
+                score = _cosine(query_emb, doc_emb)
+                results.append(SearchResult(document=doc, score=score))
+
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+    def _keyword_search(self, query: str, documents, top_k: int):
+        query_words = set(query.lower().split())
+        results = []
+        for doc in documents:
+            doc_words = set(doc.content.lower().split())
+            overlap = len(query_words & doc_words)
+            score = overlap / len(query_words) if query_words else 0
+            if score > 0:
+                results.append(SearchResult(document=doc, score=score))
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+
 class KnowledgeManager:
     """
     Manager unificato per knowledge store.
-    Combina SQLite storage + Gemini RAG.
+    Combina SQLite storage + Gemini RAG (o ProviderKnowledgeRAG se rag_override presente).
     """
 
-    def __init__(self, file_search_manager: Any = None):
+    def __init__(self, file_search_manager: Any = None, rag_override=None):
         self.store = SQLiteKnowledgeStore()
-        self.rag = GeminiKnowledgeRAG()
+        # rag_override: ProviderKnowledgeRAG (LOCAL_RAG=1) o None → GeminiKnowledgeRAG (default)
+        self.rag = rag_override if rag_override is not None else GeminiKnowledgeRAG()
         self.file_search_manager = file_search_manager
 
     def add_plan_to_knowledge(self, plan_record: PlanRecord, owner_id: int = None) -> str:

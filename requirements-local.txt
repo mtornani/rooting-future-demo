@@ -1,0 +1,21 @@
+# Rooting Future — Dipendenze stack locale (Ollama + ChromaDB + embedding locale)
+# NON aggiungere a requirements.txt principale.
+# Installa con: pip install -r requirements-local.txt
+#
+# Per PyTorch CPU (risparmia 2GB+ rispetto alla versione GPU):
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+# pip install -r requirements-local.txt
+
+# Embedding locale
+sentence-transformers>=3.0.0
+
+# Vector store locale
+chromadb>=0.5.0
+
+# OpenAI-compatible client (già in requirements.txt, ma esplicito per chiarezza)
+openai>=1.0.0
+
+# PyTorch CPU (opzionale — sentence-transformers lo usa automaticamente)
+# Decommentare se vuoi forzare la versione CPU:
+# --index-url https://download.pytorch.org/whl/cpu
+# torch>=2.0.0

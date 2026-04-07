@@ -544,6 +544,27 @@ def inject_now():
 
 
 # =============================================================================
+# AI PROVIDERS — ADAPTER LAYER
+# Crea i provider giusti in base alle env vars. Zero impatto se LOCAL_RAG=0.
+# =============================================================================
+
+try:
+    from ai_providers.factory import create_all_providers
+    _ai_embedding_provider, _ai_generation_provider, _ai_vector_store = create_all_providers()
+    logger.info(
+        f"AI Providers inizializzati: "
+        f"embedding={type(_ai_embedding_provider).__name__}, "
+        f"generation={type(_ai_generation_provider).__name__}, "
+        f"vector_store={type(_ai_vector_store).__name__ if _ai_vector_store else 'SQLite(default)'}"
+    )
+except Exception as e:
+    logger.warning(f"AI Providers non inizializzati (fallback a Gemini): {e}")
+    _ai_embedding_provider = None
+    _ai_generation_provider = None
+    _ai_vector_store = None
+
+
+# =============================================================================
 # COMPONENTI (inizializzazione con gestione errori)
 # =============================================================================
 
@@ -557,7 +578,23 @@ except Exception as e:
     file_search_store_name = None
 
 # Knowledge manager (per apprendimento)
-knowledge_manager = KnowledgeManager(file_search_manager=file_search_manager)
+# Se LOCAL_RAG=1, inietta ProviderKnowledgeRAG al posto di GeminiKnowledgeRAG
+_rag_override = None
+if _ai_embedding_provider is not None and os.environ.get("LOCAL_RAG", "0").strip() == "1":
+    try:
+        from knowledge_store import ProviderKnowledgeRAG
+        _rag_override = ProviderKnowledgeRAG(
+            embedding_provider=_ai_embedding_provider,
+            vector_store=_ai_vector_store,
+        )
+        logger.info("KnowledgeManager: usando ProviderKnowledgeRAG (LOCAL_RAG=1)")
+    except Exception as e:
+        logger.warning(f"ProviderKnowledgeRAG non inizializzato: {e}")
+
+knowledge_manager = KnowledgeManager(
+    file_search_manager=file_search_manager,
+    rag_override=_rag_override,
+)
 
 # Session Manager (REF-003 / UX-001b)
 from session_manager import init_session_manager

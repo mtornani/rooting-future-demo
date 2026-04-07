@@ -805,8 +805,26 @@ class StrategicAgent:
         self.cache = AICache() # Inizializza cache
         self._provider = get_active_provider()  # "gemini" o "openrouter"
         self._openrouter_client = None
+        self._generation_provider = None  # ai_providers.GenerationProvider (Ollama o Gemini)
 
-        if self._provider == "openrouter":
+        # --- Ollama path: OLLAMA_BASE_URL presente → usa adapter layer ---
+        _ollama_url = os.environ.get("OLLAMA_BASE_URL", "").strip()
+        if _ollama_url:
+            try:
+                from ai_providers.ollama_provider import OllamaGenerationProvider
+                self._generation_provider = OllamaGenerationProvider(base_url=_ollama_url)
+                self.available = self._generation_provider.available
+                if self.available:
+                    _model = os.environ.get("OLLAMA_MODEL", "gemma4:26b")
+                    logger.info(f"Agent {spec.name}: Ollama inizializzato (url={_ollama_url}, model={_model})")
+                else:
+                    logger.warning(f"Agent {spec.name}: OllamaGenerationProvider non disponibile")
+            except Exception as e:
+                logger.error(f"Agent {spec.name}: Errore init Ollama: {e}")
+                self._generation_provider = None
+                self.available = False
+
+        elif self._provider == "openrouter":
             # --- OpenRouter provider ---
             or_key = OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY", "")
             or_model = os.environ.get("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL)
@@ -948,8 +966,24 @@ e soggette a revisione post-allineamento.
             raw_content = cached_response
             citations = [] # Citations not cached/needed for replay
         else:
+            # === OLLAMA PATH (adapter layer) ===
+            if self._generation_provider is not None:
+                try:
+                    logger.debug(f"Invio richiesta a Ollama per {self.spec.name}")
+                    raw_content = self._generation_provider.generate(
+                        prompt=prompt_content,
+                        temperature=MODEL_CONFIG.temperature,
+                        max_tokens=MODEL_CONFIG.max_tokens,
+                    )
+                    citations = []
+                    self.cache.set(prompt_content, raw_content)
+                except Exception as e:
+                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
+                    log_exception(wrapped, context=f"agent_{self.spec.name}")
+                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+
             # === OPENROUTER PATH ===
-            if self._provider == "openrouter" and self._openrouter_client:
+            elif self._provider == "openrouter" and self._openrouter_client:
                 try:
                     logger.debug(f"Invio richiesta a OpenRouter per {self.spec.name}")
                     raw_content = self._openrouter_client.generate_content(

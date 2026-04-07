@@ -511,3 +511,30 @@ def get_missing_config() -> List[str]:
     """Restituisce lista configurazioni mancanti"""
     validation = validate_config()
     return [key for key, valid in validation.items() if not valid]
+
+
+# =============================================================================
+# AI PROVIDERS — ADAPTER LAYER (feat/adapter-layer-gemma4)
+# Queste variabili abilitano lo stack locale (Ollama + ChromaDB + embedding).
+# Se non impostate, il sistema usa Gemini come sempre.
+# =============================================================================
+
+# Stack locale: LOCAL_RAG=1 abilita embedding locale + ChromaDB
+# Senza questa var (o LOCAL_RAG=0) → comportamento identico a prima
+LOCAL_RAG = os.environ.get("LOCAL_RAG", "0").strip() == "1"
+
+# Ollama: se presente, la generazione usa Ollama invece di Gemini
+# Esempi:
+#   Locale:   OLLAMA_BASE_URL=http://localhost:11434
+#   Cloud:    OLLAMA_BASE_URL=https://ollama.com  + OLLAMA_API_KEY=<key>
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:26b")
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
+
+# ChromaDB: path per il vector store locale
+# HuggingFace Spaces: usare /data/chromadb/
+CHROMA_DB_PATH = os.environ.get("CHROMA_DB_PATH", "knowledge_base/chromadb/")
+
+# Embedding locale: modello sentence-transformers
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "768"))
