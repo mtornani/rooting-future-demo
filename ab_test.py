@@ -177,6 +177,14 @@ def run_provider(
     try:
         orchestrator = MultiAgentOrchestrator()
 
+        # Disabilita la cache AI per ogni agente — fondamentale per l'A/B test:
+        # senza questo il secondo provider riusa i risultati cached del primo.
+        class _NoCache:
+            def get(self, _): return None
+            def set(self, _k, _v): pass
+        for agent in orchestrator.agents.values():
+            agent.cache = _NoCache()
+
         # Wrap each agent to capture per-agent timing
         original_agents = {}
         for role, agent in orchestrator.agents.items():
@@ -526,8 +534,8 @@ def generate_html_report(
 # ---------------------------------------------------------------------------
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
-_OPENROUTER_GEMINI_MODEL = "google/gemini-2.0-flash-exp:free"
-_OPENROUTER_GEMMA_MODEL  = "google/gemma-3-27b-it:free"
+_OPENROUTER_GEMINI_MODEL = "google/gemini-2.0-flash-001"
+_OPENROUTER_GEMMA_MODEL  = "google/gemma-4-31b-it:free"
 
 
 def parse_args():

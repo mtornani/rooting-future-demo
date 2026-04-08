@@ -110,24 +110,41 @@ class OllamaGenerationProvider(GenerationProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        try:
-            t0 = time.time()
-            response = self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            elapsed = time.time() - t0
-            logger.info(f"OllamaGenerationProvider: risposta in {elapsed:.1f}s")
-            return response.choices[0].message.content
+        # Retry con backoff per 429 (rate limit) — comune su modelli free OpenRouter
+        max_retries = int(os.environ.get("OLLAMA_MAX_RETRIES", "5"))
+        backoff = [10, 20, 40, 60, 90]  # secondi
 
-        except Exception as e:
-            logger.error(f"OllamaGenerationProvider.generate error: {e}")
-            if self._fallback and self._fallback.available:
-                logger.warning("OllamaGenerationProvider: errore, uso fallback Gemini")
-                return self._fallback.generate(prompt, system_prompt, temperature, max_tokens)
-            raise
+        last_exc: Exception = RuntimeError("nessuna chiamata effettuata")
+        for attempt in range(max_retries):
+            try:
+                t0 = time.time()
+                response = self._client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                elapsed = time.time() - t0
+                logger.info(f"OllamaGenerationProvider: risposta in {elapsed:.1f}s")
+                return response.choices[0].message.content
+
+            except Exception as e:
+                last_exc = e
+                err_str = str(e)
+                is_rate_limit = "429" in err_str or "rate" in err_str.lower() or "Rate" in err_str
+                if is_rate_limit and attempt < max_retries - 1:
+                    wait = backoff[min(attempt, len(backoff) - 1)]
+                    logger.warning(f"OllamaGenerationProvider: rate limit (attempt {attempt+1}/{max_retries}), attendo {wait}s…")
+                    print(f"    [rate limit] attendo {wait}s prima di riprovare…")
+                    time.sleep(wait)
+                    continue
+                break
+
+        logger.error(f"OllamaGenerationProvider.generate error: {last_exc}")
+        if self._fallback and self._fallback.available:
+            logger.warning("OllamaGenerationProvider: errore, uso fallback Gemini")
+            return self._fallback.generate(prompt, system_prompt, temperature, max_tokens)
+        raise last_exc
 
     def generate_structured(
         self,
