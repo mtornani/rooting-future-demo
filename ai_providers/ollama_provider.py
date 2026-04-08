@@ -39,7 +39,7 @@ class OllamaGenerationProvider(GenerationProvider):
     delega a GeminiGenerationProvider.
     """
 
-    TIMEOUT = 60  # secondi
+    TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "300"))  # default 300s (configurabile)
 
     def __init__(
         self,
