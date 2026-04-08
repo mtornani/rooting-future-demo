@@ -147,7 +147,7 @@ if GOOGLE_API_KEY:
 @dataclass
 class ModelConfig:
     """Configurazione modello AI"""
-    name: str = "gemini-2.0-flash"  # Versione stabile e veloce
+    name: str = "gemini-2.0-flash-001"  # Versione stabile (2.0-flash rinominato in 2.0-flash-001)
     temperature: float = 0.7
     max_tokens: int = 8192
     top_p: float = 0.95

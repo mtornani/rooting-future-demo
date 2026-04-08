@@ -848,9 +848,12 @@ class StrategicAgent:
             api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or GEMINI_API_KEY
             if GENAI_AVAILABLE and api_key:
                 try:
+                    from ai_providers.gemini_provider import detect_best_gemini_model
+                    _gemini_model_name = detect_best_gemini_model(api_key)
                     genai.configure(api_key=api_key)
-                    self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+                    self.model = genai.GenerativeModel(_gemini_model_name)
                     self.available = True
+                    logger.info(f"Agent {spec.name}: Gemini model={_gemini_model_name}")
                 except Exception as e:
                     logger.error(f"Errore durante l'inizializzazione del client Gemini: {e}")
                     self.model = None
@@ -1022,7 +1025,7 @@ e soggette a revisione post-allineamento.
                     try:
                         # Riprova SENZA tools
                         logger.info(f"Retrying Agent {self.spec.name} WITHOUT tools...")
-                        fallback_model = genai.GenerativeModel(MODEL_CONFIG.name) # No tools
+                        fallback_model = self.model or genai.GenerativeModel(MODEL_CONFIG.name) # No tools
                         response = fallback_model.generate_content(
                             prompt_content,
                             generation_config=genai.types.GenerationConfig(

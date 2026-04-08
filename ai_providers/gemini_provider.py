@@ -22,6 +22,30 @@ except ImportError:
     genai = None
     genai_new = None
 
+# Modelli preferiti in ordine decrescente di preferenza
+_PREFERRED_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+]
+
+
+def detect_best_gemini_model(api_key: str) -> str:
+    """Interroga l'API Gemini e restituisce il miglior modello disponibile."""
+    if not GENAI_AVAILABLE or not api_key:
+        return "gemini-2.0-flash-001"
+    try:
+        genai.configure(api_key=api_key)
+        available = {m.name for m in genai.list_models()}
+        for model in _PREFERRED_MODELS:
+            if f"models/{model}" in available:
+                logger.info(f"detect_best_gemini_model: selezionato {model}")
+                return model
+    except Exception as e:
+        logger.warning(f"detect_best_gemini_model: impossibile listare modelli ({e}), uso default")
+    return "gemini-2.0-flash-001"
+
 
 class GeminiEmbeddingProvider(EmbeddingProvider):
     """
@@ -78,12 +102,12 @@ class GeminiGenerationProvider(GenerationProvider):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = "gemini-2.0-flash",
+        model_name: Optional[str] = None,
     ):
         self._api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
-        self._model_name = model_name
         self._available = False
         self._model = None
+        self._model_name = model_name or ""
 
         if not GENAI_AVAILABLE:
             logger.warning("GeminiGenerationProvider: google-generativeai non installato.")
@@ -92,11 +116,16 @@ class GeminiGenerationProvider(GenerationProvider):
             logger.warning("GeminiGenerationProvider: GEMINI_API_KEY mancante.")
             return
 
+        # Auto-detect se il nome non è specificato o è quello deprecato
+        _deprecated = {"gemini-2.0-flash", "gemini-pro"}
+        if not self._model_name or self._model_name in _deprecated:
+            self._model_name = detect_best_gemini_model(self._api_key)
+
         try:
             genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel(model_name)
+            self._model = genai.GenerativeModel(self._model_name)
             self._available = True
-            logger.info(f"GeminiGenerationProvider: pronto (model={model_name})")
+            logger.info(f"GeminiGenerationProvider: pronto (model={self._model_name})")
         except Exception as e:
             logger.error(f"GeminiGenerationProvider init error: {e}")
 
