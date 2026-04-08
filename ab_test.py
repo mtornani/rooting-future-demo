@@ -534,8 +534,8 @@ def generate_html_report(
 # ---------------------------------------------------------------------------
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
-_OPENROUTER_GEMINI_MODEL = "google/gemini-2.0-flash-001"
-_OPENROUTER_GEMMA_MODEL  = "google/gemma-4-31b-it:free"
+_OPENROUTER_GEMINI_MODEL = "openai/gpt-oss-120b:free"   # OpenAI open-weight 120B, gratuito
+_OPENROUTER_GEMMA_MODEL  = "google/gemma-4-31b-it:free"  # Gemma 4 31B, gratuito
 
 
 def parse_args():
