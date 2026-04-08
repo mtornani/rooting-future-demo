@@ -525,8 +525,26 @@ def generate_html_report(
 # Main
 # ---------------------------------------------------------------------------
 
+_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+_OPENROUTER_GEMINI_MODEL = "google/gemini-2.0-flash-exp:free"
+_OPENROUTER_GEMMA_MODEL  = "google/gemma-3-27b-it:free"
+
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="A/B Test Gemini vs Ollama — Riccione Calcio 1926")
+    parser = argparse.ArgumentParser(
+        description="A/B Test Gemini vs Gemma — Riccione Calcio 1926",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Modalità consigliata (server/cloud):
+  python ab_test.py --openrouter-key sk-or-...
+
+Modalità Ollama locale:
+  python ab_test.py --ollama-url http://localhost:11434 --ollama-model gemma3:9b
+
+Modalità Gemini diretta (richiede IP non bloccato da Google):
+  GEMINI_API_KEY=... python ab_test.py --no-openrouter
+""",
+    )
     parser.add_argument(
         "--input",
         default=r"C:\Users\Mirko\Desktop\BOARD RICCIONE CALCIO 1926",
@@ -538,15 +556,27 @@ def parse_args():
         default="both",
         help="Provider da testare (default: both)",
     )
+    # OpenRouter (modalità consigliata per cloud/server)
+    parser.add_argument(
+        "--openrouter-key",
+        default=os.environ.get("OPENROUTER_API_KEY", ""),
+        help="API key OpenRouter — se presente, usa OpenRouter per entrambi i provider",
+    )
+    parser.add_argument(
+        "--gemini-model",
+        default=_OPENROUTER_GEMINI_MODEL,
+        help=f"Modello Gemini su OpenRouter (default: {_OPENROUTER_GEMINI_MODEL})",
+    )
+    # Ollama / alternativa locale
     parser.add_argument(
         "--ollama-url",
-        default="http://localhost:11434",
-        help="URL base Ollama (default: http://localhost:11434)",
+        default=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        help="URL base Ollama o endpoint OpenAI-compatible",
     )
     parser.add_argument(
         "--ollama-model",
-        default="gemma3:9b",
-        help="Modello Ollama (default: gemma3:9b)",
+        default=os.environ.get("OLLAMA_MODEL", "gemma3:9b"),
+        help="Modello Ollama/Gemma (default: gemma3:9b)",
     )
     return parser.parse_args()
 
@@ -556,9 +586,18 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     date_str = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+    # Modalità OpenRouter: usa OpenRouter per entrambi i provider
+    use_openrouter = bool(args.openrouter_key)
+
     print("=" * 60)
-    print("A/B TEST: Riccione Calcio 1926 — Gemini vs Ollama")
-    print(f"Data: {date_str}")
+    print("A/B TEST: Riccione Calcio 1926")
+    if use_openrouter:
+        print(f"  Provider A: OpenRouter → {args.gemini_model}")
+        print(f"  Provider B: OpenRouter → {_OPENROUTER_GEMMA_MODEL}")
+    else:
+        print(f"  Provider A: Gemini (API diretta)")
+        print(f"  Provider B: Ollama → {args.ollama_model}")
+    print(f"  Data: {date_str}")
     print("=" * 60)
 
     # Load interviews
@@ -574,35 +613,69 @@ def main():
 
     print(f"\nClub data pronto: {list(club_data.keys())}")
 
+    # Etichette report
+    gemini_label = args.gemini_model if use_openrouter else "Gemini 2.0 Flash"
+    ollama_label = _OPENROUTER_GEMMA_MODEL if use_openrouter else args.ollama_model
+
+    # -----------------------------------------------------------------
     # Env helpers
+    # -----------------------------------------------------------------
     saved_ollama_url: Optional[str] = os.environ.get("OLLAMA_BASE_URL")
+    saved_ollama_key: Optional[str] = os.environ.get("OLLAMA_API_KEY")
+    saved_ollama_model: Optional[str] = os.environ.get("OLLAMA_MODEL")
+    saved_ai_provider: Optional[str] = os.environ.get("AI_PROVIDER")
+    saved_or_key: Optional[str] = os.environ.get("OPENROUTER_API_KEY")
 
-    def gemini_setup():
-        # Remove OLLAMA_BASE_URL so factory picks Gemini
-        if "OLLAMA_BASE_URL" in os.environ:
-            del os.environ["OLLAMA_BASE_URL"]
-        print("  [env] OLLAMA_BASE_URL rimossa → provider: Gemini")
+    def _restore_env():
+        for k, v in [
+            ("OLLAMA_BASE_URL",   saved_ollama_url),
+            ("OLLAMA_API_KEY",    saved_ollama_key),
+            ("OLLAMA_MODEL",      saved_ollama_model),
+            ("AI_PROVIDER",       saved_ai_provider),
+            ("OPENROUTER_API_KEY", saved_or_key),
+        ]:
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
-    def gemini_teardown():
-        # Restore original value
-        if saved_ollama_url is not None:
-            os.environ["OLLAMA_BASE_URL"] = saved_ollama_url
-        elif "OLLAMA_BASE_URL" in os.environ:
-            del os.environ["OLLAMA_BASE_URL"]
+    if use_openrouter:
+        def gemini_setup():
+            # Provider A: OpenRouter con modello Gemini Flash
+            os.environ["OLLAMA_BASE_URL"] = _OPENROUTER_BASE
+            os.environ["OLLAMA_API_KEY"]  = args.openrouter_key
+            os.environ["OLLAMA_MODEL"]    = args.gemini_model
+            os.environ["OLLAMA_TIMEOUT"]  = "120"
+            print(f"  [env] OpenRouter → {args.gemini_model}")
 
-    def ollama_setup():
-        os.environ["OLLAMA_BASE_URL"] = args.ollama_url
-        os.environ["OLLAMA_TIMEOUT"] = "300"
-        print(f"  [env] OLLAMA_BASE_URL={args.ollama_url} → provider: Ollama")
+        def ollama_setup():
+            # Provider B: OpenRouter con modello Gemma 3
+            os.environ["OLLAMA_BASE_URL"] = _OPENROUTER_BASE
+            os.environ["OLLAMA_API_KEY"]  = args.openrouter_key
+            os.environ["OLLAMA_MODEL"]    = _OPENROUTER_GEMMA_MODEL
+            os.environ["OLLAMA_TIMEOUT"]  = "120"
+            print(f"  [env] OpenRouter → {_OPENROUTER_GEMMA_MODEL}")
+    else:
+        def gemini_setup():
+            # Provider A: Gemini API diretta (rimuove OLLAMA_BASE_URL)
+            os.environ.pop("OLLAMA_BASE_URL", None)
+            os.environ["AI_PROVIDER"] = "gemini"
+            print("  [env] Gemini API diretta")
 
-    def ollama_teardown():
-        # Restore Gemini state for consistency
-        if saved_ollama_url is None and "OLLAMA_BASE_URL" in os.environ:
-            del os.environ["OLLAMA_BASE_URL"]
-        elif saved_ollama_url is not None:
-            os.environ["OLLAMA_BASE_URL"] = saved_ollama_url
+        def ollama_setup():
+            # Provider B: Ollama locale o endpoint custom
+            os.environ["OLLAMA_BASE_URL"] = args.ollama_url
+            os.environ["OLLAMA_TIMEOUT"]  = "300"
+            if args.ollama_model:
+                os.environ["OLLAMA_MODEL"] = args.ollama_model
+            print(f"  [env] Ollama → {args.ollama_url} model={args.ollama_model}")
 
+    gemini_teardown = _restore_env
+    ollama_teardown = _restore_env
+
+    # -----------------------------------------------------------------
     # Run providers
+    # -----------------------------------------------------------------
     gemini_result: Optional[Dict] = None
     gemini_metrics: List[Dict] = []
     ollama_result: Optional[Dict] = None
@@ -610,22 +683,22 @@ def main():
 
     if args.provider in ("both", "gemini"):
         gemini_result, gemini_metrics = run_provider(
-            "gemini",
+            gemini_label,
             club_data,
             research_data,
             gemini_setup,
             gemini_teardown,
-            ollama_model=args.ollama_model,
+            ollama_model=gemini_label,
         )
 
     if args.provider in ("both", "ollama"):
         ollama_result, ollama_metrics = run_provider(
-            "ollama",
+            ollama_label,
             club_data,
             research_data,
             ollama_setup,
             ollama_teardown,
-            ollama_model=args.ollama_model,
+            ollama_model=ollama_label,
         )
 
     # Generate report
@@ -635,7 +708,7 @@ def main():
         gemini_metrics=gemini_metrics,
         ollama_result=ollama_result,
         ollama_metrics=ollama_metrics,
-        ollama_model=args.ollama_model,
+        ollama_model=ollama_label,
         date_str=date_str,
     )
 

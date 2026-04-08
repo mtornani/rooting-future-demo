@@ -62,15 +62,18 @@ class OllamaGenerationProvider(GenerationProvider):
             return
 
         try:
+            # Non aggiungere /v1 se l'URL lo contiene già (Groq, OpenRouter, etc.)
+            _base = self._base_url.rstrip("/")
+            _api_base = _base if _base.endswith("/v1") else f"{_base}/v1"
             client_kwargs: Dict[str, Any] = {
-                "base_url": f"{self._base_url}/v1",
+                "base_url": _api_base,
                 "api_key": self._api_key or "ollama",  # Ollama locale accetta qualsiasi stringa
                 "timeout": self.TIMEOUT,
             }
             self._client = _OpenAI(**client_kwargs)
             self._available = True
             logger.info(
-                f"OllamaGenerationProvider: pronto (url={self._base_url}, model={self._model})"
+                f"OllamaGenerationProvider: pronto (url={_api_base}, model={self._model})"
             )
         except Exception as e:
             logger.error(f"OllamaGenerationProvider init error: {e}")
