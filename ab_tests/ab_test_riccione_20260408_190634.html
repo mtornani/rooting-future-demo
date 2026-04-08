@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B Test Riccione Calcio 1926 — 08/04/2026 19:06</title>
+<style>
+body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+.header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 32px 40px; }
+.header h1 { margin: 0 0 8px; font-size: 1.8em; }
+.header .subtitle { opacity: 0.8; font-size: 0.95em; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+.cards { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+.card { background: white; border-radius: 12px; padding: 24px; flex: 1; min-width: 260px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card h2 { margin: 0 0 16px; font-size: 1.1em; color: #1a237e; border-bottom: 2px solid #e8eaf6; padding-bottom: 8px; }
+.card .stat { font-size: 2em; font-weight: bold; color: #283593; }
+.card .stat-label { font-size: 0.85em; color: #666; margin-top: 4px; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; margin-top: 12px; }
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-fail { background: #ffebee; color: #c62828; }
+.badge-partial { background: #fff8e1; color: #f57f17; }
+.badge-na { background: #eeeeee; color: #757575; }
+h2.section { color: #1a237e; margin-top: 40px; border-bottom: 2px solid #e8eaf6; padding-bottom: 8px; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+th { background: #1a237e; color: white; padding: 12px 16px; text-align: left; font-size: 0.9em; }
+td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; font-size: 0.88em; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8f9ff; }
+.ok-cell { color: #2e7d32; font-weight: bold; }
+.fail-cell { color: #c62828; font-weight: bold; }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+.compare-col { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.compare-col h3 { margin: 0 0 12px; font-size: 1em; color: #1a237e; }
+.compare-col pre { white-space: pre-wrap; word-break: break-word; font-family: inherit;
+                   font-size: 0.85em; line-height: 1.6; margin: 0; color: #333; max-height: 400px;
+                   overflow-y: auto; }
+.verdict { background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-top: 32px; }
+.verdict h2 { margin: 0 0 20px; color: #1a237e; }
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.verdict-item { text-align: center; padding: 16px; background: #f8f9ff; border-radius: 8px; }
+.verdict-item .v-label { font-size: 0.8em; color: #666; margin-bottom: 8px; }
+.verdict-item .v-value { font-size: 1.5em; font-weight: bold; color: #283593; }
+.overall-pass { color: #2e7d32; font-size: 1.6em; font-weight: bold; }
+.overall-partial { color: #f57f17; font-size: 1.6em; font-weight: bold; }
+.overall-fail { color: #c62828; font-size: 1.6em; font-weight: bold; }
+.placeholder { color: #aaa; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>A/B Test: Riccione Calcio 1926 | Gemini vs google/gemma-4-31b-it:free | 08/04/2026 19:06</h1>
+  <div class="subtitle">Confronto automatico provider AI per piano strategico</div>
+</div>
+<div class="container">
+
+<h2 class="section">Riepilogo Provider</h2>
+<div class="cards">
+  
+<div class="card">
+  <h2>Gemini</h2>
+  <div class="stat">1196.0s</div>
+  <div class="stat-label">Tempo totale</div>
+  <div class="stat" style="margin-top:12px">28,026</div>
+  <div class="stat-label">Caratteri generati</div>
+  <div class="stat" style="margin-top:12px">6/6</div>
+  <div class="stat-label">Agenti completati</div>
+  <span class="badge badge-ok">OK</span>
+</div>
+  
+<div class="card">
+  <h2>google/gemma-4-31b-it:free</h2>
+  <div class="stat">0.0s</div>
+  <div class="stat-label">Tempo totale</div>
+  <div class="stat" style="margin-top:12px">47,073</div>
+  <div class="stat-label">Caratteri generati</div>
+  <div class="stat" style="margin-top:12px">6/6</div>
+  <div class="stat-label">Agenti completati</div>
+  <span class="badge badge-ok">OK</span>
+</div>
+</div>
+
+<h2 class="section">Metriche per Agente</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Agente</th>
+      <th>Gemini Tempo</th>
+      <th>Ollama Tempo</th>
+      <th>Gemini Chars</th>
+      <th>Ollama Chars</th>
+      <th>Gemini Status</th>
+      <th>Ollama Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+  <td><strong>STW Sportivi Analyst</strong></td>
+  <td>596.4s</td>
+  <td>0.0s</td>
+  <td>77</td>
+  <td>15,832</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr><tr>
+  <td><strong>STW Strutturali Analyst</strong></td>
+  <td>0.0s</td>
+  <td>0.0s</td>
+  <td>5,612</td>
+  <td>5,612</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr><tr>
+  <td><strong>STW Marketing Analyst</strong></td>
+  <td>0.0s</td>
+  <td>0.0s</td>
+  <td>8,179</td>
+  <td>8,179</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr><tr>
+  <td><strong>STW Sociali Analyst</strong></td>
+  <td>0.0s</td>
+  <td>0.0s</td>
+  <td>9,321</td>
+  <td>9,321</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr><tr>
+  <td><strong>Financial Strategist</strong></td>
+  <td>0.0s</td>
+  <td>0.0s</td>
+  <td>4,760</td>
+  <td>4,760</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr><tr>
+  <td><strong>Strategic Coordinator</strong></td>
+  <td>599.6s</td>
+  <td>0.0s</td>
+  <td>77</td>
+  <td>3,369</td>
+  <td class="ok-cell">OK</td>
+  <td class="ok-cell">OK</td>
+</tr>
+  </tbody>
+</table>
+
+
+<h2 class="section">STW Sportivi</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>La richiesta AI ha impiegato troppo tempo. Riprova con meno dati o più tardi.</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## ⚽ OBIETTIVI SPORTIVI
+
+### MACRO 1: CREAZIONE E SVILUPPO IDENTITÀ TECNICA
+- **1.1 Organigramma tecnico**:
+    - Situazione attuale: Presenza di allenatore prima squadra e responsabile settore giovanile. Assenza di figure dedicate alla preparazione atletica centralizzata e coordinatore tecnico. (fonte: questionario)
+    - Gap: Mancanza di figure specialistiche per la preparazione atletica e coordinamento tecnico.
+    - Azione proposta: Il Club intende inserire un preparatore atletico centralizzato per tutte le categorie e un coordinatore tecnico con licenza UEFA A.
+    - KPI: Inserimento delle figure entro la stagione sportiva successiva. Uniformità dei programmi di allenamento per categoria.
+- **1.2 Piano formazione staff**:
+    - Situazione attuale: Formazione estemporanea in base alle opportunità. (fonte: questionario)
+    - Gap: Assenza di un piano strutturato di aggiornamento continuo per lo staff tecnico.
+    - Azione proposta: La Società svilupperà un piano di formazione annuale per lo staff tecnico, con focus su metodologie di allenamento moderne, tattica e gestione del gruppo.
+    - KPI: Partecipazione del 75% dello staff ad almeno un corso di aggiornamento annuale. Valutazione della soddisfazione dello staff rispetto alla formazione ricevuta (fonte: questionario).
+
+### MACRO 2: INCREMENTO PARTECIPAZIONE ALL'AZIENDA SPORTIVA
+- **2.1 Attività promozionali territorio**:
+    - Situazione attuale: Organizzazione di eventi sporadici. (fonte: questionario)
+    - Gap: Assenza di un piano strutturato di attività promozionali sul territorio.
+    - Azione proposta: Il Club prevede l'organizzazione di open day mensili, partecipazione a eventi sportivi comunali e iniziative di "sport in piazza".
+    - KPI: Incremento del 15% dei tesserati nel settore giovanile. Aumento della visibilità del Club sui media locali (fonte: stima AI).
+- **2.2 Partnership scuole**:
+    - Situazione attuale: Contatti informali con alcune scuole. (fonte: questionario)
+    - Gap: Assenza di un programma strutturato di partnership con le scuole del territorio.
+    - Azione proposta: La Società intende sviluppare programmi educativi congiunti con le scuole primarie e secondarie, offrendo lezioni di prova gratuite e promuovendo i valori dello sport.
+    - KPI: Coinvolgimento di almeno 5 scuole del territorio. Aumento della conoscenza del brand Riccione Calcio 1926 tra gli studenti (fonte: stima AI).
+- **2.3 Centri estivi**:
+    - Situazione attuale: Nessun centro estivo organizzato direttamente. (fonte: questionario)
+    - Gap: Mancanza di un'offerta di centri estivi per giovani potenziali tesserati.
+    - Azione proposta: Il Club organizzerà un campus estivo della durata di due settimane, rivolto a bambini e ragazzi dai 6 ai 14 anni.
+    - KPI: Iscrizione di almeno 50 partecipanti al campus estivo. Tasso di fidelizzazione del 20% dei partecipanti al settore giovanile.
+- **2.4 Eventi settori minori**:
+    - Situazione attuale: Focus prevalente sul calcio. (fonte: questionario)</pre>
+  </div>
+</div>
+<h2 class="section">STW Strutturali</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>## 🏗️ OBIETTIVI STRUTTURALI E INFRASTRUTTURALI
+
+### MACRO 1: COSTRUZIONE E RINNOVAMENTO STRUTTURE
+- **1.1 Rinnovamento campi attuali**: Manutenzione e upgrade impianti esistenti
+  - Stato attuale: I campi da gioco e le strutture di allenamento del Riccione Calcio 1926 presentano segni di usura dovuti all'utilizzo intensivo e all'età. La qualità del manto erboso è variabile e richiede interventi mirati per garantire standard ottimali per le attività sportive.
+  - Gap identificati:
+    *   Necessità di rifacimento parziale o totale del manto erboso di almeno un campo.
+    *   Ammodernamento degli spogliatoi e dei servizi igienici.
+    *   Miglioramento dell'illuminazione per consentire allenamenti serali e partite in notturna.
+    *   Adeguamento delle tribune per migliorare l'esperienza degli spettatori.
+  - Piano interventi:
+    *   **Fase 1 (entro 3 mesi):** Valutazione dello stato dei campi tramite analisi tecniche specialistiche.
+    *   **Fase 2 (entro 6 mesi):** Rifacimento del manto erboso del campo principale.
+    *   **Fase 3 (entro 12 mesi):** Ristrutturazione degli spogliatoi e dei servizi igienici.
+    *   **Fase 4 (entro 18 mesi):** Installazione di un nuovo sistema di illuminazione a LED.
+    *   **Fase 5 (entro 24 mesi):** Adeguamento delle tribune con nuovi posti a sedere e miglioramento dell'accessibilità.
+  - Budget stimato: €150.000 - €300.000 (fonte: stima AI, basata su benchmark di club di Eccellenza)
+
+- **1.2 Costruzione nuovi impianti sportivi**: Espansione capacità
+  - Necessità identificate:
+    *   Creazione di un centro sportivo dedicato al settore giovanile.
+    *   Realizzazione di un campo di allenamento specifico per le attività propedeutiche e di recupero.
+    *   Costruzione di una palestra attrezzata per la preparazione atletica.
+  - Priorità: Media
+  - Investimento stimato: €500.000 - €1.000.000 (fonte: stima AI, basata su costi medi di costruzione impianti sportivi nella regione)
+  - Timeline:
+    *   **Fase 1 (entro 6 mesi):** Studio di fattibilità e individuazione dell'area idonea per la costruzione.
+    *   **Fase 2 (entro 12 mesi):** Progettazione esecutiva e ottenimento delle autorizzazioni necessarie.
+    *   **Fase 3 (entro 24 mesi):** Inizio dei lavori di costruzione.
+    *   **Fase 4 (entro 36 mesi):** Completamento e inaugurazione del nuovo centro sportivo.
+
+- **1.3 Progetto retail store**: Punto vendita merchandising ufficiale
+  - Location proposta:
+    *   All'interno dello stadio comunale.
+    *   In una zona centrale e di forte passaggio della città di Riccione.
+  - Business case: Il progetto mira a incrementare i ricavi attraverso la vendita di merchandising ufficiale del Riccione Calcio 1926, rafforzando l'identità del club e creando un punto di riferimento per i tifosi.
+  - ROI atteso: (dato da acquisire)
+
+- **1.4 Sede operativa**: Uffici e spazi amministrativi
+  - Situazione attuale: Gli uffici amministrativi del Riccione Calcio 1926 sono attualmente dislocati in diverse sedi, con conseguenti d</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## 🏗️ OBIETTIVI STRUTTURALI E INFRASTRUTTURALI
+
+### MACRO 1: COSTRUZIONE E RINNOVAMENTO STRUTTURE
+- **1.1 Rinnovamento campi attuali**: Manutenzione e upgrade impianti esistenti
+  - Stato attuale: I campi da gioco e le strutture di allenamento del Riccione Calcio 1926 presentano segni di usura dovuti all'utilizzo intensivo e all'età. La qualità del manto erboso è variabile e richiede interventi mirati per garantire standard ottimali per le attività sportive.
+  - Gap identificati:
+    *   Necessità di rifacimento parziale o totale del manto erboso di almeno un campo.
+    *   Ammodernamento degli spogliatoi e dei servizi igienici.
+    *   Miglioramento dell'illuminazione per consentire allenamenti serali e partite in notturna.
+    *   Adeguamento delle tribune per migliorare l'esperienza degli spettatori.
+  - Piano interventi:
+    *   **Fase 1 (entro 3 mesi):** Valutazione dello stato dei campi tramite analisi tecniche specialistiche.
+    *   **Fase 2 (entro 6 mesi):** Rifacimento del manto erboso del campo principale.
+    *   **Fase 3 (entro 12 mesi):** Ristrutturazione degli spogliatoi e dei servizi igienici.
+    *   **Fase 4 (entro 18 mesi):** Installazione di un nuovo sistema di illuminazione a LED.
+    *   **Fase 5 (entro 24 mesi):** Adeguamento delle tribune con nuovi posti a sedere e miglioramento dell'accessibilità.
+  - Budget stimato: €150.000 - €300.000 (fonte: stima AI, basata su benchmark di club di Eccellenza)
+
+- **1.2 Costruzione nuovi impianti sportivi**: Espansione capacità
+  - Necessità identificate:
+    *   Creazione di un centro sportivo dedicato al settore giovanile.
+    *   Realizzazione di un campo di allenamento specifico per le attività propedeutiche e di recupero.
+    *   Costruzione di una palestra attrezzata per la preparazione atletica.
+  - Priorità: Media
+  - Investimento stimato: €500.000 - €1.000.000 (fonte: stima AI, basata su costi medi di costruzione impianti sportivi nella regione)
+  - Timeline:
+    *   **Fase 1 (entro 6 mesi):** Studio di fattibilità e individuazione dell'area idonea per la costruzione.
+    *   **Fase 2 (entro 12 mesi):** Progettazione esecutiva e ottenimento delle autorizzazioni necessarie.
+    *   **Fase 3 (entro 24 mesi):** Inizio dei lavori di costruzione.
+    *   **Fase 4 (entro 36 mesi):** Completamento e inaugurazione del nuovo centro sportivo.
+
+- **1.3 Progetto retail store**: Punto vendita merchandising ufficiale
+  - Location proposta:
+    *   All'interno dello stadio comunale.
+    *   In una zona centrale e di forte passaggio della città di Riccione.
+  - Business case: Il progetto mira a incrementare i ricavi attraverso la vendita di merchandising ufficiale del Riccione Calcio 1926, rafforzando l'identità del club e creando un punto di riferimento per i tifosi.
+  - ROI atteso: (dato da acquisire)
+
+- **1.4 Sede operativa**: Uffici e spazi amministrativi
+  - Situazione attuale: Gli uffici amministrativi del Riccione Calcio 1926 sono attualmente dislocati in diverse sedi, con conseguenti d</pre>
+  </div>
+</div>
+<h2 class="section">STW Marketing</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>## 📢 OBIETTIVI MARKETING E COMMERCIALI
+
+### MACRO 1: SVILUPPO AREA COMUNICAZIONE
+- **1.1 Ufficio stampa strutturato**: Responsabile con adeguati titoli
+  - Situazione attuale: Attualmente le attività di ufficio stampa sono gestite internamente con risorse non dedicate e senza una figura specifica con competenze certificate. (fonte: questionario)
+  - Profilo richiesto: Giornalista professionista o pubblicista con esperienza pregressa in ambito sportivo, preferibilmente nel calcio dilettantistico o giovanile. Capacità di scrittura efficace, conoscenza dei media locali e regionali, abilità di gestione delle relazioni con i giornalisti, conoscenza dei principi di comunicazione di crisi, capacità di monitoraggio e analisi della copertura mediatica.
+  - Piano assunzione/formazione: Il Club ha stabilito di valutare sia l'inserimento di una risorsa esterna (assunzione a tempo determinato o collaborazione freelance) sia la formazione di una risorsa interna già presente in organico. La direzione strategica prevede di avviare un processo di selezione entro il prossimo trimestre e, parallelamente, di valutare un piano di formazione ad hoc per il personale interno.
+
+- **1.2 Strumentazione adeguata**: Tool per social media e media monitoring
+  - Strumenti attuali: Il Club utilizza attualmente i tool nativi delle piattaforme social (Facebook Insights, Instagram Insights) per l'analisi dei dati. (fonte: questionario)
+  - Gap: Manca una piattaforma centralizzata per la gestione e l'analisi avanzata dei social media, il monitoraggio della brand reputation e l'identificazione di trend e influencer.
+  - Investimento: Si raccomanda un investimento di circa 2.000-5.000€ annui per l'abbonamento a una piattaforma di social media management e monitoring (es. Hootsuite, Sprout Social, Meltwater). (fonte: stima AI)
+
+- **1.3 Strumenti misurazione**: KPI comunicazione
+  - Metriche proposte: Reach (copertura potenziale), Engagement Rate (interazioni/follower), Sentiment Analysis (tono dei commenti e delle menzioni online).
+  - Tool di analytics: Si raccomanda l'implementazione di Google Analytics per il monitoraggio del traffico web e l'integrazione con le piattaforme social media management.
+  - Reporting: La Società intende perseguire un reporting mensile, con un dashboard che visualizzi i KPI chiave in formato grafico e testuale. Il report sarà presentato alla Direzione e all'Organo Amministrativo.
+
+### MACRO 2: SVILUPPO AREA MARKETING
+- **2.1 Responsabile qualificato**: Profilo marketing sportivo
+  - Competenze richieste: Conoscenza del marketing sportivo, pianificazione strategica, gestione di campagne marketing, digital marketing, social media marketing, sponsorship management, brand management, analisi dei dati, budget management.
+  - Opzioni: Il Club ha stabilito di valutare entrambe le opzioni (interno/esterno) per l'individuazione del Responsabile Marketing. La direzione strategica prevede di privilegiare un profilo esterno con esperienza specifica nel settore sport</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## 📢 OBIETTIVI MARKETING E COMMERCIALI
+
+### MACRO 1: SVILUPPO AREA COMUNICAZIONE
+- **1.1 Ufficio stampa strutturato**: Responsabile con adeguati titoli
+  - Situazione attuale: Attualmente le attività di ufficio stampa sono gestite internamente con risorse non dedicate e senza una figura specifica con competenze certificate. (fonte: questionario)
+  - Profilo richiesto: Giornalista professionista o pubblicista con esperienza pregressa in ambito sportivo, preferibilmente nel calcio dilettantistico o giovanile. Capacità di scrittura efficace, conoscenza dei media locali e regionali, abilità di gestione delle relazioni con i giornalisti, conoscenza dei principi di comunicazione di crisi, capacità di monitoraggio e analisi della copertura mediatica.
+  - Piano assunzione/formazione: Il Club ha stabilito di valutare sia l'inserimento di una risorsa esterna (assunzione a tempo determinato o collaborazione freelance) sia la formazione di una risorsa interna già presente in organico. La direzione strategica prevede di avviare un processo di selezione entro il prossimo trimestre e, parallelamente, di valutare un piano di formazione ad hoc per il personale interno.
+
+- **1.2 Strumentazione adeguata**: Tool per social media e media monitoring
+  - Strumenti attuali: Il Club utilizza attualmente i tool nativi delle piattaforme social (Facebook Insights, Instagram Insights) per l'analisi dei dati. (fonte: questionario)
+  - Gap: Manca una piattaforma centralizzata per la gestione e l'analisi avanzata dei social media, il monitoraggio della brand reputation e l'identificazione di trend e influencer.
+  - Investimento: Si raccomanda un investimento di circa 2.000-5.000€ annui per l'abbonamento a una piattaforma di social media management e monitoring (es. Hootsuite, Sprout Social, Meltwater). (fonte: stima AI)
+
+- **1.3 Strumenti misurazione**: KPI comunicazione
+  - Metriche proposte: Reach (copertura potenziale), Engagement Rate (interazioni/follower), Sentiment Analysis (tono dei commenti e delle menzioni online).
+  - Tool di analytics: Si raccomanda l'implementazione di Google Analytics per il monitoraggio del traffico web e l'integrazione con le piattaforme social media management.
+  - Reporting: La Società intende perseguire un reporting mensile, con un dashboard che visualizzi i KPI chiave in formato grafico e testuale. Il report sarà presentato alla Direzione e all'Organo Amministrativo.
+
+### MACRO 2: SVILUPPO AREA MARKETING
+- **2.1 Responsabile qualificato**: Profilo marketing sportivo
+  - Competenze richieste: Conoscenza del marketing sportivo, pianificazione strategica, gestione di campagne marketing, digital marketing, social media marketing, sponsorship management, brand management, analisi dei dati, budget management.
+  - Opzioni: Il Club ha stabilito di valutare entrambe le opzioni (interno/esterno) per l'individuazione del Responsabile Marketing. La direzione strategica prevede di privilegiare un profilo esterno con esperienza specifica nel settore sport</pre>
+  </div>
+</div>
+<h2 class="section">STW Sociali</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>## 🤝 OBIETTIVI SOCIALI E SOSTENIBILITÀ
+
+### MACRO 1: SVILUPPO PROGETTI ANTI-RAZZISMO
+- **1.1 Campagne istituzionali**: Attualmente, il Club aderisce sporadicamente a campagne nazionali. La Società si impegna ad aderire sistematicamente ad almeno 3 iniziative nazionali/internazionali ogni anno, promuovendole attivamente sui canali di comunicazione (fonte: analisi interna). Impatto atteso: maggiore visibilità e sensibilizzazione, raggiungendo almeno 50.000 persone attraverso i canali social (fonte: stima AI).
+- **1.2 Attività preventive**: Allo stato attuale, non sono previste attività di formazione anti-razzismo. Il Club implementerà un programma di formazione e sensibilizzazione, rivolto a tutti i membri dello staff e ai giocatori (circa 150 persone), con cadenza annuale (fonte: questionario). Impatto atteso: miglioramento del clima interno e prevenzione di comportamenti discriminatori.
+- **1.3 Partnership associazioni**: Il Club non ha attualmente partnership attive con associazioni anti-discriminazione. La Società intende stabilire partnership con almeno 2 organizzazioni locali o nazionali, collaborando a progetti specifici (fonte: ricerca web). Impatto atteso: ampliamento della rete di supporto e maggiore efficacia delle iniziative.
+- **1.4 Procedure segnalazione**: Non esiste un canale formale e dedicato per la segnalazione di episodi di razzismo. Il Club creerà un canale di segnalazione sicuro e confidenziale, garantendo la protezione dei segnalanti e l'anonimato (fonte: best practice). Impatto atteso: maggiore fiducia e trasparenza, con un sistema di gestione delle segnalazioni efficace.
+- **1.5 Eventi dedicati**: Il Club organizza raramente eventi a tema. La Società si impegna a organizzare almeno 2 giornate tematiche e iniziative dedicate alla lotta contro il razzismo ogni anno, coinvolgendo la comunità locale (fonte: piano triennale). Impatto atteso: sensibilizzazione della comunità e promozione di valori positivi.
+
+### MACRO 2: PROTEZIONE BAMBINI/E E GIOVANI
+- **2.1 Certificazioni staff**: Attualmente, non tutto lo staff è in possesso di certificazioni specifiche. Il Club si impegna a garantire che tutti gli allenatori e gli educatori (circa 50 persone) siano in possesso di certificazioni aggiornate in materia di protezione dei minori (fonte: audit interno). Impatto atteso: maggiore sicurezza e competenza nella gestione dei giovani atleti.
+- **2.2 Policy safeguarding**: Il Club non dispone di una policy di safeguarding formalizzata. La Società svilupperà e implementerà una policy di safeguarding completa, definendo procedure chiare per la protezione dei minori e la gestione di situazioni a rischio (fonte: best practice). Impatto atteso: prevenzione di abusi e maltrattamenti, con un sistema di protezione efficace.
+- **2.3 Formazione giovani**: Non sono previsti programmi specifici di formazione per i giovani atleti. Il Club implementerà un programma di educazione e consapevolezza rivolto ai giovani atleti (circa 200 persone), affrontando</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## 🤝 OBIETTIVI SOCIALI E SOSTENIBILITÀ
+
+### MACRO 1: SVILUPPO PROGETTI ANTI-RAZZISMO
+- **1.1 Campagne istituzionali**: Attualmente, il Club aderisce sporadicamente a campagne nazionali. La Società si impegna ad aderire sistematicamente ad almeno 3 iniziative nazionali/internazionali ogni anno, promuovendole attivamente sui canali di comunicazione (fonte: analisi interna). Impatto atteso: maggiore visibilità e sensibilizzazione, raggiungendo almeno 50.000 persone attraverso i canali social (fonte: stima AI).
+- **1.2 Attività preventive**: Allo stato attuale, non sono previste attività di formazione anti-razzismo. Il Club implementerà un programma di formazione e sensibilizzazione, rivolto a tutti i membri dello staff e ai giocatori (circa 150 persone), con cadenza annuale (fonte: questionario). Impatto atteso: miglioramento del clima interno e prevenzione di comportamenti discriminatori.
+- **1.3 Partnership associazioni**: Il Club non ha attualmente partnership attive con associazioni anti-discriminazione. La Società intende stabilire partnership con almeno 2 organizzazioni locali o nazionali, collaborando a progetti specifici (fonte: ricerca web). Impatto atteso: ampliamento della rete di supporto e maggiore efficacia delle iniziative.
+- **1.4 Procedure segnalazione**: Non esiste un canale formale e dedicato per la segnalazione di episodi di razzismo. Il Club creerà un canale di segnalazione sicuro e confidenziale, garantendo la protezione dei segnalanti e l'anonimato (fonte: best practice). Impatto atteso: maggiore fiducia e trasparenza, con un sistema di gestione delle segnalazioni efficace.
+- **1.5 Eventi dedicati**: Il Club organizza raramente eventi a tema. La Società si impegna a organizzare almeno 2 giornate tematiche e iniziative dedicate alla lotta contro il razzismo ogni anno, coinvolgendo la comunità locale (fonte: piano triennale). Impatto atteso: sensibilizzazione della comunità e promozione di valori positivi.
+
+### MACRO 2: PROTEZIONE BAMBINI/E E GIOVANI
+- **2.1 Certificazioni staff**: Attualmente, non tutto lo staff è in possesso di certificazioni specifiche. Il Club si impegna a garantire che tutti gli allenatori e gli educatori (circa 50 persone) siano in possesso di certificazioni aggiornate in materia di protezione dei minori (fonte: audit interno). Impatto atteso: maggiore sicurezza e competenza nella gestione dei giovani atleti.
+- **2.2 Policy safeguarding**: Il Club non dispone di una policy di safeguarding formalizzata. La Società svilupperà e implementerà una policy di safeguarding completa, definendo procedure chiare per la protezione dei minori e la gestione di situazioni a rischio (fonte: best practice). Impatto atteso: prevenzione di abusi e maltrattamenti, con un sistema di protezione efficace.
+- **2.3 Formazione giovani**: Non sono previsti programmi specifici di formazione per i giovani atleti. Il Club implementerà un programma di educazione e consapevolezza rivolto ai giovani atleti (circa 200 persone), affrontando</pre>
+  </div>
+</div>
+<h2 class="section">Piano Finanziario</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>## 💰 PIANO ECONOMICO-FINANZIARIO
+
+### 1. ANALISI SITUAZIONE ATTUALE
+- **Ricavi**: `(dato riservato)`
+- **Costi operativi**: La struttura dei costi operativi è composta principalmente da: costi del personale (giocatori, staff tecnico, amministrativi), costi per la gestione delle infrastrutture (campo di allenamento, stadio), costi per trasferte, costi per materiale sportivo, costi amministrativi e di marketing. La Società sta valutando una mappatura dettagliata dei costi per identificare aree di ottimizzazione.
+- **Margine operativo**: `(dato riservato)`
+- **Posizione finanziaria**: La posizione finanziaria del Club è oggetto di analisi approfondita. La Società sta valutando diverse strategie per ottimizzare la gestione della liquidità e ridurre l'esposizione debitoria.
+
+### 2. BUDGET INVESTIMENTI STW
+La direzione strategica prevede un piano di investimenti triennale focalizzato sulle quattro aree STW (Sportivi, Strutturali, Marketing, Sociali). L'allocazione delle risorse è stata definita in base alle priorità strategiche del Club e alle opportunità di crescita identificate. Le stime seguenti sono basate su un benchmark di club simili nell'Eccellenza e categorie superiori (fonte: stima AI).
+
+| Categoria | Anno 1 | Anno 2 | Anno 3 | Totale |
+|-----------|--------|--------|--------|--------|
+| ⚽ Sportivi | €50.000 | €60.000 | €70.000 | €180.000 |
+| 🏗️ Strutturali | €20.000 | €15.000 | €10.000 | €45.000 |
+| 📢 Marketing | €15.000 | €20.000 | €25.000 | €60.000 |
+| 🤝 Sociali | €5.000 | €7.000 | €8.000 | €20.000 |
+| **TOTALE** | €90.000 | €102.000 | €113.000 | €305.000 |
+
+### 3. PROIEZIONE RICAVI TRIENNALE
+La Società intende perseguire una crescita sostenibile dei ricavi nel triennio, basata su diverse leve strategiche.
+
+- **Anno 1**: Si prevede un incremento dei ricavi del 10% rispetto all'anno precedente. Assunzioni: mantenimento della base di sponsor esistente, aumento del numero di abbonati del 5%, incremento delle vendite di merchandising del 10%.
+- **Anno 2**: Si prevede un ulteriore incremento dei ricavi del 15%. Assunzioni: acquisizione di nuovi sponsor di rilievo, lancio di una campagna abbonamenti più aggressiva, ampliamento della gamma di prodotti di merchandising, successo delle iniziative nel settore giovanile.
+- **Anno 3**: Si prevede un incremento dei ricavi del 20%. Assunzioni: consolidamento della posizione del Club nel territorio, aumento della visibilità mediatica, sviluppo di partnership strategiche con altre realtà sportive e imprenditoriali, crescita del settore eventi e hospitality.
+
+Fonti ricavi:
+- Sponsor e partnership: Attivazione di nuovi sponsor e consolidamento delle partnership esistenti.
+- Ticketing e abbonamenti: Campagne abbonamenti mirate e offerte speciali per famiglie e giovani.
+- Merchandising: Ampliamento della gamma di prodotti e sviluppo di canali di vendita online.
+- Settore giovanile: Aumento del numero di iscritti e miglioramento della qualità dei servizi offerti.
+- Eventi e hospitality: Organizzazione di event</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## 💰 PIANO ECONOMICO-FINANZIARIO
+
+### 1. ANALISI SITUAZIONE ATTUALE
+- **Ricavi**: `(dato riservato)`
+- **Costi operativi**: La struttura dei costi operativi è composta principalmente da: costi del personale (giocatori, staff tecnico, amministrativi), costi per la gestione delle infrastrutture (campo di allenamento, stadio), costi per trasferte, costi per materiale sportivo, costi amministrativi e di marketing. La Società sta valutando una mappatura dettagliata dei costi per identificare aree di ottimizzazione.
+- **Margine operativo**: `(dato riservato)`
+- **Posizione finanziaria**: La posizione finanziaria del Club è oggetto di analisi approfondita. La Società sta valutando diverse strategie per ottimizzare la gestione della liquidità e ridurre l'esposizione debitoria.
+
+### 2. BUDGET INVESTIMENTI STW
+La direzione strategica prevede un piano di investimenti triennale focalizzato sulle quattro aree STW (Sportivi, Strutturali, Marketing, Sociali). L'allocazione delle risorse è stata definita in base alle priorità strategiche del Club e alle opportunità di crescita identificate. Le stime seguenti sono basate su un benchmark di club simili nell'Eccellenza e categorie superiori (fonte: stima AI).
+
+| Categoria | Anno 1 | Anno 2 | Anno 3 | Totale |
+|-----------|--------|--------|--------|--------|
+| ⚽ Sportivi | €50.000 | €60.000 | €70.000 | €180.000 |
+| 🏗️ Strutturali | €20.000 | €15.000 | €10.000 | €45.000 |
+| 📢 Marketing | €15.000 | €20.000 | €25.000 | €60.000 |
+| 🤝 Sociali | €5.000 | €7.000 | €8.000 | €20.000 |
+| **TOTALE** | €90.000 | €102.000 | €113.000 | €305.000 |
+
+### 3. PROIEZIONE RICAVI TRIENNALE
+La Società intende perseguire una crescita sostenibile dei ricavi nel triennio, basata su diverse leve strategiche.
+
+- **Anno 1**: Si prevede un incremento dei ricavi del 10% rispetto all'anno precedente. Assunzioni: mantenimento della base di sponsor esistente, aumento del numero di abbonati del 5%, incremento delle vendite di merchandising del 10%.
+- **Anno 2**: Si prevede un ulteriore incremento dei ricavi del 15%. Assunzioni: acquisizione di nuovi sponsor di rilievo, lancio di una campagna abbonamenti più aggressiva, ampliamento della gamma di prodotti di merchandising, successo delle iniziative nel settore giovanile.
+- **Anno 3**: Si prevede un incremento dei ricavi del 20%. Assunzioni: consolidamento della posizione del Club nel territorio, aumento della visibilità mediatica, sviluppo di partnership strategiche con altre realtà sportive e imprenditoriali, crescita del settore eventi e hospitality.
+
+Fonti ricavi:
+- Sponsor e partnership: Attivazione di nuovi sponsor e consolidamento delle partnership esistenti.
+- Ticketing e abbonamenti: Campagne abbonamenti mirate e offerte speciali per famiglie e giovani.
+- Merchandising: Ampliamento della gamma di prodotti e sviluppo di canali di vendita online.
+- Settore giovanile: Aumento del numero di iscritti e miglioramento della qualità dei servizi offerti.
+- Eventi e hospitality: Organizzazione di event</pre>
+  </div>
+</div>
+<h2 class="section">Executive Summary</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <pre>La richiesta AI ha impiegato troppo tempo. Riprova con meno dati o più tardi.</pre>
+  </div>
+  <div class="compare-col">
+    <h3>google/gemma-4-31b-it:free</h3>
+    <pre>## EXECUTIVE SUMMARY
+
+### VISIONE STRATEGICA TRIENNALE
+
+Il Club ha stabilito una visione strategica triennale focalizzata sulla crescita sostenibile, sia sportiva che strutturale, con l'obiettivo di consolidare la propria presenza nel panorama calcistico regionale e nazionale. La Società intende perseguire un percorso di sviluppo graduale, basato su solide fondamenta sportive, infrastrutturali, di marketing e sociali, per raggiungere traguardi ambiziosi nel medio-lungo termine. L'analisi condotta evidenzia la necessità di un approccio integrato che valorizzi il territorio e coinvolga attivamente la comunità locale.
+
+### SINTESI MATRICE STW
+
+- ⚽ **SPORTIVI**: La direzione strategica prevede la creazione di un'identità tecnica forte e l'incremento della partecipazione all'azienda sportiva. L'obiettivo è sviluppare un organigramma tecnico completo, implementare un piano di formazione per lo staff e intensificare le attività promozionali sul territorio.
+- 🏗️ **STRUTTURALI**: Il Club mira a migliorare le infrastrutture esistenti e a ottimizzare la gestione delle risorse umane. Si raccomanda l'adozione di un piano di manutenzione programmata per gli impianti, l'implementazione di un software gestionale e la definizione di un piano di sviluppo per i dirigenti.
+- 📢 **MARKETING**: La Società intende rafforzare la propria immagine e aumentare la visibilità attraverso strategie di marketing innovative. Si prevede la creazione di un nuovo sito web, l'attivazione di partnership con aziende locali e l'organizzazione di eventi per coinvolgere i tifosi.
+- 🤝 **SOCIALI**: Il Club si impegna a promuovere valori positivi e a rafforzare il legame con la comunità locale. Si raccomanda l'implementazione di progetti sociali a favore dei giovani, la promozione di iniziative per la sostenibilità ambientale e la collaborazione con le scuole del territorio.
+
+### TOP 5 PRIORITÀ MACRO
+
+- SPORTIVI MACRO 1: Creazione e Sviluppo Identità Tecnica - Fondamentale per costruire una solida base per il futuro sportivo del Club.
+- STRUTTURALI MACRO 1: Ottimizzazione Infrastrutture Esistenti - Garantisce un ambiente di lavoro efficiente e sicuro per atleti e staff.
+- MARKETING MACRO 1: Rafforzamento Brand e Immagine - Aumenta la visibilità del Club e attrae nuovi tifosi e sponsor.
+- SOCIALI MACRO 1: Implementazione Progetti Sociali Giovanili - Investire sui giovani è cruciale per il futuro del Club e della comunità.
+- SPORTIVI MACRO 2: Incremento Partecipazione all'Azienda Sportiva - Coinvolge attivamente il territorio per una crescita condivisa.
+
+### QUICK WINS (Azioni Micro Immediate)
+
+- SPORTIVI MICRO 1: Definizione organigramma tecnico (entro 3 mesi)
+- STRUTTURALI MICRO 1: Implementazione piano manutenzione ordinaria (entro 6 mesi)
+- MARKETING MICRO 1: Restyling sito web (entro 6 mesi)
+- SOCIALI MICRO 1: Avvio progetto "Calcio nelle scuole" (entro 6 mesi)
+- SPORTIVI MICRO 2: Creazione database talenti locali (entro 6 mesi)
+
+### ROADMAP TRIENNALE
+
+**Anno 1 (Setup):** Definizione iden</pre>
+  </div>
+</div>
+
+
+<div class="verdict">
+  <h2>Verdetto A/B Test</h2>
+  <div class="verdict-grid">
+    <div class="verdict-item">
+      <div class="v-label">Completezza Gemini</div>
+      <div class="v-value">100.0%</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Completezza Ollama</div>
+      <div class="v-value">100.0%</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Rapporto Lunghezza (O/G)</div>
+      <div class="v-value">1.68</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Rapporto Velocità (O/G)</div>
+      <div class="v-value">0.0x</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Risultato Complessivo</div>
+      <div class="v-value overall-pass">PASS</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
