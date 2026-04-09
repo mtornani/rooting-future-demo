@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="RF Lab">
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.svg">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
   <link rel="manifest" href="/static/manifest.json">
   <title>Lab — Rooting Future</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -256,6 +256,7 @@
     <a href="{{ url_for('index') }}">Dashboard</a>
     <a href="{{ url_for('plans_list') }}">Piani</a>
     <a href="{{ url_for('lab') }}" class="active">Lab</a>
+    <a href="{{ url_for('lab_setup') }}" title="Installa sul telefono">📲</a>
   </div>
 </nav>
 

@@ -5873,6 +5873,11 @@ def lab():
     return render_template("lab.html")
 
 
+@app.route("/lab/setup")
+def lab_setup():
+    return render_template("lab_setup.html")
+
+
 @app.route("/api/lab/models", methods=["GET"])
 def lab_models():
     """Discover: OpenRouter free models, Ollama local models, Gemini available."""
