@@ -5758,6 +5758,108 @@ def api_check_file(filename):
 
 
 # ============================================================
+# LAB — Network access helpers
+# ============================================================
+import socket as _socket
+
+_lab_access: Dict[str, str] = {"lan": "", "tunnel": "", "tunnel_status": "inactive"}
+_WIN_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
+
+def _get_local_ip() -> str:
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def _try_start_tunnel(port: int) -> None:
+    """Try cloudflared then ngrok. Updates _lab_access in-place."""
+    import subprocess, re, time as _t
+    _lab_access["tunnel_status"] = "starting"
+
+    # --- cloudflared ---
+    try:
+        proc = subprocess.Popen(
+            ["cloudflared", "tunnel", "--url", f"http://localhost:{port}",
+             "--no-autoupdate"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        for _ in range(60):
+            line = proc.stdout.readline()
+            m = re.search(r'https://[a-z0-9-]+\.trycloudflare\.com', line)
+            if m:
+                url = m.group(0)
+                _lab_access["tunnel"] = url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ Tunnel pubblico attivo: {url}/lab\n")
+                return
+            _t.sleep(0.5)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        app.logger.debug(f"cloudflared error: {e}")
+
+    # --- ngrok ---
+    try:
+        import json as _j, urllib.request as _ur
+        subprocess.Popen(
+            ["ngrok", "http", str(port)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        _t.sleep(3)
+        data = _j.loads(_ur.urlopen("http://localhost:4040/api/tunnels", timeout=3).read())
+        for t in data.get("tunnels", []):
+            if t.get("proto") == "https":
+                url = t["public_url"]
+                _lab_access["tunnel"] = url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ Tunnel ngrok attivo: {url}/lab\n")
+                return
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        app.logger.debug(f"ngrok error: {e}")
+
+    _lab_access["tunnel_status"] = "unavailable"
+    print("[LAB] Nessun tunnel (installa cloudflared per accesso fuori rete).")
+
+
+@app.route("/api/lab/urls")
+def lab_urls():
+    return jsonify(_lab_access)
+
+
+@app.route("/api/lab/qr")
+def lab_qr():
+    """Return a QR code SVG for the given ?url= parameter."""
+    url = request.args.get("url", "").strip()
+    if not url:
+        return "", 400
+    try:
+        import qrcode, qrcode.image.svg, io
+        img = qrcode.make(url, image_factory=qrcode.image.svg.SvgImage, box_size=8)
+        buf = io.BytesIO()
+        img.save(buf)
+        return Response(buf.getvalue(), mimetype="image/svg+xml",
+                        headers={"Cache-Control": "max-age=3600"})
+    except ImportError:
+        # Minimal fallback SVG with text only
+        safe = url.replace("&", "&amp;").replace("<", "&lt;")
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">'
+               f'<rect width="200" height="60" fill="#f7fafc" rx="8"/>'
+               f'<text x="10" y="36" font-size="11" font-family="monospace" fill="#1a365d">{safe}</text>'
+               f'</svg>')
+        return Response(svg, mimetype="image/svg+xml")
+
+
+# ============================================================
 # LAB — Model comparison UI
 # ============================================================
 
@@ -6038,31 +6140,34 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
 
-    print("[OK] SSE Log Streaming attivo (Global)")
+    # Detect local IP and populate access info
+    _local_ip = _get_local_ip()
+    _lab_access["lan"] = f"http://{_local_ip}:{PORT}"
 
+    print("[OK] SSE Log Streaming attivo (Global)")
     print(f"""
     ===============================================================
-    |                                                             |
     |     Rooting Future Strategy Engine v6.0                     |
-    |     Dashboard Hybrid - Live Console + Upload                |
-    |                                                             |
-    |     Server: http://127.0.0.1:{PORT}                          |
-    |                                                             |
+    |-------------------------------------------------------------|
+    |  PC locale :  http://127.0.0.1:{PORT}                        |
+    |  Rete LAN  :  http://{_local_ip}:{PORT}               |
+    |  Lab mobile:  http://{_local_ip}:{PORT}/lab            |
     ===============================================================
     """)
+    print("[*] Premi Ctrl+C per terminare")
+    print("[*] Avvio tunnel pubblico in background (cloudflared/ngrok)…\n")
 
-    print("[*] Avvio server Flask...")
-    print(f"[*] Aprire nel browser: http://127.0.0.1:{PORT}")
-    print("[*] Premi Ctrl+C per terminare\n")
+    # Start public tunnel in background (non-blocking)
+    threading.Thread(target=_try_start_tunnel, args=(PORT,), daemon=True).start()
 
-    # AUTO-OPEN BROWSER (Desktop App Experience)
+    # AUTO-OPEN BROWSER
     import webbrowser
     from threading import Timer
 
     def open_browser():
-        webbrowser.open_new(f"http://127.0.0.1:{PORT}")
+        webbrowser.open_new(f"http://127.0.0.1:{PORT}/lab")
 
     Timer(1.5, open_browser).start()
 
-    # Usa 127.0.0.1 per evitare problemi firewall Windows
-    app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True, use_reloader=False)
+    # Bind 0.0.0.0 so mobile devices on the same network can connect
+    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True, use_reloader=False)
