@@ -5762,8 +5762,40 @@ def api_check_file(filename):
 # ============================================================
 import socket as _socket
 
-_lab_access: Dict[str, str] = {"lan": "", "tunnel": "", "tunnel_status": "inactive"}
+_lab_access: Dict[str, str] = {
+    "lan": "", "tailscale": "", "tunnel": "", "tunnel_status": "inactive"
+}
 _WIN_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
+
+def _get_tailscale_ip() -> str:
+    """Restituisce l'IP Tailscale (100.x.x.x) se Tailscale è attivo."""
+    import subprocess as _sp
+    # Metodo 1: comando tailscale ip -4
+    try:
+        r = _sp.run(
+            ["tailscale", "ip", "-4"],
+            capture_output=True, text=True, timeout=5,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        ip = r.stdout.strip().splitlines()[0] if r.returncode == 0 else ""
+        if ip.startswith("100."):
+            return ip
+    except Exception:
+        pass
+    # Metodo 2: scansiona le interfacce di rete (100.64.0.0/10 = range Tailscale)
+    try:
+        for info in _socket.getaddrinfo(_socket.gethostname(), None):
+            ip = info[4][0]
+            try:
+                parts = list(map(int, ip.split(".")))
+                if parts[0] == 100 and 64 <= parts[1] <= 127:
+                    return ip
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ""
 
 
 def _get_local_ip() -> str:
@@ -5777,20 +5809,23 @@ def _get_local_ip() -> str:
         return "127.0.0.1"
 
 
-def _ensure_ssl_cert(local_ip: str):
+def _ensure_ssl_cert(local_ip: str, extra_ips: Optional[List[str]] = None):
     """
     Genera (o ricarica) un certificato autofirmato persistente che include
-    localhost, 127.0.0.1 e l'IP LAN corrente come SAN.
+    localhost, 127.0.0.1, l'IP LAN corrente e gli IP Tailscale come SAN.
+    Rigenera automaticamente se gli IP sono cambiati.
     Ritorna (cert_path, key_path) oppure 'adhoc' come fallback.
     """
-    ssl_dir  = Path(__file__).parent / "ssl"
+    ssl_dir   = Path(__file__).parent / "ssl"
     cert_path = ssl_dir / "cert.pem"
     key_path  = ssl_dir / "key.pem"
-    ip_stamp  = ssl_dir / "ip.txt"           # controlla se l'IP è cambiato
+    ip_stamp  = ssl_dir / "ip.txt"
 
-    # Riusa il cert esistente se l'IP non è cambiato
+    all_ips = [local_ip] + (extra_ips or [])
+    stamp   = ",".join(sorted(filter(None, all_ips)))
+
     if cert_path.exists() and key_path.exists() and ip_stamp.exists():
-        if ip_stamp.read_text().strip() == local_ip:
+        if ip_stamp.read_text().strip() == stamp:
             return (str(cert_path), str(key_path))
 
     ssl_dir.mkdir(exist_ok=True)
@@ -5804,14 +5839,15 @@ def _ensure_ssl_cert(local_ip: str):
 
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Rooting Future Lab")])
-        san_list = [
+        san_list: list = [
             x509.DNSName("localhost"),
             x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
         ]
-        try:
-            san_list.append(x509.IPAddress(ipaddress.IPv4Address(local_ip)))
-        except Exception:
-            pass
+        for ip in all_ips:
+            try:
+                san_list.append(x509.IPAddress(ipaddress.IPv4Address(ip)))
+            except Exception:
+                pass
 
         cert = (
             x509.CertificateBuilder()
@@ -5829,27 +5865,74 @@ def _ensure_ssl_cert(local_ip: str):
             serialization.PrivateFormat.TraditionalOpenSSL,
             serialization.NoEncryption(),
         ))
-        ip_stamp.write_text(local_ip)
-        print(f"[SSL] Certificato generato per localhost + {local_ip} (valido 10 anni)")
+        ip_stamp.write_text(stamp)
+        print(f"[SSL] Certificato generato per: {', '.join(filter(None, ['localhost']+all_ips))}")
         return (str(cert_path), str(key_path))
 
     except ImportError:
-        print("[SSL] 'cryptography' non installato — uso SSL adhoc (meno stabile)")
+        print("[SSL] 'cryptography' non installato — uso SSL adhoc")
         return "adhoc"
     except Exception as e:
-        print(f"[SSL] Errore generazione cert: {e} — uso SSL adhoc")
+        print(f"[SSL] Errore: {e} — uso SSL adhoc")
         return "adhoc"
 
 
 def _try_start_tunnel(port: int) -> None:
-    """Try cloudflared then ngrok. Updates _lab_access in-place."""
-    import subprocess, re, time as _t
+    """
+    Tenta in ordine:
+      1. ngrok con dominio statico (NGROK_DOMAIN env var) - URL permanente
+      2. cloudflared named tunnel (CF_TUNNEL_NAME) - URL permanente
+      3. cloudflared quick tunnel - URL casuale, cambia al riavvio
+      4. ngrok senza dominio - URL casuale, cambia al riavvio
+    """
+    import subprocess, re, time as _t, json as _j, urllib.request as _ur
     _lab_access["tunnel_status"] = "starting"
 
-    # --- cloudflared ---
+    # 1. ngrok STATIC domain
+    ngrok_domain = os.environ.get("NGROK_DOMAIN", "").strip()
+    if ngrok_domain:
+        try:
+            subprocess.Popen(
+                ["ngrok", "http", f"--domain={ngrok_domain}", str(port)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=_WIN_NO_WINDOW,
+            )
+            _t.sleep(4)
+            url = f"https://{ngrok_domain}"
+            _lab_access["tunnel"] = url
+            _lab_access["tunnel_status"] = "active"
+            print(f"\n[LAB] ✓ ngrok static domain: {url}/lab\n")
+            return
+        except FileNotFoundError:
+            print("[LAB] NGROK_DOMAIN impostato ma ngrok non trovato.")
+        except Exception as e:
+            app.logger.debug(f"ngrok static: {e}")
+
+    # 2. cloudflared NAMED tunnel
+    cf_tunnel = os.environ.get("CF_TUNNEL_NAME", "").strip()
+    if cf_tunnel:
+        try:
+            subprocess.Popen(
+                ["cloudflared", "tunnel", "--no-autoupdate", "run", cf_tunnel],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=_WIN_NO_WINDOW,
+            )
+            _t.sleep(5)
+            cf_url = os.environ.get("CF_TUNNEL_URL", "").strip()
+            if cf_url:
+                _lab_access["tunnel"] = cf_url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ Cloudflare tunnel: {cf_url}/lab\n")
+                return
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            app.logger.debug(f"cloudflared named: {e}")
+
+    # 3. cloudflared QUICK tunnel (URL casuale)
     try:
         proc = subprocess.Popen(
-            ["cloudflared", "tunnel", "--url", f"http://localhost:{port}",
+            ["cloudflared", "tunnel", "--url", f"https://localhost:{port}",
              "--no-autoupdate"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             creationflags=_WIN_NO_WINDOW,
@@ -5861,38 +5944,39 @@ def _try_start_tunnel(port: int) -> None:
                 url = m.group(0)
                 _lab_access["tunnel"] = url
                 _lab_access["tunnel_status"] = "active"
-                print(f"\n[LAB] ✓ Tunnel pubblico attivo: {url}/lab\n")
+                print(f"\n[LAB] ✓ Cloudflare quick tunnel: {url}/lab")
+                print("[LAB]   (URL cambia al riavvio - imposta NGROK_DOMAIN per URL fisso)\n")
                 return
             _t.sleep(0.5)
     except FileNotFoundError:
         pass
     except Exception as e:
-        app.logger.debug(f"cloudflared error: {e}")
+        app.logger.debug(f"cloudflared quick: {e}")
 
-    # --- ngrok ---
+    # 4. ngrok senza dominio (URL casuale)
     try:
-        import json as _j, urllib.request as _ur
         subprocess.Popen(
             ["ngrok", "http", str(port)],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             creationflags=_WIN_NO_WINDOW,
         )
-        _t.sleep(3)
+        _t.sleep(4)
         data = _j.loads(_ur.urlopen("http://localhost:4040/api/tunnels", timeout=3).read())
         for t in data.get("tunnels", []):
             if t.get("proto") == "https":
                 url = t["public_url"]
                 _lab_access["tunnel"] = url
                 _lab_access["tunnel_status"] = "active"
-                print(f"\n[LAB] ✓ Tunnel ngrok attivo: {url}/lab\n")
+                print(f"\n[LAB] ✓ ngrok tunnel: {url}/lab")
+                print("[LAB]   (URL cambia al riavvio - configura NGROK_DOMAIN per URL fisso)\n")
                 return
     except FileNotFoundError:
         pass
     except Exception as e:
-        app.logger.debug(f"ngrok error: {e}")
+        app.logger.debug(f"ngrok: {e}")
 
     _lab_access["tunnel_status"] = "unavailable"
-    print("[LAB] Nessun tunnel (installa cloudflared per accesso fuori rete).")
+    print("[LAB] Nessun tunnel. Usa Tailscale per accesso permanente da qualsiasi rete.")
 
 
 @app.route("/api/lab/urls")
@@ -6225,31 +6309,40 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
 
-    # Detect local IP
+    # Detect local IP and Tailscale IP
     _local_ip = _get_local_ip()
+    _ts_ip    = _get_tailscale_ip()
 
-    # Generate / reuse persistent SSL cert (needed for Android PWA install)
-    _ssl_ctx = _ensure_ssl_cert(_local_ip)
-    _scheme  = "https"
+    # SSL cert includes both LAN IP and Tailscale IP in SAN
+    _ssl_ctx  = _ensure_ssl_cert(_local_ip, extra_ips=[_ts_ip] if _ts_ip else [])
+    _scheme   = "https"
 
     _lab_access["lan"] = f"{_scheme}://{_local_ip}:{PORT}"
+    if _ts_ip:
+        _lab_access["tailscale"] = f"{_scheme}://{_ts_ip}:{PORT}"
 
     print("[OK] SSE Log Streaming attivo (Global)")
+    _ts_line = (f"\n     Tailscale  :  {_scheme}://{_ts_ip}:{PORT}/lab"
+                f"  ← SEMPRE RAGGIUNGIBILE") if _ts_ip else (
+                "\n     Tailscale  :  non attivo (vedi /lab/setup per installarlo)")
     print(f"""
     ═══════════════════════════════════════════════════════════════
      Rooting Future Strategy Engine v6.0  [HTTPS]
     ───────────────────────────────────────────────────────────────
      PC locale  :  {_scheme}://127.0.0.1:{PORT}
-     Rete LAN   :  {_scheme}://{_local_ip}:{PORT}
-     Lab mobile :  {_scheme}://{_local_ip}:{PORT}/lab
+     Rete LAN   :  {_scheme}://{_local_ip}:{PORT}{_ts_line}
      Setup PWA  :  {_scheme}://{_local_ip}:{PORT}/lab/setup
     ═══════════════════════════════════════════════════════════════
     """)
-    print("[*] Prima apertura sul telefono: accetta il certificato (una volta sola)")
+    print("[*] Prima apertura Android: Avanzate → Procedi (una volta sola)")
     print("[*] Premi Ctrl+C per terminare")
-    print("[*] Avvio tunnel pubblico in background (cloudflared/ngrok)…\n")
 
-    threading.Thread(target=_try_start_tunnel, args=(PORT,), daemon=True).start()
+    if not _ts_ip:
+        print("[*] Tailscale non rilevato → avvio tunnel in background…\n")
+        threading.Thread(target=_try_start_tunnel, args=(PORT,), daemon=True).start()
+    else:
+        print("[*] Tailscale attivo → accesso garantito da qualsiasi rete.\n")
+        _lab_access["tunnel_status"] = "active_tailscale"
 
     import webbrowser
     from threading import Timer

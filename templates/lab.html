@@ -283,8 +283,21 @@
         </div>
       </div>
 
+      <div class="url-block" id="tailscaleBlock" style="display:none">
+        <div class="url-block-label" style="color:var(--success)">✓ Tailscale — qualsiasi rete, sempre</div>
+        <div class="url-value" id="tailscaleUrl">—</div>
+        <div class="url-actions">
+          <button class="url-btn" onclick="copyUrl('tailscale')">📋 Copia</button>
+          <button class="url-btn primary" onclick="shareUrl('tailscale')">⬆ Condividi</button>
+        </div>
+        <div class="qr-wrap">
+          <span class="qr-toggle" onclick="toggleQr('qr-ts','tailscale')">Mostra QR code</span>
+          <div id="qr-ts" style="display:none"><img alt="QR Tailscale"></div>
+        </div>
+      </div>
+
       <div class="url-block" id="tunnelBlock" style="display:none">
-        <div class="url-block-label">Internet (qualsiasi rete / 4G)</div>
+        <div class="url-block-label">Tunnel pubblico (qualsiasi rete)</div>
         <div class="url-value" id="tunnelUrl">—</div>
         <div class="url-actions">
           <button class="url-btn" onclick="copyUrl('tunnel')">📋 Copia</button>
@@ -298,7 +311,7 @@
 
       <div class="tunnel-status">
         <div class="tunnel-dot starting" id="tunnelDot"></div>
-        <span id="tunnelMsg">Avvio tunnel pubblico (cloudflared/ngrok)…</span>
+        <span id="tunnelMsg">Verifica connessione…</span>
       </div>
 
       <button id="installBtn" onclick="installPwa()">📲 Aggiungi alla Home Screen</button>
@@ -450,25 +463,29 @@ async function pollUrls() {
     _urlData = d;
 
     // LAN
-    const lanVal = (d.lan || '') + '/lab';
-    document.getElementById('lanUrl').textContent = d.lan ? lanVal : 'non disponibile';
+    document.getElementById('lanUrl').textContent = d.lan ? d.lan + '/lab' : 'non disponibile';
 
-    // Tunnel
+    // Tailscale (URL permanente — priorità massima)
     const tdot = document.getElementById('tunnelDot');
     const tmsg = document.getElementById('tunnelMsg');
-    if (d.tunnel) {
-      const tVal = d.tunnel + '/lab';
-      document.getElementById('tunnelUrl').textContent = tVal;
+
+    if (d.tailscale) {
+      document.getElementById('tailscaleUrl').textContent = d.tailscale + '/lab';
+      document.getElementById('tailscaleBlock').style.display = '';
+      tdot.className = 'tunnel-dot active';
+      tmsg.textContent = '✓ Tailscale attivo — accessibile da qualsiasi rete, sempre';
+    } else if (d.tunnel) {
+      document.getElementById('tunnelUrl').textContent = d.tunnel + '/lab';
       document.getElementById('tunnelBlock').style.display = '';
       tdot.className = 'tunnel-dot active';
       tmsg.textContent = 'Tunnel attivo — accessibile da qualsiasi rete';
     } else if (d.tunnel_status === 'starting') {
       tdot.className = 'tunnel-dot starting';
-      tmsg.textContent = 'Avvio tunnel pubblico…';
+      tmsg.textContent = 'Avvio tunnel in background…';
       setTimeout(pollUrls, 3000);
     } else {
       tdot.className = 'tunnel-dot unavailable';
-      tmsg.textContent = 'Tunnel non disponibile. Installa cloudflared o ngrok per accesso esterno.';
+      tmsg.textContent = 'Accesso solo WiFi locale. Installa Tailscale per accesso da qualsiasi rete.';
     }
   } catch(e) {
     setTimeout(pollUrls, 5000);
@@ -476,7 +493,10 @@ async function pollUrls() {
 }
 
 function getUrl(type) {
-  const base = type === 'lan' ? _urlData.lan : _urlData.tunnel;
+  let base = '';
+  if (type === 'lan')       base = _urlData.lan;
+  else if (type === 'tailscale') base = _urlData.tailscale;
+  else                      base = _urlData.tunnel;
   return base ? base + '/lab' : '';
 }
 

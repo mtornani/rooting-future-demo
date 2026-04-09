@@ -293,6 +293,66 @@
 
 </div>
 
+<!-- ═══ TAILSCALE setup (always visible) ═══ -->
+<div style="padding: 0 14px 14px">
+  <div style="background:#f0fff4;border:2px solid #38a169;border-radius:14px;padding:16px">
+    <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#276749;margin-bottom:8px;font-weight:700">
+      ⭐ Soluzione definitiva — qualsiasi rete, per sempre
+    </div>
+    <div style="font-size:1rem;font-weight:800;color:#1a365d;margin-bottom:6px">Tailscale</div>
+    <p style="font-size:.82rem;color:#4a5568;line-height:1.55;margin-bottom:12px">
+      Crea una rete privata virtuale tra il tuo PC e il telefono.
+      Funziona su WiFi, 4G, VPN, reti aziendali — senza configurare porte o router.
+      L'IP del PC è <strong>sempre lo stesso</strong>, il Lab è sempre raggiungibile.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="background:white;border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+        <div style="width:26px;height:26px;border-radius:50%;background:#1a365d;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;flex-shrink:0">1</div>
+        <div>
+          <div style="font-weight:700;font-size:.88rem">Installa sul PC</div>
+          <div style="font-size:.79rem;color:#718096;margin-top:3px">
+            Vai su <strong>tailscale.com</strong> → Download → Windows.
+            Oppure in PowerShell: <code style="background:#f7fafc;padding:2px 6px;border-radius:4px;font-size:.77rem">winget install Tailscale.Tailscale</code>
+          </div>
+        </div>
+      </div>
+      <div style="background:white;border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+        <div style="width:26px;height:26px;border-radius:50%;background:#1a365d;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;flex-shrink:0">2</div>
+        <div>
+          <div style="font-weight:700;font-size:.88rem">Installa sul telefono</div>
+          <div style="font-size:.79rem;color:#718096;margin-top:3px">
+            Play Store → cerca <strong>Tailscale</strong> → installa.
+          </div>
+        </div>
+      </div>
+      <div style="background:white;border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+        <div style="width:26px;height:26px;border-radius:50%;background:#1a365d;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;flex-shrink:0">3</div>
+        <div>
+          <div style="font-weight:700;font-size:.88rem">Accedi con lo stesso account</div>
+          <div style="font-size:.79rem;color:#718096;margin-top:3px">
+            Su entrambi: apri Tailscale → Login con Google/GitHub/email.
+            Usa <strong>lo stesso account</strong> su PC e telefono.
+          </div>
+        </div>
+      </div>
+      <div style="background:#e6fffa;border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+        <div style="width:26px;height:26px;border-radius:50%;background:#38a169;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;flex-shrink:0">✓</div>
+        <div>
+          <div style="font-weight:700;font-size:.88rem;color:#276749">Fatto — funziona per sempre</div>
+          <div style="font-size:.79rem;color:#4a5568;margin-top:3px">
+            Riavvia l'app RF Lab sul PC. In console vedrai il nuovo URL Tailscale
+            (<code style="font-size:.75rem">https://100.x.x.x:5000/lab</code>).
+            Aprilo dal telefono: <strong>nessun avviso certificato</strong>, installazione PWA immediata.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:.78rem;color:#276749;background:#c6f6d5;border-radius:8px;padding:8px 10px">
+      🆓 Tailscale è gratuito per uso personale. Nessuna scadenza, nessun limite.
+    </div>
+  </div>
+</div>
+
 <a href="/lab" class="back">← Torna al Lab</a>
 
 <script>
@@ -329,20 +389,22 @@ async function pollUrls() {
   try {
     const r = await fetch('/api/lab/urls');
     const d = await r.json();
-    // Prefer tunnel (public HTTPS), else LAN (self-signed HTTPS)
-    _bestUrl = (d.tunnel ? d.tunnel : d.lan || '') + '/lab';
+    // Priority: Tailscale (permanent) > tunnel > LAN
+    const base = d.tailscale || d.tunnel || d.lan || '';
+    _bestUrl = base ? base + '/lab' : '';
 
     document.getElementById('urlVal').textContent = _bestUrl || '—';
     document.getElementById('urlDot').className =
-      'dot ' + (d.tunnel ? 'dot-ok' : d.lan ? 'dot-ok' : 'dot-wait');
-    document.getElementById('urlLabel').textContent = d.tunnel
-      ? 'Tunnel pubblico HTTPS (qualsiasi rete)'
-      : d.lan ? 'Rete locale WiFi (stessa rete del PC)'
-              : 'Rilevamento…';
+      'dot ' + (base ? 'dot-ok' : 'dot-wait');
+    document.getElementById('urlLabel').textContent =
+      d.tailscale ? '✓ Tailscale — funziona da qualsiasi rete' :
+      d.tunnel    ? 'Tunnel pubblico HTTPS' :
+      d.lan       ? 'Rete locale WiFi (stessa rete del PC)' :
+                    'Rilevamento in corso…';
 
     if (_bestUrl && _bestUrl !== '/lab') {
-      const img = document.getElementById('qrImg');
-      img.src = '/api/lab/qr?url=' + encodeURIComponent(_bestUrl);
+      document.getElementById('qrImg').src =
+        '/api/lab/qr?url=' + encodeURIComponent(_bestUrl);
       document.getElementById('qrBox').style.display = '';
     }
     if (d.tunnel_status === 'starting') setTimeout(pollUrls, 3000);
