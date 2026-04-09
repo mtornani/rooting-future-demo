@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Lab — Rooting Future</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* ====== LAB — mobile-first ====== */
+    :root {
+      --lab-radius: 14px;
+      --lab-gap: 12px;
+    }
+
+    .lab-wrap { max-width: 700px; margin: 0 auto; padding: 16px; }
+
+    /* ---- Club banner ---- */
+    .club-banner {
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--lab-radius);
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .club-banner .club-icon {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--accent); display: flex;
+      align-items: center; justify-content: center;
+      font-size: 1.2rem; flex-shrink: 0;
+    }
+    .club-banner .club-info { flex: 1; }
+    .club-banner .club-name { font-weight: 700; font-size: 1rem; }
+    .club-banner .club-meta { font-size: .78rem; opacity: .8; margin-top: 2px; }
+    .club-banner .club-load-btn {
+      background: rgba(255,255,255,.18); border: none;
+      color: #fff; padding: 7px 14px; border-radius: 20px;
+      font-size: .82rem; cursor: pointer; white-space: nowrap;
+    }
+    .club-banner .club-load-btn:hover { background: rgba(255,255,255,.28); }
+
+    /* path drawer */
+    .path-drawer {
+      background: #fff; border: 1.5px solid var(--border);
+      border-radius: var(--lab-radius); padding: 14px;
+      margin-bottom: 16px; display: none;
+    }
+    .path-drawer.open { display: block; }
+    .path-drawer label { font-size: .82rem; color: var(--text-light); display: block; margin-bottom: 6px; }
+    .path-row { display: flex; gap: 8px; }
+    .path-row input {
+      flex: 1; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .9rem;
+    }
+    .path-row button {
+      padding: 10px 16px; background: var(--accent);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: .88rem; cursor: pointer; white-space: nowrap;
+    }
+
+    /* ---- Section card ---- */
+    .lab-card {
+      background: #fff; border: 1.5px solid var(--border);
+      border-radius: var(--lab-radius);
+      margin-bottom: 16px; overflow: hidden;
+    }
+    .lab-card-header {
+      padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .lab-card-header h2 { font-size: 1rem; font-weight: 700; color: var(--primary); }
+    .lab-card-header .badge {
+      background: var(--accent); color: #fff;
+      border-radius: 20px; padding: 2px 9px; font-size: .74rem;
+    }
+    .lab-card-body { padding: 14px 16px; }
+
+    /* ---- Provider tabs ---- */
+    .provider-tabs {
+      display: flex; gap: 6px; margin-bottom: 12px;
+    }
+    .provider-tab {
+      flex: 1; padding: 8px 4px; text-align: center;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; color: var(--text-light); transition: all .15s;
+    }
+    .provider-tab.active {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+    .provider-panel { display: none; }
+    .provider-panel.active { display: block; }
+
+    /* ---- Model chips ---- */
+    .model-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; }
+    .model-chip {
+      padding: 7px 12px; border: 1.5px solid var(--border);
+      border-radius: 20px; font-size: .8rem; cursor: pointer;
+      user-select: none; transition: all .15s; background: #fff;
+    }
+    .model-chip.selected {
+      border-color: var(--accent); background: #ebf4ff; color: var(--accent); font-weight: 600;
+    }
+    .model-chip:hover { border-color: var(--accent); }
+    .model-loading { font-size: .82rem; color: var(--text-light); font-style: italic; }
+    .model-empty { font-size: .82rem; color: var(--text-light); }
+
+    /* api key field */
+    .api-key-row {
+      display: flex; gap: 8px; margin-top: 10px; align-items: center;
+    }
+    .api-key-row label { font-size: .78rem; color: var(--text-light); white-space: nowrap; }
+    .api-key-row input {
+      flex: 1; padding: 8px 10px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .8rem; font-family: monospace;
+    }
+
+    /* ---- Run button ---- */
+    #runBtn {
+      width: 100%; padding: 14px;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: var(--lab-radius);
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      margin-bottom: 16px; transition: background .15s;
+    }
+    #runBtn:hover:not(:disabled) { background: var(--secondary); }
+    #runBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ---- Progress cards ---- */
+    .run-progress {
+      background: #fff; border: 1.5px solid var(--border);
+      border-radius: var(--lab-radius); margin-bottom: 16px; overflow: hidden;
+    }
+    .run-progress-header {
+      padding: 12px 16px; background: var(--primary);
+      color: #fff; font-weight: 700; font-size: .9rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .run-progress-header .spinner {
+      width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .agent-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; border-bottom: 1px solid var(--bg);
+      transition: background .15s;
+    }
+    .agent-row:last-child { border-bottom: none; }
+    .agent-status {
+      width: 20px; height: 20px; border-radius: 50%;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: .7rem;
+    }
+    .agent-status.waiting  { background: var(--bg); border: 2px solid var(--border); }
+    .agent-status.running  { border: 2px solid var(--accent); border-top-color: transparent;
+                              animation: spin .7s linear infinite; }
+    .agent-status.done     { background: var(--success); color: #fff; }
+    .agent-status.error    { background: var(--danger); color: #fff; }
+
+    .agent-name { flex: 1; font-size: .88rem; font-weight: 600; }
+    .agent-meta { font-size: .75rem; color: var(--text-light); text-align: right; }
+    .agent-meta span { display: block; }
+
+    /* ---- Runs list ---- */
+    .run-card {
+      border: 1.5px solid var(--border); border-radius: 10px;
+      margin-bottom: 10px; overflow: hidden;
+    }
+    .run-card-header {
+      padding: 10px 14px; background: var(--bg);
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer;
+    }
+    .run-card-header:hover { background: #edf2f7; }
+    .run-card-label { font-weight: 700; font-size: .88rem; color: var(--primary); }
+    .run-card-time  { font-size: .78rem; color: var(--text-light); }
+    .run-card-body  { padding: 0 14px 14px; display: none; }
+    .run-card-body.open { display: block; }
+
+    .metrics-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0;
+    }
+    .metric-chip {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 10px;
+      font-size: .75rem; color: var(--text);
+    }
+    .metric-chip strong { color: var(--primary); }
+
+    .agent-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .8rem; }
+    .agent-table th {
+      background: var(--primary); color: #fff;
+      padding: 6px 10px; text-align: left; font-weight: 600;
+    }
+    .agent-table td { padding: 6px 10px; border-bottom: 1px solid var(--bg); }
+    .agent-table tr:last-child td { border-bottom: none; }
+
+    .plan-preview-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: 1.5px solid var(--accent);
+      border-radius: 20px; font-size: .78rem; color: var(--accent);
+      cursor: pointer; margin-top: 6px;
+    }
+    .plan-section { margin-top: 10px; }
+    .plan-section h4 {
+      font-size: .8rem; color: var(--text-light);
+      text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px;
+    }
+    .plan-section pre {
+      white-space: pre-wrap; word-break: break-word;
+      font-family: inherit; font-size: .82rem;
+      background: var(--bg); border-radius: 8px;
+      padding: 10px 12px; max-height: 220px; overflow-y: auto;
+    }
+
+    /* compare side-by-side on desktop */
+    @media (min-width: 640px) {
+      .runs-compare {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      }
+    }
+
+    /* ---- toast ---- */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #2d3748; color: #fff; padding: 10px 20px;
+      border-radius: 20px; font-size: .85rem;
+      opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="brand-icon">RF</span>
+    <span class="brand-text">Rooting Future · Lab</span>
+  </div>
+  <div class="nav-links">
+    <a href="{{ url_for('index') }}">Dashboard</a>
+    <a href="{{ url_for('plans_list') }}">Piani</a>
+    <a href="{{ url_for('lab') }}" class="active">Lab</a>
+  </div>
+</nav>
+
+<main class="lab-wrap">
+
+  <!-- ── Club banner ── -->
+  <div class="club-banner" id="clubBanner">
+    <div class="club-icon">⚽</div>
+    <div class="club-info">
+      <div class="club-name" id="clubName">Caricamento dati club…</div>
+      <div class="club-meta" id="clubMeta">—</div>
+    </div>
+    <button class="club-load-btn" onclick="togglePathDrawer()">Carica interviste</button>
+  </div>
+
+  <div class="path-drawer" id="pathDrawer">
+    <label>Percorso cartella interviste (con file .docx)</label>
+    <div class="path-row">
+      <input type="text" id="interviewPath" placeholder="C:\Users\Mirko\Desktop\BOARD RICCIONE CALCIO 1926">
+      <button onclick="saveInterviews()">Carica</button>
+    </div>
+    <div id="loadStatus" style="margin-top:8px;font-size:.8rem;color:var(--text-light)"></div>
+  </div>
+
+  <!-- ── Model selector ── -->
+  <div class="lab-card">
+    <div class="lab-card-header">
+      <h2>Seleziona modelli</h2>
+      <span class="badge" id="selectedCount">0 selezionati</span>
+    </div>
+    <div class="lab-card-body">
+      <div class="provider-tabs">
+        <div class="provider-tab active" onclick="switchTab('gemini',this)">Gemini</div>
+        <div class="provider-tab" onclick="switchTab('openrouter',this)">OpenRouter</div>
+        <div class="provider-tab" onclick="switchTab('ollama',this)">Ollama</div>
+      </div>
+
+      <!-- Gemini panel -->
+      <div class="provider-panel active" id="panel-gemini">
+        <div class="model-chips" id="chips-gemini">
+          <span class="model-loading">Ricerca modelli…</span>
+        </div>
+      </div>
+
+      <!-- OpenRouter panel -->
+      <div class="provider-panel" id="panel-openrouter">
+        <div class="model-chips" id="chips-openrouter">
+          <span class="model-loading">Ricerca modelli…</span>
+        </div>
+        <div class="api-key-row">
+          <label>API Key OpenRouter</label>
+          <input type="password" id="openrouterKey" placeholder="sk-or-…">
+        </div>
+      </div>
+
+      <!-- Ollama panel -->
+      <div class="provider-panel" id="panel-ollama">
+        <div class="model-chips" id="chips-ollama">
+          <span class="model-loading">Ricerca modelli locali…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Run button ── -->
+  <button id="runBtn" onclick="startRun()">▶ Genera piano strategico</button>
+
+  <!-- ── Active run progress (injected here) ── -->
+  <div id="progressArea"></div>
+
+  <!-- ── Completed runs ── -->
+  <div class="lab-card" id="runsCard" style="display:none">
+    <div class="lab-card-header">
+      <h2>Risultati</h2>
+      <span class="badge" id="runsCount">0</span>
+    </div>
+    <div class="lab-card-body" id="runsList"></div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ────────────────────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────────────────────
+const selectedModels = [];  // [{provider, model, label}]
+let activeRuns = 0;
+
+// ────────────────────────────────────────────────────────────
+// Init
+// ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  checkClubData();
+  discoverModels();
+  loadExistingRuns();
+});
+
+// ────────────────────────────────────────────────────────────
+// Club data
+// ────────────────────────────────────────────────────────────
+async function checkClubData() {
+  try {
+    const r = await fetch('/api/lab/club-data');
+    const d = await r.json();
+    if (d.loaded) {
+      document.getElementById('clubName').textContent = d.club_name || 'Club caricato';
+      document.getElementById('clubMeta').textContent =
+        d.has_interviews ? '✓ Interviste board caricate' : '⚠ Nessuna intervista';
+    } else {
+      document.getElementById('clubName').textContent = 'Nessun club caricato';
+      document.getElementById('clubMeta').textContent = 'Carica le interviste per iniziare';
+      togglePathDrawer();
+    }
+  } catch(e) {
+    document.getElementById('clubName').textContent = 'Errore connessione';
+  }
+}
+
+function togglePathDrawer() {
+  const d = document.getElementById('pathDrawer');
+  d.classList.toggle('open');
+}
+
+async function saveInterviews() {
+  const path = document.getElementById('interviewPath').value.trim();
+  if (!path) { showToast('Inserisci il percorso cartella'); return; }
+  const s = document.getElementById('loadStatus');
+  s.textContent = 'Caricamento in corso…';
+  try {
+    const r = await fetch('/api/lab/save-interviews', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path})
+    });
+    const d = await r.json();
+    if (d.error) { s.textContent = '❌ ' + d.error; return; }
+    s.textContent = `✓ ${d.file_count} file, ${(d.total_chars/1000).toFixed(0)}k caratteri`;
+    document.getElementById('clubName').textContent = d.club_name || 'Club caricato';
+    document.getElementById('clubMeta').textContent = '✓ Interviste board caricate';
+    setTimeout(() => {
+      document.getElementById('pathDrawer').classList.remove('open');
+    }, 1500);
+  } catch(e) {
+    s.textContent = '❌ ' + e.message;
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Model discovery
+// ────────────────────────────────────────────────────────────
+async function discoverModels() {
+  try {
+    const r = await fetch('/api/lab/models');
+    const d = await r.json();
+    renderChips('gemini', d.gemini || [], 'gemini');
+    renderChips('openrouter', d.openrouter || [], 'openrouter');
+    renderChips('ollama', d.ollama || [], 'ollama');
+  } catch(e) {
+    ['gemini','openrouter','ollama'].forEach(p => {
+      document.getElementById('chips-'+p).innerHTML =
+        '<span class="model-empty">Errore caricamento modelli</span>';
+    });
+  }
+}
+
+function renderChips(provider, models, providerKey) {
+  const el = document.getElementById('chips-' + provider);
+  if (!models.length) {
+    el.innerHTML = `<span class="model-empty">Nessun modello ${
+      provider === 'ollama' ? '(Ollama non raggiungibile)' :
+      provider === 'openrouter' ? 'gratuito trovato' : 'disponibile'
+    }</span>`;
+    return;
+  }
+  el.innerHTML = models.map(m => {
+    const id   = typeof m === 'object' ? m.id   : m;
+    const name = typeof m === 'object' ? m.name : m;
+    const ctx  = typeof m === 'object' && m.context ? ` · ${Math.round(m.context/1000)}k` : '';
+    return `<div class="model-chip" data-provider="${providerKey}" data-model="${id}"
+                 onclick="toggleModel(this,'${providerKey}','${id}','${name}${ctx}')">
+              ${name}${ctx}
+            </div>`;
+  }).join('');
+}
+
+function toggleModel(el, provider, modelId, label) {
+  const idx = selectedModels.findIndex(m => m.provider===provider && m.model===modelId);
+  if (idx >= 0) {
+    selectedModels.splice(idx, 1);
+    el.classList.remove('selected');
+  } else {
+    selectedModels.push({provider, model: modelId, label});
+    el.classList.add('selected');
+  }
+  document.getElementById('selectedCount').textContent =
+    selectedModels.length + ' selezionat' + (selectedModels.length===1?'o':'i');
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.provider-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ────────────────────────────────────────────────────────────
+// Run generation
+// ────────────────────────────────────────────────────────────
+function startRun() {
+  if (!selectedModels.length) {
+    showToast('Seleziona almeno un modello');
+    return;
+  }
+  // Run all selected models sequentially (avoid parallel env-var conflicts)
+  selectedModels.forEach(m => startSingleRun(m));
+}
+
+const AGENT_NAMES = {
+  COORDINATOR:'Coordinator', STW_SPORTIVI:'STW Sportivi',
+  STW_STRUTTURALI:'STW Strutturali', STW_MARKETING:'STW Marketing',
+  STW_SOCIALI:'STW Sociali', FINANCIAL:'Financial'
+};
+const AGENT_ORDER = ['COORDINATOR','STW_SPORTIVI','STW_STRUTTURALI',
+                     'STW_MARKETING','STW_SOCIALI','FINANCIAL'];
+
+function startSingleRun({provider, model, label}) {
+  const orKey = provider === 'openrouter'
+    ? document.getElementById('openrouterKey').value.trim() : '';
+
+  const runId = Math.random().toString(36).slice(2,8);
+  activeRuns++;
+  document.getElementById('runBtn').disabled = true;
+
+  // Build progress card
+  const card = document.createElement('div');
+  card.className = 'run-progress';
+  card.id = 'progress-' + runId;
+  card.innerHTML = `
+    <div class="run-progress-header">
+      <div class="spinner"></div>
+      <span>${label}</span>
+    </div>
+    ${AGENT_ORDER.map(a => `
+      <div class="agent-row" id="agent-${runId}-${a}">
+        <div class="agent-status waiting" id="status-${runId}-${a}"></div>
+        <div class="agent-name">${AGENT_NAMES[a] || a}</div>
+        <div class="agent-meta" id="meta-${runId}-${a}">—</div>
+      </div>`).join('')}
+  `;
+  document.getElementById('progressArea').appendChild(card);
+
+  // SSE stream
+  const es = new EventSource('/api/lab/run?' + new URLSearchParams({
+    _dummy: runId  // bust cache
+  }));
+
+  // POST via fetch-then-EventSource trick doesn't work; use XHR streaming
+  // Instead: send params in body via POST with fetch + ReadableStream
+  // EventSource doesn't support POST — use fetch streaming
+  es.close();
+  card.remove();
+
+  // Use fetch with ReadableStream for POST SSE
+  _streamRun({provider, model, label, orKey, runId});
+}
+
+async function _streamRun({provider, model, label, orKey, runId}) {
+  const card = document.createElement('div');
+  card.className = 'run-progress';
+  card.id = 'progress-' + runId;
+  card.innerHTML = `
+    <div class="run-progress-header">
+      <div class="spinner"></div>
+      <span>${label}</span>
+    </div>
+    ${AGENT_ORDER.map(a => `
+      <div class="agent-row" id="agent-${runId}-${a}">
+        <div class="agent-status waiting" id="status-${runId}-${a}"></div>
+        <div class="agent-name">${AGENT_NAMES[a] || a}</div>
+        <div class="agent-meta" id="meta-${runId}-${a}">—</div>
+      </div>`).join('')}
+  `;
+  document.getElementById('progressArea').appendChild(card);
+
+  try {
+    const resp = await fetch('/api/lab/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider, model, label, api_key: orKey})
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream: true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          handleEvent(ev, runId, card);
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    card.querySelector('.run-progress-header').innerHTML =
+      `<span style="color:#fc8181">❌ Errore: ${e.message}</span>`;
+  } finally {
+    activeRuns--;
+    if (activeRuns <= 0) {
+      activeRuns = 0;
+      document.getElementById('runBtn').disabled = false;
+    }
+  }
+}
+
+function handleEvent(ev, runId, card) {
+  if (ev.event === 'agent_start') {
+    const s = document.getElementById(`status-${runId}-${ev.agent}`);
+    if (s) { s.className = 'agent-status running'; }
+  } else if (ev.event === 'agent_done') {
+    const s = document.getElementById(`status-${runId}-${ev.agent}`);
+    const m = document.getElementById(`meta-${runId}-${ev.agent}`);
+    if (s) { s.className = 'agent-status done'; s.textContent = '✓'; }
+    if (m) {
+      m.innerHTML = `<span>${ev.seconds}s</span><span>${(ev.chars/1000).toFixed(1)}k chars</span>`;
+    }
+  } else if (ev.event === 'complete') {
+    card.querySelector('.run-progress-header').innerHTML =
+      `<span>✓ ${card.querySelector('.run-progress-header span')?.textContent || ''} — ${ev.total_seconds}s</span>`;
+    card.querySelector('.run-progress-header').style.background = 'var(--success)';
+    showToast(`Piano completato in ${ev.total_seconds}s`);
+    setTimeout(() => { card.remove(); loadExistingRuns(); }, 2000);
+  } else if (ev.event === 'error') {
+    card.querySelector('.run-progress-header').innerHTML =
+      `<span style="color:#fc8181">❌ ${ev.message}</span>`;
+    card.querySelector('.run-progress-header').style.background = 'var(--danger)';
+    showToast('Errore: ' + ev.message, 4000);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Completed runs
+// ────────────────────────────────────────────────────────────
+async function loadExistingRuns() {
+  try {
+    const r = await fetch('/api/lab/runs');
+    const runs = await r.json();
+    const card = document.getElementById('runsCard');
+    const list = document.getElementById('runsList');
+    if (!runs.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    document.getElementById('runsCount').textContent = runs.length;
+    list.innerHTML = `<div class="runs-compare" id="runsCompare"></div>`;
+    const grid = document.getElementById('runsCompare');
+    runs.forEach(run => { grid.appendChild(buildRunCard(run)); });
+  } catch(e) {}
+}
+
+function buildRunCard(run) {
+  const div = document.createElement('div');
+  div.className = 'run-card';
+  const totalChars = run.agents.reduce((s,a) => s + a.chars, 0);
+  const agentRows = run.agents.map(a =>
+    `<tr><td>${AGENT_NAMES[a.agent]||a.agent}</td>
+         <td>${a.seconds}s</td>
+         <td>${(a.chars/1000).toFixed(1)}k</td></tr>`
+  ).join('');
+
+  div.innerHTML = `
+    <div class="run-card-header" onclick="toggleRunCard(this)">
+      <div>
+        <div class="run-card-label">${run.label}</div>
+        <div class="run-card-time">${run.total_seconds}s · ${(totalChars/1000).toFixed(0)}k chars</div>
+      </div>
+      <span>▼</span>
+    </div>
+    <div class="run-card-body">
+      <div class="metrics-row">
+        <div class="metric-chip">⏱ <strong>${run.total_seconds}s</strong></div>
+        <div class="metric-chip">📝 <strong>${(totalChars/1000).toFixed(0)}k</strong> chars</div>
+        <div class="metric-chip">🤖 <strong>${run.agents.length}</strong> agenti</div>
+      </div>
+      <table class="agent-table">
+        <thead><tr><th>Agente</th><th>Tempo</th><th>Output</th></tr></thead>
+        <tbody>${agentRows}</tbody>
+      </table>
+      <div style="margin-top:10px">
+        <span class="plan-preview-toggle" onclick="loadPlanPreview('${run.run_id}', this)">
+          📄 Mostra piano
+        </span>
+        <div id="plan-${run.run_id}"></div>
+      </div>
+    </div>`;
+  return div;
+}
+
+function toggleRunCard(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('span');
+  body.classList.toggle('open');
+  arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+async function loadPlanPreview(runId, btn) {
+  const container = document.getElementById('plan-' + runId);
+  if (container.innerHTML) { container.innerHTML = ''; btn.textContent = '📄 Mostra piano'; return; }
+  btn.textContent = '⏳ Caricamento…';
+  try {
+    const r = await fetch(`/api/lab/runs/${runId}`);
+    const d = await r.json();
+    const plan = d.plan || {};
+    container.innerHTML = Object.entries(plan).map(([k, v]) => `
+      <div class="plan-section">
+        <h4>${k.replace(/_/g,' ')}</h4>
+        <pre>${escHtml(String(v).slice(0,600))}${v.length>600?'\n…[troncato]':''}</pre>
+      </div>`).join('');
+    btn.textContent = '📄 Nascondi piano';
+  } catch(e) {
+    container.innerHTML = '<span style="color:var(--danger)">Errore caricamento</span>';
+    btn.textContent = '📄 Mostra piano';
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ────────────────────────────────────────────────────────────
+// Toast
+// ────────────────────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg, ms=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+</script>
+</body>
+</html>

@@ -5757,6 +5757,274 @@ def api_check_file(filename):
         return jsonify({"ready": False, "error": str(e)})
 
 
+# ============================================================
+# LAB — Model comparison UI
+# ============================================================
+
+_lab_runs: Dict[str, dict] = {}        # run_id -> run data
+_lab_club_data: Dict = {}               # in-memory Riccione cache
+_LAB_DATA_FILE = Path(__file__).parent / "lab_data" / "riccione.json"
+
+
+@app.route("/lab")
+def lab():
+    return render_template("lab.html")
+
+
+@app.route("/api/lab/models", methods=["GET"])
+def lab_models():
+    """Discover: OpenRouter free models, Ollama local models, Gemini available."""
+    import requests as _req
+    result: Dict[str, list] = {"openrouter": [], "ollama": [], "gemini": []}
+
+    # OpenRouter free models (no auth needed for public list)
+    try:
+        r = _req.get("https://openrouter.ai/api/v1/models", timeout=8)
+        if r.ok:
+            for m in r.json().get("data", []):
+                p = m.get("pricing", {})
+                if str(p.get("prompt", "1")) == "0" and str(p.get("completion", "1")) == "0":
+                    result["openrouter"].append({
+                        "id": m["id"],
+                        "name": m.get("name", m["id"]),
+                        "context": m.get("context_length", 0),
+                    })
+    except Exception as e:
+        app.logger.warning(f"lab_models OpenRouter: {e}")
+
+    # Ollama local models
+    ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    if ollama_base.endswith("/v1"):
+        ollama_base = ollama_base[:-3]
+    try:
+        r = _req.get(f"{ollama_base}/api/tags", timeout=4)
+        if r.ok:
+            result["ollama"] = [m["name"] for m in r.json().get("models", [])]
+    except Exception:
+        pass
+
+    # Gemini — list available via API
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+    if gemini_key:
+        try:
+            import google.generativeai as _genai
+            from ai_providers.gemini_provider import _PREFERRED_MODELS
+            _genai.configure(api_key=gemini_key)
+            avail = {m.name for m in _genai.list_models()}
+            result["gemini"] = [m for m in _PREFERRED_MODELS if f"models/{m}" in avail]
+        except Exception:
+            from ai_providers.gemini_provider import detect_best_gemini_model
+            result["gemini"] = [detect_best_gemini_model(gemini_key)]
+
+    return jsonify(result)
+
+
+@app.route("/api/lab/club-data", methods=["GET"])
+def lab_club_data_info():
+    """Status of cached club data."""
+    global _lab_club_data
+    if not _lab_club_data and _LAB_DATA_FILE.exists():
+        try:
+            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
+                _lab_club_data = json.load(f).get("club_data", {})
+        except Exception:
+            pass
+    if _lab_club_data:
+        return jsonify({
+            "loaded": True,
+            "club_name": _lab_club_data.get("club_name", "N/A"),
+            "has_interviews": bool(_lab_club_data.get("interviste_board")),
+        })
+    return jsonify({"loaded": False})
+
+
+@app.route("/api/lab/save-interviews", methods=["POST"])
+def lab_save_interviews():
+    """Load .docx interviews from a folder path and persist to lab_data/riccione.json."""
+    global _lab_club_data
+    body = request.get_json(force=True)
+    path = body.get("path", "").strip()
+    if not path:
+        return jsonify({"error": "path mancante"}), 400
+    try:
+        import importlib.util
+        _ab_spec = importlib.util.spec_from_file_location(
+            "ab_test", Path(__file__).parent / "ab_test.py"
+        )
+        _ab = importlib.util.module_from_spec(_ab_spec)
+        _ab_spec.loader.exec_module(_ab)
+
+        interviews = _ab.load_interviews(path)
+        if not interviews:
+            return jsonify({"error": f"Nessun .docx trovato in: {path}"}), 404
+
+        club_data = _ab.build_club_data(interviews)
+        _LAB_DATA_FILE.parent.mkdir(exist_ok=True)
+        cache = {
+            "saved_at": datetime.now().isoformat(),
+            "path": path,
+            "file_count": len(interviews),
+            "total_chars": sum(len(v) for v in interviews.values()),
+            "club_data": club_data,
+        }
+        with open(_LAB_DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        _lab_club_data = club_data
+        return jsonify({
+            "ok": True,
+            "file_count": cache["file_count"],
+            "total_chars": cache["total_chars"],
+            "club_name": club_data.get("club_name", "N/A"),
+        })
+    except Exception as e:
+        app.logger.error(f"lab_save_interviews: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/lab/run", methods=["POST"])
+def lab_run():
+    """Generate a plan with one model; stream per-agent progress via SSE."""
+    global _lab_club_data
+
+    body = request.get_json(force=True)
+    provider_type = body.get("provider", "gemini")   # gemini | openrouter | ollama
+    model_id      = body.get("model", "")
+    api_key_ov    = body.get("api_key", "")
+    run_label     = body.get("label") or f"{provider_type} / {model_id or 'auto'}"
+
+    # Ensure club data
+    if not _lab_club_data and _LAB_DATA_FILE.exists():
+        try:
+            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
+                _lab_club_data = json.load(f).get("club_data", {})
+        except Exception:
+            pass
+    if not _lab_club_data:
+        return jsonify({"error": "Dati club non caricati. Usa 'Carica Interviste'."}), 400
+
+    import uuid
+    run_id = str(uuid.uuid4())[:8]
+    club_data_snapshot = dict(_lab_club_data)
+
+    def _stream():
+        q: queue.Queue = queue.Queue()
+
+        def _worker():
+            orig_env: Dict[str, str] = {}
+
+            def _setenv(k, v):
+                orig_env[k] = os.environ.get(k, "")
+                if v:
+                    os.environ[k] = v
+                elif k in os.environ:
+                    del os.environ[k]
+
+            try:
+                if provider_type == "openrouter":
+                    _setenv("OLLAMA_BASE_URL", "https://openrouter.ai/api/v1")
+                    _setenv("OLLAMA_MODEL", model_id)
+                    _setenv("OLLAMA_API_KEY",
+                            api_key_ov or os.environ.get("OPENROUTER_API_KEY", ""))
+                elif provider_type == "ollama":
+                    _setenv("OLLAMA_BASE_URL",
+                            os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"))
+                    _setenv("OLLAMA_MODEL", model_id)
+                elif provider_type == "gemini":
+                    _setenv("OLLAMA_BASE_URL", "")   # force Gemini path
+                    if api_key_ov:
+                        _setenv("GEMINI_API_KEY", api_key_ov)
+
+                q.put({"event": "start", "run_id": run_id, "label": run_label})
+
+                # Fresh orchestrator (reads env vars at init)
+                from agents import MultiAgentOrchestrator as _Orch
+
+                orch = _Orch()
+                agent_metrics: List[dict] = []
+
+                # Disable AI cache and patch generate() for timing
+                class _NoCache:
+                    def get(self, _): return None
+                    def set(self, _k, _v): pass
+
+                for role, ag in orch.agents.items():
+                    ag.cache = _NoCache()
+                    _rname = role.value if hasattr(role, "value") else str(role)
+                    _orig  = ag.generate
+
+                    def _patch(rn, orig):
+                        def _w(*a, **kw):
+                            q.put({"event": "agent_start", "agent": rn})
+                            t0 = time.time()
+                            res = orig(*a, **kw)
+                            dt = round(time.time() - t0, 1)
+                            ch = len((res or {}).get("content", ""))
+                            agent_metrics.append({"agent": rn, "seconds": dt, "chars": ch})
+                            q.put({"event": "agent_done", "agent": rn,
+                                   "seconds": dt, "chars": ch})
+                            return res
+                        return _w
+
+                    ag.generate = _patch(_rname, _orig)
+
+                t_start = time.time()
+                plan_result = orch.generate_strategic_plan(club_data=club_data_snapshot)
+                total = round(time.time() - t_start, 1)
+
+                _lab_runs[run_id] = {
+                    "run_id": run_id, "label": run_label,
+                    "provider": provider_type, "model": model_id,
+                    "agents": agent_metrics, "plan": plan_result.get("plan", {}),
+                    "total_seconds": total,
+                    "started_at": datetime.now().isoformat(),
+                }
+                q.put({"event": "complete", "run_id": run_id,
+                       "total_seconds": total, "agents": agent_metrics,
+                       "plan_keys": list(plan_result.get("plan", {}).keys())})
+
+            except Exception as exc:
+                app.logger.error(f"lab_run worker: {exc}", exc_info=True)
+                q.put({"event": "error", "message": str(exc)})
+            finally:
+                for k, v in orig_env.items():
+                    if v:
+                        os.environ[k] = v
+                    elif k in os.environ:
+                        del os.environ[k]
+                q.put(None)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+
+    return Response(
+        _stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/lab/runs", methods=["GET"])
+def lab_runs_list():
+    runs = [
+        {k: v for k, v in r.items() if k != "plan"}
+        for r in sorted(_lab_runs.values(), key=lambda x: x["started_at"], reverse=True)
+    ]
+    return jsonify(runs)
+
+
+@app.route("/api/lab/runs/<run_id>", methods=["GET"])
+def lab_run_detail(run_id):
+    run = _lab_runs.get(run_id)
+    if not run:
+        return jsonify({"error": "Run non trovata"}), 404
+    return jsonify(run)
+
+
 if __name__ == "__main__":
     PORT = 5000
 
