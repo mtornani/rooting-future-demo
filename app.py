@@ -5777,6 +5777,70 @@ def _get_local_ip() -> str:
         return "127.0.0.1"
 
 
+def _ensure_ssl_cert(local_ip: str):
+    """
+    Genera (o ricarica) un certificato autofirmato persistente che include
+    localhost, 127.0.0.1 e l'IP LAN corrente come SAN.
+    Ritorna (cert_path, key_path) oppure 'adhoc' come fallback.
+    """
+    ssl_dir  = Path(__file__).parent / "ssl"
+    cert_path = ssl_dir / "cert.pem"
+    key_path  = ssl_dir / "key.pem"
+    ip_stamp  = ssl_dir / "ip.txt"           # controlla se l'IP è cambiato
+
+    # Riusa il cert esistente se l'IP non è cambiato
+    if cert_path.exists() and key_path.exists() and ip_stamp.exists():
+        if ip_stamp.read_text().strip() == local_ip:
+            return (str(cert_path), str(key_path))
+
+    ssl_dir.mkdir(exist_ok=True)
+
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        import datetime, ipaddress
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Rooting Future Lab")])
+        san_list = [
+            x509.DNSName("localhost"),
+            x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+        ]
+        try:
+            san_list.append(x509.IPAddress(ipaddress.IPv4Address(local_ip)))
+        except Exception:
+            pass
+
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))
+            .add_extension(x509.SubjectAlternativeName(san_list), critical=False)
+            .sign(key, hashes.SHA256())
+        )
+        cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+        key_path.write_bytes(key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ))
+        ip_stamp.write_text(local_ip)
+        print(f"[SSL] Certificato generato per localhost + {local_ip} (valido 10 anni)")
+        return (str(cert_path), str(key_path))
+
+    except ImportError:
+        print("[SSL] 'cryptography' non installato — uso SSL adhoc (meno stabile)")
+        return "adhoc"
+    except Exception as e:
+        print(f"[SSL] Errore generazione cert: {e} — uso SSL adhoc")
+        return "adhoc"
+
+
 def _try_start_tunnel(port: int) -> None:
     """Try cloudflared then ngrok. Updates _lab_access in-place."""
     import subprocess, re, time as _t
@@ -5857,6 +5921,22 @@ def lab_qr():
                f'<text x="10" y="36" font-size="11" font-family="monospace" fill="#1a365d">{safe}</text>'
                f'</svg>')
         return Response(svg, mimetype="image/svg+xml")
+
+
+@app.route("/api/lab/cert")
+def lab_cert():
+    """Serve the self-signed root cert so Android can install it as trusted CA."""
+    cert_path = Path(__file__).parent / "ssl" / "cert.pem"
+    if not cert_path.exists():
+        return jsonify({"error": "Certificato non ancora generato"}), 404
+    return Response(
+        cert_path.read_bytes(),
+        mimetype="application/x-pem-file",
+        headers={
+            "Content-Disposition": 'attachment; filename="rf-lab-cert.pem"',
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 # ============================================================
@@ -6145,34 +6225,42 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
 
-    # Detect local IP and populate access info
+    # Detect local IP
     _local_ip = _get_local_ip()
-    _lab_access["lan"] = f"http://{_local_ip}:{PORT}"
+
+    # Generate / reuse persistent SSL cert (needed for Android PWA install)
+    _ssl_ctx = _ensure_ssl_cert(_local_ip)
+    _scheme  = "https"
+
+    _lab_access["lan"] = f"{_scheme}://{_local_ip}:{PORT}"
 
     print("[OK] SSE Log Streaming attivo (Global)")
     print(f"""
-    ===============================================================
-    |     Rooting Future Strategy Engine v6.0                     |
-    |-------------------------------------------------------------|
-    |  PC locale :  http://127.0.0.1:{PORT}                        |
-    |  Rete LAN  :  http://{_local_ip}:{PORT}               |
-    |  Lab mobile:  http://{_local_ip}:{PORT}/lab            |
-    ===============================================================
+    ═══════════════════════════════════════════════════════════════
+     Rooting Future Strategy Engine v6.0  [HTTPS]
+    ───────────────────────────────────────────────────────────────
+     PC locale  :  {_scheme}://127.0.0.1:{PORT}
+     Rete LAN   :  {_scheme}://{_local_ip}:{PORT}
+     Lab mobile :  {_scheme}://{_local_ip}:{PORT}/lab
+     Setup PWA  :  {_scheme}://{_local_ip}:{PORT}/lab/setup
+    ═══════════════════════════════════════════════════════════════
     """)
+    print("[*] Prima apertura sul telefono: accetta il certificato (una volta sola)")
     print("[*] Premi Ctrl+C per terminare")
     print("[*] Avvio tunnel pubblico in background (cloudflared/ngrok)…\n")
 
-    # Start public tunnel in background (non-blocking)
     threading.Thread(target=_try_start_tunnel, args=(PORT,), daemon=True).start()
 
-    # AUTO-OPEN BROWSER
     import webbrowser
     from threading import Timer
 
     def open_browser():
-        webbrowser.open_new(f"http://127.0.0.1:{PORT}/lab")
+        webbrowser.open_new(f"{_scheme}://127.0.0.1:{PORT}/lab")
 
     Timer(1.5, open_browser).start()
 
-    # Bind 0.0.0.0 so mobile devices on the same network can connect
-    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True, use_reloader=False)
+    app.run(
+        host="0.0.0.0", port=PORT,
+        ssl_context=_ssl_ctx,
+        debug=False, threaded=True, use_reloader=False,
+    )

@@ -9,67 +9,68 @@
   <meta name="apple-mobile-web-app-title" content="RF Lab">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
   <link rel="manifest" href="/static/manifest.json">
-  <title>Installa RF Lab sul telefono</title>
+  <title>Installa RF Lab</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
       --primary: #1a365d; --accent: #3182ce; --success: #38a169;
+      --warning: #d69e2e; --danger: #e53e3e;
       --text: #2d3748; --light: #718096; --bg: #f7fafc; --border: #e2e8f0;
     }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
 
-    /* ── Hero ── */
     .hero {
       background: linear-gradient(135deg, #1a365d 0%, #2c5282 60%, #3182ce 100%);
-      color: white; padding: 40px 20px 50px; text-align: center;
+      color: white; padding: 36px 20px 48px; text-align: center;
     }
     .hero-icon {
-      width: 80px; height: 80px; border-radius: 20px;
-      background: white; margin: 0 auto 16px; display: flex;
-      align-items: center; justify-content: center;
+      width: 76px; height: 76px; border-radius: 18px; background: white;
+      margin: 0 auto 14px; overflow: hidden;
       box-shadow: 0 8px 32px rgba(0,0,0,.3);
-      overflow: hidden;
     }
-    .hero-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: 20px; }
-    .hero h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; }
-    .hero p  { font-size: .9rem; opacity: .85; max-width: 280px; margin: 0 auto; }
+    .hero-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .hero h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 6px; }
+    .hero p  { font-size: .88rem; opacity: .85; }
 
-    /* ── URL card ── */
+    /* URL card floating over hero */
     .url-card {
-      background: white; border-radius: 16px; margin: -24px 16px 20px;
-      padding: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.12);
+      background: white; border-radius: 16px; margin: -22px 14px 16px;
+      padding: 14px; box-shadow: 0 4px 24px rgba(0,0,0,.13);
     }
-    .url-card-label { font-size: .72rem; text-transform: uppercase;
-      letter-spacing: .08em; color: var(--light); margin-bottom: 8px;
-      display: flex; align-items: center; gap: 6px; }
-    .url-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
-    .url-dot.active { background: var(--success); }
-    .url-dot.blink { background: #d69e2e; animation: blink 1s infinite; }
+    .url-label-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+      color: var(--light); margin-bottom: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-ok   { background: var(--success); }
+    .dot-wait { background: var(--warning); animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity: .3; } }
-    .url-text {
-      font-family: monospace; font-size: .82rem; color: var(--primary);
-      word-break: break-all; background: var(--bg); border-radius: 8px;
-      padding: 10px 12px; margin-bottom: 10px; font-weight: 600;
+
+    .url-val {
+      font-family: monospace; font-size: .85rem; font-weight: 700;
+      color: var(--primary); background: var(--bg); border-radius: 8px;
+      padding: 10px 12px; word-break: break-all; margin-bottom: 10px;
     }
-    .url-actions { display: flex; gap: 8px; }
+    .btn-row { display: flex; gap: 8px; }
     .btn {
-      flex: 1; padding: 11px; border-radius: 10px; font-size: .88rem;
+      flex: 1; padding: 11px; border-radius: 10px; font-size: .86rem;
       font-weight: 700; cursor: pointer; border: none; text-align: center;
     }
-    .btn-outline { background: var(--bg); color: var(--accent); border: 2px solid var(--accent); }
-    .btn-solid   { background: var(--accent); color: white; }
-    .btn:hover { opacity: .88; }
+    .btn-out  { background: var(--bg); color: var(--accent); border: 2px solid var(--accent); }
+    .btn-fill { background: var(--accent); color: white; }
+    .btn:hover { opacity: .85; }
 
-    .qr-section { margin-top: 14px; text-align: center; }
-    .qr-section img { width: 150px; height: 150px; border-radius: 10px; border: 1px solid var(--border); }
-    .qr-caption { font-size: .76rem; color: var(--light); margin-top: 6px; }
+    .qr-box { text-align: center; margin-top: 14px; }
+    .qr-box img { width: 148px; height: 148px; border-radius: 10px; border: 1px solid var(--border); }
+    .qr-hint { font-size: .73rem; color: var(--light); margin-top: 5px; }
 
-    /* ── Tabs ── */
-    .tabs-wrap { padding: 0 16px; margin-bottom: 4px; }
+    /* Tabs */
+    .tabs-wrap { padding: 0 14px; margin-bottom: 4px; }
     .tabs { display: flex; background: white; border-radius: 12px;
       overflow: hidden; border: 1.5px solid var(--border); }
     .tab-btn {
-      flex: 1; padding: 12px; text-align: center; font-size: .85rem;
+      flex: 1; padding: 12px 6px; text-align: center; font-size: .84rem;
       font-weight: 700; cursor: pointer; color: var(--light);
       background: none; border: none; border-right: 1.5px solid var(--border);
       transition: all .15s;
@@ -77,224 +78,231 @@
     .tab-btn:last-child { border-right: none; }
     .tab-btn.active { background: var(--primary); color: white; }
 
-    /* ── Steps ── */
-    .steps-wrap { padding: 16px; display: none; }
-    .steps-wrap.active { display: block; }
+    /* Steps */
+    .steps { padding: 14px; display: none; }
+    .steps.active { display: block; }
 
-    .step-card {
-      background: white; border-radius: 14px; padding: 16px;
-      margin-bottom: 12px; display: flex; gap: 14px; align-items: flex-start;
+    .step {
+      background: white; border-radius: 14px; padding: 14px;
+      margin-bottom: 10px; display: flex; gap: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,.06);
     }
-    .step-num {
-      width: 32px; height: 32px; border-radius: 50%; background: var(--primary);
-      color: white; font-weight: 800; font-size: .9rem;
+    .step-n {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--primary);
+      color: white; font-weight: 800; font-size: .88rem;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .step-body h3 { font-size: .92rem; font-weight: 700; margin-bottom: 4px; }
-    .step-body p  { font-size: .82rem; color: var(--light); line-height: 1.5; }
-
-    /* mockup phone UI */
-    .mockup {
-      background: var(--bg); border-radius: 10px; padding: 10px;
-      margin-top: 10px; font-size: .78rem; color: var(--text);
-    }
-    .mockup-bar {
-      background: #e2e8f0; border-radius: 6px; padding: 6px 10px;
-      font-family: monospace; font-size: .72rem; color: var(--light);
-      display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
-    }
-    .mockup-page {
-      background: white; border-radius: 8px; padding: 10px;
-      border: 1px solid var(--border); font-size: .78rem;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .mockup-icon { font-size: 1.4rem; }
-    .mockup-label { font-weight: 600; color: var(--primary); font-size: .8rem; }
-    .mockup-sub { font-size: .72rem; color: var(--light); }
-
-    /* arrow highlight */
-    .highlight-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #fff3cd; border: 1.5px solid #d69e2e; border-radius: 20px;
-      padding: 5px 12px; font-size: .8rem; font-weight: 700; color: #92400e;
-      margin-top: 6px;
+    .step-n.ok { background: var(--success); }
+    .step h3 { font-size: .9rem; font-weight: 700; margin-bottom: 4px; }
+    .step p  { font-size: .81rem; color: var(--light); line-height: 1.55; }
+    .step code {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px 6px; font-family: monospace; font-size: .8rem;
     }
 
-    /* ── Install banner (for Android) ── */
-    #installSection {
-      background: white; border-radius: 14px; margin: 0 16px 16px;
-      padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.06); display: none;
-    }
-    #installSection p { font-size: .84rem; color: var(--light); margin-bottom: 10px; }
-    #installBtn {
-      width: 100%; padding: 14px; background: var(--primary); color: white;
-      border: none; border-radius: 10px; font-size: 1rem; font-weight: 800;
-      cursor: pointer;
-    }
-    #installBtn:hover { background: #2c5282; }
-
-    /* ── Note ── */
     .note {
       background: #ebf8ff; border-left: 4px solid var(--accent);
-      border-radius: 0 10px 10px 0; padding: 10px 14px;
-      font-size: .8rem; color: var(--text); margin-top: 8px; line-height: 1.5;
+      border-radius: 0 10px 10px 0; padding: 9px 12px;
+      font-size: .79rem; color: var(--text); margin-top: 8px; line-height: 1.5;
+    }
+    .warn {
+      background: #fffbeb; border-left: 4px solid var(--warning);
+      border-radius: 0 10px 10px 0; padding: 9px 12px;
+      font-size: .79rem; color: var(--text); margin-top: 8px; line-height: 1.5;
     }
 
-    /* ── Back link ── */
-    .back-link {
-      display: block; text-align: center; padding: 20px;
-      font-size: .85rem; color: var(--accent); text-decoration: none;
+    /* Pill badge */
+    .pill {
+      display: inline-block; background: var(--primary); color: white;
+      border-radius: 20px; padding: 3px 10px; font-size: .76rem; font-weight: 700;
     }
+    .pill.warn { background: #c05621; border: none; }
+    .pill.ok   { background: var(--success); }
+
+    /* Cert download */
+    .cert-card {
+      background: white; border-radius: 14px; padding: 14px;
+      margin: 0 14px 14px; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .cert-card h3 { font-size: .9rem; font-weight: 700; margin-bottom: 6px; }
+    .cert-card p  { font-size: .8rem; color: var(--light); margin-bottom: 10px; line-height: 1.5; }
+    .cert-btn {
+      width: 100%; padding: 12px; background: #1c4532; color: white;
+      border: none; border-radius: 10px; font-size: .88rem; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+
+    /* Install button */
+    #installSection {
+      background: white; border-radius: 14px; margin: 0 14px 14px;
+      padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.06); display: none;
+    }
+    #installSection p { font-size: .82rem; color: var(--light); margin-bottom: 10px; }
+    #installBtn {
+      width: 100%; padding: 14px; background: var(--primary); color: white;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 800; cursor: pointer;
+    }
+
+    .back { display: block; text-align: center; padding: 20px;
+      font-size: .84rem; color: var(--accent); text-decoration: none; }
   </style>
 </head>
 <body>
 
-<!-- Hero -->
 <div class="hero">
-  <div class="hero-icon">
-    <img src="/static/icons/icon-192.png" alt="RF Lab">
-  </div>
+  <div class="hero-icon"><img src="/static/icons/icon-192.png" alt="RF Lab"></div>
   <h1>Installa RF Lab</h1>
-  <p>Accedi al Lab direttamente dalla schermata Home del tuo telefono</p>
+  <p>Icona sulla Home Screen — si apre come un'app nativa</p>
 </div>
 
 <!-- URL card -->
 <div class="url-card">
-  <div class="url-card-label">
-    <div class="url-dot blink" id="urlDot"></div>
+  <div class="url-label-row">
+    <div class="dot dot-wait" id="urlDot"></div>
     <span id="urlLabel">Rilevamento URL…</span>
   </div>
-  <div class="url-text" id="urlValue">—</div>
-  <div class="url-actions">
-    <button class="btn btn-outline" onclick="copyUrl()">📋 Copia URL</button>
-    <button class="btn btn-solid"   onclick="shareUrl()">⬆ Condividi</button>
+  <div class="url-val" id="urlVal">—</div>
+  <div class="btn-row">
+    <button class="btn btn-out"  onclick="copyUrl()">📋 Copia</button>
+    <button class="btn btn-fill" onclick="shareUrl()">⬆ Condividi</button>
   </div>
-  <div class="qr-section" id="qrSection" style="display:none">
-    <img id="qrImg" alt="QR Code">
-    <div class="qr-caption">Scansiona dal tuo telefono</div>
+  <div class="qr-box" id="qrBox" style="display:none">
+    <img id="qrImg" alt="QR">
+    <div class="qr-hint">Scansiona per aprire sul telefono</div>
   </div>
 </div>
 
-<!-- Android auto-install -->
+<!-- Android auto-install banner -->
 <div id="installSection">
-  <p>Il tuo browser supporta l'installazione automatica.</p>
+  <p>Chrome ha rilevato che questa è una PWA installabile.</p>
   <button id="installBtn" onclick="doPwaInstall()">📲 Aggiungi alla Home Screen</button>
 </div>
 
 <!-- Device tabs -->
 <div class="tabs-wrap">
   <div class="tabs">
-    <button class="tab-btn active" id="tab-ios"     onclick="switchTab('ios',this)">🍎 iPhone / iPad</button>
-    <button class="tab-btn"        id="tab-android" onclick="switchTab('android',this)">🤖 Android</button>
+    <button class="tab-btn" id="tab-android" onclick="switchTab('android',this)">🤖 Android</button>
+    <button class="tab-btn active" id="tab-ios" onclick="switchTab('ios',this)">🍎 iPhone</button>
   </div>
 </div>
 
-<!-- iOS steps -->
-<div class="steps-wrap active" id="steps-ios">
+<!-- ═══ ANDROID steps ═══ -->
+<div class="steps" id="steps-android">
 
-  <div class="step-card">
-    <div class="step-num">1</div>
-    <div class="step-body">
-      <h3>Apri l'URL in Safari</h3>
-      <p>Copia l'URL qui sopra e aprilo in <strong>Safari</strong> (non Chrome, non Firefox).<br>Safari è l'unico browser iOS che permette l'installazione.</p>
-      <div class="mockup">
-        <div class="mockup-bar">🔒 <span id="ios-url-preview">rf-lab.trycloudflare.com/lab</span></div>
-        <div class="mockup-page">
-          <span class="mockup-icon">⚽</span>
-          <div>
-            <div class="mockup-label">Rooting Future Lab</div>
-            <div class="mockup-sub">Genera piani strategici con AI</div>
-          </div>
-        </div>
-      </div>
+  <div class="step">
+    <div class="step-n">1</div>
+    <div>
+      <h3>Apri l'URL in Chrome</h3>
+      <p>Tocca <strong>Copia</strong> sopra, poi apri <strong>Chrome</strong> e incolla l'URL.<br>
+         Oppure scansiona il QR code.</p>
+      <div class="note">Assicurati di essere sulla stessa rete WiFi del PC (192.168.1.x).</div>
     </div>
   </div>
 
-  <div class="step-card">
-    <div class="step-num">2</div>
-    <div class="step-body">
-      <h3>Tocca il tasto Condividi</h3>
-      <p>In basso al centro di Safari trovi il tasto <strong>Condividi</strong> (quadrato con freccia su).</p>
-      <div class="highlight-btn">⬆ Condividi</div>
+  <div class="step">
+    <div class="step-n">2</div>
+    <div>
+      <h3>Accetta il certificato (una volta sola)</h3>
+      <p>Chrome mostra un avviso <span class="pill warn">La connessione non è privata</span><br>
+         È normale — il certificato è autofirmato dal tuo PC.</p>
+      <p style="margin-top:8px">Tocca <strong>Avanzate</strong> → <strong>Procedi verso [IP] (non sicuro)</strong></p>
+      <div class="warn">⚠ Fallo <strong>solo</strong> su questa rete di casa/ufficio. Il certificato è generato
+        dal tuo PC e non da una CA esterna.</div>
     </div>
   </div>
 
-  <div class="step-card">
-    <div class="step-num">3</div>
-    <div class="step-body">
-      <h3>Tocca "Aggiungi alla schermata Home"</h3>
-      <p>Scorri in basso nel menù Condividi e tocca<br><strong>Aggiungi alla schermata Home</strong>.</p>
-      <div class="note">Vedrai già l'icona RF Lab in anteprima. Dai un nome e conferma con <strong>Aggiungi</strong>.</div>
+  <div class="step">
+    <div class="step-n">3</div>
+    <div>
+      <h3>Il Lab si apre</h3>
+      <p>Chrome ora mostra la pagina Lab. Aspetta 2-3 secondi — apparirà in automatico
+         il banner in basso:</p>
+      <p style="margin-top:8px"><span class="pill ok">+ Aggiungi alla schermata Home</span></p>
+      <p style="margin-top:6px; font-size:.78rem; color:var(--light)">
+        Se il banner non compare: menu ⋮ → <strong>Aggiungi alla schermata Home</strong></p>
     </div>
   </div>
 
-  <div class="step-card">
-    <div class="step-num">4</div>
-    <div class="step-body">
-      <h3>Apri dall'icona</h3>
-      <p>Ora hai l'icona <strong>RF Lab</strong> sulla schermata Home. Si apre a schermo pieno, senza barre del browser — esattamente come un'app nativa.</p>
-      <div class="note">⚠ Il PC con l'app deve essere acceso e il tunnel/WiFi attivi per usare le funzioni AI. La UI si carica anche offline grazie alla cache.</div>
+  <div class="step">
+    <div class="step-n ok">✓</div>
+    <div>
+      <h3>Fatto!</h3>
+      <p>L'icona <strong>RF Lab</strong> appare sulla Home. Si apre a schermo pieno
+         senza barre Chrome — identica a un'app nativa.</p>
+      <div class="note">La prossima volta che apri l'app il certificato è già accettato —
+        nessun altro avviso.</div>
     </div>
   </div>
 
-</div>
-
-<!-- Android steps -->
-<div class="steps-wrap" id="steps-android">
-
-  <div class="step-card">
-    <div class="step-num">1</div>
-    <div class="step-body">
-      <h3>Usa l'URL con HTTPS (tunnel)</h3>
-      <p>Per installare su Android serve <strong>HTTPS</strong>. Usa l'URL del tunnel pubblico (inizia con <code>https://</code>), non quello LAN.</p>
-      <div class="note">Se il tunnel non è attivo: installa <strong>cloudflared</strong> sul PC con<br><code>winget install Cloudflare.cloudflared</code><br>e riavvia l'app.</div>
-    </div>
-  </div>
-
-  <div class="step-card">
-    <div class="step-num">2</div>
-    <div class="step-body">
-      <h3>Apri in Chrome</h3>
-      <p>Copia l'URL e aprilo in <strong>Chrome</strong> su Android.</p>
-    </div>
-  </div>
-
-  <div class="step-card">
-    <div class="step-num">3</div>
-    <div class="step-body">
-      <h3>Banner automatico o menu</h3>
-      <p>Chrome mostra in automatico un banner <strong>"Aggiungi alla schermata Home"</strong> in basso.<br>Se non compare: menù ⋮ → <strong>Aggiungi alla schermata Home</strong>.</p>
-      <div class="note">Se il banner non compare: il browser ha già rifiutato l'install in precedenza. Vai in Impostazioni Chrome → Siti → <code>trycloudflare.com</code> → reset permessi.</div>
-    </div>
-  </div>
-
-  <div class="step-card">
-    <div class="step-num">4</div>
-    <div class="step-body">
-      <h3>Installa</h3>
-      <p>Conferma l'installazione. L'app appare nella schermata Home e nel drawer delle app — si apre a schermo pieno come un'app nativa.</p>
+  <!-- Optional: install cert as CA -->
+  <div class="cert-card">
+    <h3>Opzione avanzata — installa come CA fidata</h3>
+    <p>Se vuoi eliminare completamente l'avviso "non sicuro" puoi installare il
+       certificato del PC come autorità fidata sul telefono.
+       Fallo solo se sai cosa stai facendo.</p>
+    <button class="cert-btn" onclick="downloadCert()">
+      🔐 Scarica certificato RF Lab (.pem)
+    </button>
+    <div class="note" style="margin-top:8px">
+      Dopo il download: Impostazioni → Sicurezza → Installa certificato →
+      seleziona il file <code>rf-lab-cert.pem</code> → Certificato CA utente.
     </div>
   </div>
 
 </div>
 
-<a href="/lab" class="back-link">← Torna al Lab</a>
+<!-- ═══ iOS steps ═══ -->
+<div class="steps active" id="steps-ios">
+
+  <div class="step">
+    <div class="step-n">1</div>
+    <div>
+      <h3>Apri in Safari (non Chrome)</h3>
+      <p>Copia l'URL → apri <strong>Safari</strong>. Solo Safari permette
+         l'installazione sulla Home Screen su iPhone.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">2</div>
+    <div>
+      <h3>Accetta il certificato</h3>
+      <p>Safari mostra <span class="pill warn">Questa connessione non è privata</span><br>
+         Tocca <strong>Mostra dettagli</strong> → <strong>visita questo sito web</strong>.<br>
+         Poi inserisci il PIN iPhone per confermare.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n">3</div>
+    <div>
+      <h3>Condividi → Aggiungi alla schermata Home</h3>
+      <p>Tocca il tasto <strong>Condividi</strong> ⬆ in basso al centro →
+         scorri → <strong>Aggiungi alla schermata Home</strong> → <strong>Aggiungi</strong>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-n ok">✓</div>
+    <div>
+      <h3>Icona sulla Home</h3>
+      <p>RF Lab è installato. Si apre a schermo pieno come un'app nativa.
+         Il PC deve essere acceso e sulla stessa rete WiFi.</p>
+    </div>
+  </div>
+
+</div>
+
+<a href="/lab" class="back">← Torna al Lab</a>
 
 <script>
-// ── State ──────────────────────────────────────────────────
-let _bestUrl = '';
+// ── PWA install prompt ────────────────────────────────────
 let _deferredInstall = null;
-
-// ── PWA install prompt ─────────────────────────────────────
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   _deferredInstall = e;
   document.getElementById('installSection').style.display = '';
-  // Auto-switch to Android tab
-  switchTab('android', document.getElementById('tab-android'));
 });
-
 function doPwaInstall() {
   if (!_deferredInstall) return;
   _deferredInstall.prompt();
@@ -304,78 +312,58 @@ function doPwaInstall() {
   });
 }
 
-// ── Device detection ───────────────────────────────────────
-const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+// ── Device detection ──────────────────────────────────────
 const isAndroid = /android/i.test(navigator.userAgent);
 if (isAndroid) switchTab('android', document.getElementById('tab-android'));
 
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.steps-wrap').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.steps').forEach(s => s.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('steps-' + tab).classList.add('active');
 }
 
-// ── URL resolution ─────────────────────────────────────────
+// ── URL polling ───────────────────────────────────────────
+let _bestUrl = '';
 async function pollUrls() {
   try {
     const r = await fetch('/api/lab/urls');
     const d = await r.json();
+    // Prefer tunnel (public HTTPS), else LAN (self-signed HTTPS)
+    _bestUrl = (d.tunnel ? d.tunnel : d.lan || '') + '/lab';
 
-    // Prefer tunnel (HTTPS) for Android, LAN for iOS
-    if (d.tunnel) {
-      _bestUrl = d.tunnel + '/lab';
-      document.getElementById('urlDot').className = 'url-dot active';
-      document.getElementById('urlLabel').textContent = 'Tunnel pubblico (HTTPS — funziona da qualsiasi rete)';
-    } else if (d.lan) {
-      _bestUrl = d.lan + '/lab';
-      const isStarting = d.tunnel_status === 'starting';
-      document.getElementById('urlDot').className = isStarting ? 'url-dot blink' : 'url-dot active';
-      document.getElementById('urlLabel').textContent = isStarting
-        ? 'WiFi locale (tunnel in avvio…)' : 'WiFi locale (stessa rete del PC)';
+    document.getElementById('urlVal').textContent = _bestUrl || '—';
+    document.getElementById('urlDot').className =
+      'dot ' + (d.tunnel ? 'dot-ok' : d.lan ? 'dot-ok' : 'dot-wait');
+    document.getElementById('urlLabel').textContent = d.tunnel
+      ? 'Tunnel pubblico HTTPS (qualsiasi rete)'
+      : d.lan ? 'Rete locale WiFi (stessa rete del PC)'
+              : 'Rilevamento…';
+
+    if (_bestUrl && _bestUrl !== '/lab') {
+      const img = document.getElementById('qrImg');
+      img.src = '/api/lab/qr?url=' + encodeURIComponent(_bestUrl);
+      document.getElementById('qrBox').style.display = '';
     }
-
-    document.getElementById('urlValue').textContent = _bestUrl || '—';
-
-    // Show QR
-    if (_bestUrl) {
-      const qr = document.getElementById('qrImg');
-      qr.src = '/api/lab/qr?url=' + encodeURIComponent(_bestUrl);
-      document.getElementById('qrSection').style.display = '';
-      // Update iOS preview
-      try {
-        document.getElementById('ios-url-preview').textContent =
-          new URL(_bestUrl).hostname + '/lab';
-      } catch(e) {}
-    }
-
-    // Poll again if tunnel still starting
     if (d.tunnel_status === 'starting') setTimeout(pollUrls, 3000);
-
-  } catch(e) {
-    document.getElementById('urlLabel').textContent = 'Server non raggiungibile';
-    setTimeout(pollUrls, 5000);
-  }
+  } catch(e) { setTimeout(pollUrls, 5000); }
 }
-
 pollUrls();
 
-// ── Actions ────────────────────────────────────────────────
+// ── Actions ───────────────────────────────────────────────
 async function copyUrl() {
   if (!_bestUrl) return;
-  try {
-    await navigator.clipboard.writeText(_bestUrl);
-    alert('URL copiato: ' + _bestUrl);
-  } catch(e) {
-    prompt('Copia questo URL:', _bestUrl);
-  }
+  try { await navigator.clipboard.writeText(_bestUrl); alert('URL copiato!'); }
+  catch(e) { prompt('Copia URL:', _bestUrl); }
 }
-
 async function shareUrl() {
   if (!_bestUrl) return;
   if (navigator.share) {
     try { await navigator.share({ title: 'RF Lab', url: _bestUrl }); } catch(e) {}
   } else { copyUrl(); }
+}
+function downloadCert() {
+  window.location = '/api/lab/cert';
 }
 </script>
 </body>

@@ -70,3 +70,6 @@ nul
 test_*.txt
 test_*.bat
 .claude/
+
+# SSL certs (generati localmente)
+ssl/
