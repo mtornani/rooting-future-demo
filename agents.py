@@ -41,6 +41,8 @@ from config import (
     AI_PROVIDER,
     OPENROUTER_API_KEY,
     OPENROUTER_DEFAULT_MODEL,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
@@ -127,6 +129,63 @@ class OpenRouterClient:
 def get_active_provider() -> str:
     """Restituisce il provider AI attivo corrente."""
     return os.environ.get("AI_PROVIDER", AI_PROVIDER)
+
+
+# =============================================================================
+# OLLAMA CLIENT
+# =============================================================================
+
+try:
+    from ollama_provider import OllamaProvider as _OllamaProvider, warmup_ollama
+    OLLAMA_LIB_AVAILABLE = True
+except ImportError:
+    OLLAMA_LIB_AVAILABLE = False
+    _OllamaProvider = None
+    warmup_ollama = None
+
+
+class OllamaClient:
+    """
+    Client per Ollama LLM API.
+    Wrapper sottile attorno a OllamaProvider con interfaccia identica a OpenRouterClient.
+    """
+
+    def __init__(self, model: str = None, base_url: str = None):
+        self.model = model or os.environ.get("OLLAMA_MODEL", OLLAMA_MODEL)
+        self.base_url = base_url or os.environ.get("OLLAMA_BASE_URL", OLLAMA_BASE_URL)
+        self.available = False
+        self._provider = None
+
+        if OLLAMA_LIB_AVAILABLE:
+            try:
+                self._provider = _OllamaProvider(
+                    model=self.model,
+                    base_url=self.base_url,
+                )
+                self.available = self._provider.available
+                if self.available:
+                    logger.info(f"OllamaClient inizializzato (model={self.model}, url={self.base_url})")
+            except Exception as exc:
+                logger.error(f"Errore inizializzazione OllamaClient: {exc}")
+        else:
+            logger.warning("ollama_provider.py non trovato. Installa o verifica il path.")
+
+    def generate_content(self, prompt: str, temperature: float = 0.7,
+                         max_tokens: int = 8192) -> str:
+        """Genera contenuto tramite Ollama (interfaccia identica a OpenRouterClient)."""
+        if not self.available or not self._provider:
+            raise RuntimeError("Ollama client non disponibile")
+        return self._provider.generate_content(
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def warmup(self) -> bool:
+        """Riscaldamento modello per evitare cold start."""
+        if not self._provider:
+            return False
+        return self._provider.warmup()
 
 
 # =============================================================================
@@ -803,8 +862,9 @@ class StrategicAgent:
         self.file_search_store_name = file_search_store_name
         self.model = None
         self.cache = AICache() # Inizializza cache
-        self._provider = get_active_provider()  # "gemini" o "openrouter"
+        self._provider = get_active_provider()  # "gemini", "openrouter" o "ollama"
         self._openrouter_client = None
+        self._ollama_client = None
 
         if self._provider == "openrouter":
             # --- OpenRouter provider ---
@@ -824,6 +884,23 @@ class StrategicAgent:
             else:
                 self.available = False
                 logger.warning(f"Agent {spec.name}: OpenRouter API key mancante.")
+
+        elif self._provider == "ollama":
+            # --- Ollama provider ---
+            try:
+                self._ollama_client = OllamaClient()
+                self.available = self._ollama_client.available
+                if self.available:
+                    logger.info(
+                        f"Agent {spec.name}: Ollama inizializzato "
+                        f"(model={self._ollama_client.model})"
+                    )
+                else:
+                    logger.warning(f"Agent {spec.name}: Ollama client non disponibile")
+            except Exception as exc:
+                logger.error(f"Agent {spec.name}: Errore init Ollama: {exc}")
+                self.available = False
+
         else:
             # --- Gemini provider (default) ---
             # Priorità: env vars dinamiche prima del valore importato (statico)
@@ -948,8 +1025,24 @@ e soggette a revisione post-allineamento.
             raw_content = cached_response
             citations = [] # Citations not cached/needed for replay
         else:
+            # === OLLAMA PATH ===
+            if self._provider == "ollama" and self._ollama_client:
+                try:
+                    logger.debug(f"Invio richiesta a Ollama per {self.spec.name}")
+                    raw_content = self._ollama_client.generate_content(
+                        prompt_content,
+                        temperature=MODEL_CONFIG.temperature,
+                        max_tokens=MODEL_CONFIG.max_tokens,
+                    )
+                    citations = []
+                    self.cache.set(prompt_content, raw_content)
+                except Exception as e:
+                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
+                    log_exception(wrapped, context=f"agent_{self.spec.name}")
+                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+
             # === OPENROUTER PATH ===
-            if self._provider == "openrouter" and self._openrouter_client:
+            elif self._provider == "openrouter" and self._openrouter_client:
                 try:
                     logger.debug(f"Invio richiesta a OpenRouter per {self.spec.name}")
                     raw_content = self._openrouter_client.generate_content(

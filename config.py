@@ -126,7 +126,11 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 # OpenRouter (provider AI alternativo - OpenAI-compatible)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
-# Provider AI attivo: "gemini" (default) o "openrouter"
+# Ollama (provider AI locale o cloud - OpenAI-compatible)
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
+
+# Provider AI attivo: "gemini" (default), "openrouter" o "ollama"
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini")
 
 # STRIPE PAYMENTS
