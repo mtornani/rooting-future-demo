@@ -5947,6 +5947,514 @@ def api_check_file(filename):
         return jsonify({"ready": False, "error": str(e)})
 
 
+
+
+# ============================================================================
+# QUESTIONNAIRE ROUTES (injected)
+# ============================================================================
+# Questionari Digitali Board
+# ============================================================================
+from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
+
+QUESTIONNAIRE_DATA_DIR = Path("data/questionnaires")
+QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _q_path(club_slug, member_slug, q_id):
+    """Path file JSON per singolo questionario compilato."""
+    d = QUESTIONNAIRE_DATA_DIR / club_slug / member_slug
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{q_id}.json"
+
+
+def _q_statuses(club_slug, member_slug):
+    """Stato compilazione per ogni questionario."""
+    statuses = {}
+    for q_id in QUESTIONNAIRE_ORDER:
+        p = _q_path(club_slug, member_slug, q_id)
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            # Check if any field has content
+            has_content = False
+            all_filled = True
+            for section_data in data.get("data", {}).values():
+                if isinstance(section_data, list):
+                    for item in section_data:
+                        for v in item.values():
+                            if v:
+                                has_content = True
+                            else:
+                                all_filled = False
+                elif isinstance(section_data, dict):
+                    for v in section_data.values():
+                        if v:
+                            has_content = True
+                        else:
+                            all_filled = False
+            if has_content and all_filled:
+                statuses[q_id] = "completed"
+            elif has_content:
+                statuses[q_id] = "partial"
+        else:
+            statuses[q_id] = "empty"
+    return statuses
+
+
+def _get_clubs():
+    """Lista club disponibili da data/clubs/."""
+    clubs_dir = Path("data/clubs")
+    if not clubs_dir.exists():
+        return []
+    result = []
+    for d in sorted(clubs_dir.iterdir()):
+        if d.is_dir():
+            name = d.name.replace("-", " ").title()
+            result.append((d.name, name))
+    return result
+
+
+@app.route("/demo/questionari")
+def demo_questionari():
+    """Route pubblica demo pre-caricata con Riccione Calcio."""
+    session["demo_mode"] = True
+    return redirect(url_for("questionnaire_index", club="riccione-calcio-1926", member="demo", role="board"))
+
+
+@app.route("/questionnaires")
+def questionnaire_index():
+    club = request.args.get("club", "")
+    member = request.args.get("member", "")
+    statuses = _q_statuses(club, member) if club and member else {}
+    return render_template(
+        "questionnaire_index.html",
+        questionnaires=QUESTIONNAIRES,
+        order=QUESTIONNAIRE_ORDER,
+        clubs=_get_clubs(),
+        current_club=club,
+        member_name=member.replace("-", " ").title() if member else "",
+        member_role=request.args.get("role", "board"),
+        statuses=statuses,
+        year=datetime.now().year,
+    )
+
+
+@app.route("/questionnaire/<club_slug>/<member_slug>/<q_id>")
+def questionnaire_form(club_slug, member_slug, q_id):
+    if q_id not in QUESTIONNAIRES:
+        return "Questionario non trovato", 404
+
+    q = QUESTIONNAIRES[q_id]
+    role = request.args.get("role", "board")
+    display_name = request.args.get("display_name", member_slug.replace("-", " ").title())
+
+    # Load saved data
+    p = _q_path(club_slug, member_slug, q_id)
+    saved = {}
+    if p.exists():
+        saved = json.loads(p.read_text(encoding="utf-8")).get("data", {})
+
+    # Prev/next navigation
+    idx = QUESTIONNAIRE_ORDER.index(q_id)
+    prev_id = QUESTIONNAIRE_ORDER[idx - 1] if idx > 0 else None
+    next_id = QUESTIONNAIRE_ORDER[idx + 1] if idx < len(QUESTIONNAIRE_ORDER) - 1 else None
+
+    return render_template(
+        "questionnaire_form.html",
+        questionnaire=q,
+        q_id=q_id,
+        club_slug=club_slug,
+        member_slug=member_slug,
+        role=role,
+        display_name=display_name,
+        saved=saved,
+        saved_json=json.dumps(saved, ensure_ascii=False),
+        prev_id=prev_id,
+        prev_title=QUESTIONNAIRES[prev_id]["title"] if prev_id else "",
+        next_id=next_id,
+        next_title=QUESTIONNAIRES[next_id]["title"] if next_id else "",
+    )
+
+
+@app.route("/api/questionnaire/<club_slug>/<member_slug>/<q_id>", methods=["POST"])
+def api_questionnaire_save(club_slug, member_slug, q_id):
+    if q_id not in QUESTIONNAIRES:
+        return jsonify({"error": "Unknown questionnaire"}), 404
+
+    body = request.get_json()
+    p = _q_path(club_slug, member_slug, q_id)
+
+    record = {
+        "club": club_slug,
+        "member": member_slug,
+        "questionnaire": q_id,
+        "role": body.get("role", "board"),
+        "display_name": body.get("display_name", member_slug),
+        "data": body.get("data", {}),
+        "updated_at": datetime.now().isoformat(),
+    }
+    p.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return jsonify({"success": True, "path": str(p)})
+
+
+@app.route("/api/questionnaire/<club_slug>/<member_slug>/export-md", methods=["POST"])
+def api_questionnaire_export_md(club_slug, member_slug):
+    """Converte tutte le risposte di un membro in markdown per wiki pipeline."""
+    lines = []
+    display_name = member_slug.replace("-", " ").title()
+
+    for q_id in QUESTIONNAIRE_ORDER:
+        p = _q_path(club_slug, member_slug, q_id)
+        if not p.exists():
+            continue
+        record = json.loads(p.read_text(encoding="utf-8"))
+        data = record.get("data", {})
+        display_name = record.get("display_name", display_name)
+        q = QUESTIONNAIRES[q_id]
+
+        lines.append(f"# {q['title']}")
+        lines.append("")
+
+        for section in q["sections"]:
+            sid = section["id"]
+            section_data = data.get(sid, {})
+
+            if section["type"] == "static" and isinstance(section_data, dict):
+                for field in section["fields"]:
+                    val = section_data.get(field["id"], "").strip()
+                    if val:
+                        lines.append(f"## {field['label']}")
+                        lines.append(val)
+                        lines.append("")
+
+            elif section["type"] == "repeatable" and isinstance(section_data, list):
+                lines.append(f"## {section['title']}")
+                lines.append("")
+                for i, item in enumerate(section_data, 1):
+                    # First field as heading
+                    first_key = section["fields"][0]["id"]
+                    heading = item.get(first_key, f"Elemento {i}")
+                    lines.append(f"### {heading}")
+                    for field in section["fields"][1:]:
+                        val = item.get(field["id"], "").strip()
+                        if val:
+                            lines.append(f"**{field['label']}:** {val}")
+                    lines.append("")
+
+    md_content = "\n".join(lines)
+
+    # Save to wiki/raw directory
+    raw_dir = Path(f"wiki/raw/{club_slug}")
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    md_path = raw_dir / f"questionario-{member_slug}.md"
+    md_path.write_text(md_content, encoding="utf-8")
+
+    return jsonify({
+        "success": True,
+        "path": str(md_path),
+        "chars": len(md_content),
+        "member": display_name,
+    })
+
+
+@app.route("/api/questionnaire/<club_slug>/export-all-md", methods=["POST"])
+def api_questionnaire_export_all_md(club_slug):
+    """Esporta tutti i membri di un club in markdown."""
+    members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+    if not members_dir.exists():
+        return jsonify({"error": "No data for club"}), 404
+
+    results = []
+    for member_dir in sorted(members_dir.iterdir()):
+        if member_dir.is_dir():
+            member_slug = member_dir.name
+            # Trigger individual export
+            with app.test_request_context(json={}):
+                lines = []
+                display_name = member_slug.replace("-", " ").title()
+                for q_id in QUESTIONNAIRE_ORDER:
+                    p = _q_path(club_slug, member_slug, q_id)
+                    if not p.exists():
+                        continue
+                    record = json.loads(p.read_text(encoding="utf-8"))
+                    data = record.get("data", {})
+                    display_name = record.get("display_name", display_name)
+                    q = QUESTIONNAIRES[q_id]
+                    lines.append(f"# {q['title']}")
+                    lines.append("")
+                    for section in q["sections"]:
+                        sid = section["id"]
+                        section_data = data.get(sid, {})
+                        if section["type"] == "static" and isinstance(section_data, dict):
+                            for field in section["fields"]:
+                                val = section_data.get(field["id"], "").strip()
+                                if val:
+                                    lines.append(f"## {field['label']}")
+                                    lines.append(val)
+                                    lines.append("")
+                        elif section["type"] == "repeatable" and isinstance(section_data, list):
+                            lines.append(f"## {section['title']}")
+                            lines.append("")
+                            for i, item in enumerate(section_data, 1):
+                                first_key = section["fields"][0]["id"]
+                                heading = item.get(first_key, f"Elemento {i}")
+                                lines.append(f"### {heading}")
+                                for field in section["fields"][1:]:
+                                    val = item.get(field["id"], "").strip()
+                                    if val:
+                                        lines.append(f"**{field['label']}:** {val}")
+                                lines.append("")
+
+                md_content = "\n".join(lines)
+                raw_dir = Path(f"wiki/raw/{club_slug}")
+                raw_dir.mkdir(parents=True, exist_ok=True)
+                md_path = raw_dir / f"questionario-{member_slug}.md"
+                md_path.write_text(md_content, encoding="utf-8")
+                results.append({"member": display_name, "path": str(md_path), "chars": len(md_content)})
+
+    return jsonify({"success": True, "exported": results})
+
+
+@app.route("/free-swot")
+def free_swot_page():
+    """Landing page pubblica: mini-SWOT gratuita come funnel hook."""
+    return render_template("free_swot.html")
+
+
+@app.route("/api/free-swot", methods=["POST"])
+def api_free_swot():
+    """Genera mini-SWOT con AI (o fallback formattato)."""
+    body = request.get_json()
+    club = body.get("club", "Club")
+    category = body.get("category", "")
+    region = body.get("region", "")
+    s = body.get("strengths", "")
+    w = body.get("weaknesses", "")
+    o = body.get("opportunities", "")
+    t = body.get("threats", "")
+
+    try:
+        prompt = f"""Sei un consulente strategico sportivo. Analizza questo club calcistico e genera un'analisi SWOT professionale.
+
+Club: {club} ({category}, {region})
+Punti di forza indicati: {s}
+Debolezze indicate: {w}
+Opportunita' indicate: {o}
+Minacce indicate: {t}
+
+Per ogni quadrante SWOT, espandi i punti indicati con 3-5 bullet professionali.
+Aggiungi un paragrafo di sintesi strategica (max 3 righe).
+Rispondi in formato JSON: {{"strengths": "html bullets", "weaknesses": "html bullets", "opportunities": "html bullets", "threats": "html bullets", "summary": "testo sintesi"}}"""
+
+        result = _ai_generation_provider.generate(prompt, max_tokens=2000)
+        # Parse JSON from response
+        import re as _re
+        json_match = _re.search(r'\{.*\}', result, _re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            data["success"] = True
+            return jsonify(data)
+    except Exception as e:
+        logger.warning(f"Free SWOT AI generation failed: {e}")
+
+    # Fallback
+    return jsonify({"success": True, "strengths": "", "weaknesses": "", "opportunities": "", "threats": "", "summary": ""})
+
+
+@app.route("/api/generate-from-questionnaires", methods=["POST"])
+@login_required
+def api_generate_from_questionnaires():
+    """
+    Genera piano strategico dai questionari digitali compilati.
+    Converte risposte JSON in club_data per l'orchestratore multi-agente.
+    """
+    try:
+        body = request.get_json()
+        club_slug = body.get("club_slug")
+        if not club_slug:
+            return jsonify({"error": "club_slug required"}), 400
+
+        # Raccogli tutti i questionari di tutti i membri
+        members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+        if not members_dir.exists():
+            return jsonify({"error": "No questionnaire data for club"}), 404
+
+        # Aggrega risposte per tipo questionario
+        all_responses = {}  # {q_id: [{member, data}, ...]}
+        member_names = []
+        for member_dir in sorted(members_dir.iterdir()):
+            if not member_dir.is_dir():
+                continue
+            member_slug = member_dir.name
+            for q_file in member_dir.glob("*.json"):
+                q_id = q_file.stem
+                record = json.loads(q_file.read_text(encoding="utf-8"))
+                member_name = record.get("display_name", member_slug)
+                if member_name not in member_names:
+                    member_names.append(member_name)
+                if q_id not in all_responses:
+                    all_responses[q_id] = []
+                all_responses[q_id].append({
+                    "member": member_name,
+                    "role": record.get("role", "board"),
+                    "data": record.get("data", {}),
+                })
+
+        if not all_responses:
+            return jsonify({"error": "No completed questionnaires found"}), 404
+
+        # Costruisci club_data nel formato atteso dall'orchestratore
+        club_name = club_slug.replace("-", " ").title()
+        club_data = {
+            "club_name": club_name,
+            "city": "",
+            "region": "",
+            "category": body.get("category", "Eccellenza"),
+            "country": body.get("country", "Italy"),
+            "board_members": member_names,
+            "data_source": "digital_questionnaires",
+        }
+
+        # SWOT aggregato
+        if "swot" in all_responses:
+            swot_agg = {"forza": [], "debolezza": [], "opportunita": [], "minacce": []}
+            for resp in all_responses["swot"]:
+                grid = resp["data"].get("swot_grid", {})
+                for key in swot_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        swot_agg[key].append(f"[{resp['member']}] {val}")
+            club_data["swot_aggregated"] = {k: "\n".join(v) for k, v in swot_agg.items()}
+            club_data["swot_aggregated_source"] = "questionnaire"
+
+        # Vision sintetizzata
+        if "vision" in all_responses:
+            visions = []
+            for resp in all_responses["vision"]:
+                vm = resp["data"].get("vision_main", {})
+                parts = []
+                if vm.get("nel_2028"):
+                    parts.append(f"Nel 2028: {vm['nel_2028']}")
+                if vm.get("vision_frase"):
+                    parts.append(f"Vision: {vm['vision_frase']}")
+                if parts:
+                    visions.append(f"[{resp['member']}] {' | '.join(parts)}")
+            if visions:
+                club_data["synthesized_vision"] = "\n".join(visions)
+                club_data["synthesized_vision_source"] = "questionnaire"
+
+        # Mission
+        if "mission" in all_responses:
+            missions = []
+            for resp in all_responses["mission"]:
+                mm = resp["data"].get("mission_main", {})
+                if mm.get("mission_bozza"):
+                    missions.append(f"[{resp['member']}] {mm['mission_bozza']}")
+            if missions:
+                club_data["synthesized_mission"] = "\n".join(missions)
+                club_data["synthesized_mission_source"] = "questionnaire"
+
+        # Valori e fondamenta
+        if "valori-fondamenta" in all_responses:
+            valori_all = []
+            fondamenta_all = []
+            for resp in all_responses["valori-fondamenta"]:
+                for v in resp["data"].get("valori", []):
+                    if v.get("valore"):
+                        valori_all.append(f"{v['valore']}: {v.get('descrizione', '')}")
+                for f in resp["data"].get("fondamenta", []):
+                    if f.get("pilastro"):
+                        fondamenta_all.append(f"{f['pilastro']}: {f.get('motivazione', '')}")
+            if valori_all:
+                club_data["club_values"] = "\n".join(valori_all)
+                club_data["club_values_source"] = "questionnaire"
+            if fondamenta_all:
+                club_data["club_foundations"] = "\n".join(fondamenta_all)
+                club_data["club_foundations_source"] = "questionnaire"
+
+        # Competitors
+        if "competitors" in all_responses:
+            comps = []
+            for resp in all_responses["competitors"]:
+                for c in resp["data"].get("competitors_list", []):
+                    if c.get("nome"):
+                        comps.append(f"{c['nome']} (forza: {c.get('punti_forza', 'n/a')}, debolezza: {c.get('debolezze', 'n/a')})")
+            if comps:
+                club_data["competitors"] = comps[:10]
+                club_data["competitors_source"] = "questionnaire"
+
+        # PEST
+        if "pest" in all_responses:
+            pest_agg = {"politica": [], "economica": [], "sociale": [], "tecnologica": []}
+            for resp in all_responses["pest"]:
+                grid = resp["data"].get("pest_grid", {})
+                for key in pest_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        pest_agg[key].append(f"[{resp['member']}] {val}")
+            club_data["pest_analysis"] = {k: "\n".join(v) for k, v in pest_agg.items()}
+            club_data["pest_analysis_source"] = "questionnaire"
+
+        # Stakeholders
+        if "stakeholders" in all_responses:
+            stakeholders = []
+            for resp in all_responses["stakeholders"]:
+                for s in resp["data"].get("stakeholders_list", []):
+                    if s.get("gruppo"):
+                        stakeholders.append(f"{s['gruppo']} (importanza: {s.get('importanza', 'n/a')}, azioni: {s.get('azioni', 'n/a')})")
+            if stakeholders:
+                club_data["stakeholders_analysis"] = "\n".join(stakeholders)
+                club_data["stakeholders_analysis_source"] = "questionnaire"
+
+        # Risorse
+        if "risorse" in all_responses:
+            risorse = []
+            for resp in all_responses["risorse"]:
+                for r in resp["data"].get("risorse_list", []):
+                    if r.get("categoria"):
+                        risorse.append(f"{r['categoria']}: attuali={r.get('lista_attuali', 'n/a')}, manca={r.get('cosa_manca', 'n/a')}")
+            if risorse:
+                club_data["resources_analysis"] = "\n".join(risorse)
+                club_data["resources_analysis_source"] = "questionnaire"
+
+        # Lancia generazione (stessa logica di api_generate_plan)
+        project_id = f"quest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        update_project_status(project_id, "processing", 10, "Preparazione dati questionari...")
+
+        def run_generation(p_id, c_data):
+            try:
+                update_project_status(p_id, "processing", 20, "Generazione piano in corso...")
+                result = orchestrator.generate_strategic_plan(
+                    club_data=c_data,
+                    research_data=None,
+                    parallel=True,
+                    on_progress=lambda pct, msg: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
+                )
+                update_project_status(p_id, "completed", 100, "Piano generato con successo")
+                # Salva risultato
+                plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
+                update_project_status(p_id, "completed", 100, "Piano salvato", extra={"plan_id": plan_id})
+            except Exception as e:
+                logger.error(f"Generation from questionnaires failed: {e}")
+                update_project_status(p_id, "error", 0, str(e))
+
+        analysis_executor.submit(run_generation, project_id, club_data)
+
+        return jsonify({
+            "success": True,
+            "project_id": project_id,
+            "club_name": club_name,
+            "members": member_names,
+            "questionnaires_found": list(all_responses.keys()),
+        })
+
+    except Exception as e:
+        logger.error(f"generate-from-questionnaires error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+
 if __name__ == "__main__":
     PORT = 5000
 

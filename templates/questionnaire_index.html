@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questionari Board - Rooting Future</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a365d">
+    <style>
+        :root {
+            --primary: #1a365d;
+            --accent: #3182ce;
+            --success: #38a169;
+            --bg: #f7fafc;
+            --white: #fff;
+            --text: #2d3748;
+            --text-light: #718096;
+            --border: #e2e8f0;
+            --radius: 12px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+        .header {
+            background:var(--primary); color:white; padding:24px 16px; text-align:center;
+        }
+        .header h1 { font-size:1.4rem; margin-bottom:4px; }
+        .header p { font-size:0.85rem; opacity:0.8; }
+
+        .member-bar {
+            background:var(--white); padding:12px 16px; border-bottom:1px solid var(--border);
+            display:grid; grid-template-columns:1fr 1fr; gap:8px; position:sticky; top:0; z-index:10;
+        }
+        .member-bar .field { display:flex; flex-direction:column; gap:2px; }
+        .member-bar label { font-size:0.75rem; color:var(--text-light); }
+        .member-bar input, .member-bar select {
+            width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px;
+            font-size:0.95rem;
+        }
+
+        .cards { padding:16px; display:flex; flex-direction:column; gap:12px; max-width:600px; margin:0 auto; }
+
+        .card {
+            background:var(--white); border-radius:var(--radius); padding:16px;
+            box-shadow:0 1px 3px rgba(0,0,0,0.08); display:flex; align-items:center; gap:14px;
+            text-decoration:none; color:inherit; transition:transform 0.15s, box-shadow 0.15s;
+            border-left:4px solid var(--border);
+        }
+        .card:active { transform:scale(0.98); }
+        .card.completed { border-left-color:var(--success); }
+        .card.in-progress { border-left-color:var(--accent); }
+
+        .card-icon { font-size:1.8rem; flex-shrink:0; }
+        .card-body { flex:1; }
+        .card-title { font-size:1rem; font-weight:600; margin-bottom:2px; }
+        .card-desc { font-size:0.8rem; color:var(--text-light); line-height:1.4; }
+        .card-status { font-size:0.7rem; margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+        .card-status.done { color:var(--success); }
+        .card-status.partial { color:var(--accent); }
+
+        .card-arrow { color:var(--text-light); font-size:1.2rem; }
+
+        .club-selector { padding:16px; max-width:600px; margin:0 auto; }
+        .club-selector select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); font-size:1rem; }
+
+        .footer { text-align:center; padding:24px 16px; color:var(--text-light); font-size:0.75rem; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌱 Rooting Future</h1>
+        <p>Questionari Strategici per il Board</p>
+    </div>
+
+    <div class="member-bar">
+        <div class="field">
+            <label>Nome</label>
+            <input type="text" id="memberName" placeholder="es. Mario Rossi" value="{{ member_name or '' }}">
+        </div>
+        <div class="field">
+            <label>Ruolo</label>
+            <select id="memberRole">
+                <option value="board" {% if member_role == 'board' %}selected{% endif %}>Board</option>
+                <option value="collaboratore" {% if member_role == 'collaboratore' %}selected{% endif %}>Collaboratore</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="club-selector">
+        <select id="clubSelect" onchange="updateLinks()">
+            <option value="">Seleziona club...</option>
+            {% for slug, name in clubs %}
+            <option value="{{ slug }}" {% if slug == current_club %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="cards" id="cardList">
+        {% for q_id in order %}
+        {% set q = questionnaires[q_id] %}
+        {% set status = statuses.get(q_id, 'empty') %}
+        <a href="#" class="card {{ 'completed' if status == 'completed' else 'in-progress' if status == 'partial' else '' }}"
+           data-qid="{{ q_id }}" onclick="navigate('{{ q_id }}'); return false;">
+            <span class="card-icon">{{ q.icon }}</span>
+            <div class="card-body">
+                <div class="card-title">{{ q.title }}</div>
+                <div class="card-desc">{{ q.description[:80] }}...</div>
+                {% if status == 'completed' %}
+                <div class="card-status done">✓ Completato</div>
+                {% elif status == 'partial' %}
+                <div class="card-status partial">● In corso</div>
+                {% endif %}
+            </div>
+            <span class="card-arrow">›</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="footer">
+        Rooting Future © {{ year }} — I dati vengono salvati automaticamente
+    </div>
+
+    <script>
+    function navigate(qid) {
+        const club = document.getElementById('clubSelect').value;
+        const name = document.getElementById('memberName').value.trim();
+        const role = document.getElementById('memberRole').value;
+        if (!club) { alert('Seleziona un club'); return; }
+        if (!name) { alert('Inserisci il tuo nome'); return; }
+        const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        window.location.href = `/questionnaire/${club}/${slug}/${qid}?role=${role}&display_name=${encodeURIComponent(name)}`;
+    }
+
+    function updateLinks() {
+        // Status will refresh on page reload with club param
+        const club = document.getElementById('clubSelect').value;
+        if (club) {
+            const name = document.getElementById('memberName').value.trim();
+            const slug = name ? name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') : '';
+            if (slug) {
+                window.location.href = `/questionnaires?club=${club}&member=${slug}`;
+            }
+        }
+    }
+    </script>
+</body>
+</html>

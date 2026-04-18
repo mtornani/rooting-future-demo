@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ questionnaire.title }} - Rooting Future</title>
+    <meta name="theme-color" content="#1a365d">
+    <style>
+        :root {
+            --primary: #1a365d;
+            --accent: #3182ce;
+            --success: #38a169;
+            --warning: #d69e2e;
+            --danger: #e53e3e;
+            --bg: #f7fafc;
+            --white: #fff;
+            --text: #2d3748;
+            --text-light: #718096;
+            --border: #e2e8f0;
+            --radius: 12px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:80px; }
+
+        /* Top bar */
+        .topbar {
+            background:var(--primary); color:white; padding:12px 16px;
+            display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:10;
+        }
+        .topbar a { color:white; text-decoration:none; font-size:1.4rem; }
+        .topbar h1 { font-size:1rem; flex:1; }
+        .topbar .icon { font-size:1.3rem; }
+
+        /* Progress */
+        .progress-bar { height:3px; background:var(--border); }
+        .progress-fill { height:100%; background:var(--success); transition:width 0.3s; }
+
+        /* Content */
+        .content { max-width:600px; margin:0 auto; padding:16px; }
+
+        .intro { background:var(--white); border-radius:var(--radius); padding:16px; margin-bottom:16px;
+                  border-left:4px solid var(--accent); font-size:0.85rem; color:var(--text-light); line-height:1.5; }
+
+        /* Section */
+        .section { margin-bottom:24px; }
+        .section-title { font-size:1.1rem; font-weight:700; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid var(--accent); }
+
+        /* Fields */
+        .field-group { margin-bottom:16px; }
+        .field-label { font-size:0.85rem; font-weight:600; margin-bottom:6px; display:block; line-height:1.4; }
+        .field-label .required { color:var(--danger); }
+
+        input[type="text"], textarea, select {
+            width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px;
+            font-size:0.95rem; font-family:inherit; transition:border-color 0.2s;
+            background:var(--white);
+        }
+        input:focus, textarea:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(49,130,206,0.1); }
+        textarea { min-height:100px; resize:vertical; }
+
+        /* Repeatable */
+        .repeatable-item {
+            background:var(--white); border-radius:var(--radius); padding:16px; margin-bottom:12px;
+            border:1px solid var(--border); position:relative;
+        }
+        .repeatable-item .item-header {
+            display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;
+        }
+        .repeatable-item .item-num { font-weight:700; color:var(--accent); font-size:0.9rem; }
+        .btn-remove {
+            background:none; border:none; color:var(--danger); font-size:1.2rem; cursor:pointer; padding:4px 8px;
+        }
+
+        .btn-add {
+            width:100%; padding:12px; background:none; border:2px dashed var(--border);
+            border-radius:var(--radius); color:var(--accent); font-size:0.9rem; font-weight:600;
+            cursor:pointer; transition:border-color 0.2s, background 0.2s;
+        }
+        .btn-add:hover { border-color:var(--accent); background:rgba(49,130,206,0.05); }
+
+        /* Suggested chips */
+        .suggestions { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+        .chip {
+            padding:4px 10px; background:rgba(49,130,206,0.1); color:var(--accent);
+            border-radius:16px; font-size:0.75rem; cursor:pointer; border:none; font-family:inherit;
+        }
+        .chip:hover { background:rgba(49,130,206,0.2); }
+        .chip.used { opacity:0.4; pointer-events:none; }
+
+        /* Bottom action bar */
+        .action-bar {
+            position:fixed; bottom:0; left:0; right:0; background:var(--white);
+            padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:12px;
+            justify-content:center; z-index:10;
+        }
+        .btn {
+            padding:12px 24px; border:none; border-radius:8px; font-size:0.95rem;
+            font-weight:600; cursor:pointer; font-family:inherit;
+        }
+        .btn-primary { background:var(--accent); color:white; }
+        .btn-primary:hover { background:var(--primary); }
+        .btn-secondary { background:var(--bg); color:var(--text); border:1px solid var(--border); }
+        .btn-success { background:var(--success); color:white; }
+
+        /* Save indicator */
+        .save-indicator {
+            position:fixed; top:52px; right:16px; padding:6px 12px; border-radius:16px;
+            font-size:0.75rem; font-weight:600; z-index:20; transition:opacity 0.3s;
+            opacity:0; pointer-events:none;
+        }
+        .save-indicator.saving { opacity:1; background:#fefce8; color:var(--warning); }
+        .save-indicator.saved { opacity:1; background:#f0fff4; color:var(--success); }
+        .save-indicator.error { opacity:1; background:#fff5f5; color:var(--danger); }
+
+        /* Nav between questionnaires */
+        .nav-links { display:flex; justify-content:space-between; margin-top:8px; margin-bottom:16px; }
+        .nav-link { font-size:0.85rem; color:var(--accent); text-decoration:none; }
+        .nav-link:hover { text-decoration:underline; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <a href="/questionnaires?club={{ club_slug }}&member={{ member_slug }}">‹</a>
+        <span class="icon">{{ questionnaire.icon }}</span>
+        <h1>{{ questionnaire.title }}</h1>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="save-indicator" id="saveIndicator"></div>
+
+    <div class="content">
+        <div class="intro">{{ questionnaire.description }}</div>
+
+        <div class="nav-links">
+            {% if prev_id %}
+            <a href="/questionnaire/{{ club_slug }}/{{ member_slug }}/{{ prev_id }}?role={{ role }}&display_name={{ display_name|urlencode }}" class="nav-link">‹ {{ prev_title }}</a>
+            {% else %}<span></span>{% endif %}
+            {% if next_id %}
+            <a href="/questionnaire/{{ club_slug }}/{{ member_slug }}/{{ next_id }}?role={{ role }}&display_name={{ display_name|urlencode }}" class="nav-link">{{ next_title }} ›</a>
+            {% else %}<span></span>{% endif %}
+        </div>
+
+        <form id="qForm">
+            {% for section in questionnaire.sections %}
+            <div class="section" data-section-id="{{ section.id }}" data-section-type="{{ section.type }}">
+                <div class="section-title">{{ section.title }}</div>
+                {% if section.intro is defined and section.intro %}
+                <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px;">{{ section.intro }}</p>
+                {% endif %}
+
+                {% if section.type == 'static' %}
+                    {% for field in section.fields %}
+                    <div class="field-group">
+                        <label class="field-label">
+                            {{ field.label }}
+                            {% if field.get('required', True) %}<span class="required">*</span>{% endif %}
+                        </label>
+                        {% if field.type == 'textarea' %}
+                        <textarea name="{{ section.id }}__{{ field.id }}" placeholder="{{ field.get('placeholder', '') }}"
+                                  data-field="{{ section.id }}.{{ field.id }}">{{ saved.get(section.id, {}).get(field.id, '') }}</textarea>
+                        {% elif field.type == 'select' %}
+                        <select name="{{ section.id }}__{{ field.id }}" data-field="{{ section.id }}.{{ field.id }}">
+                            <option value="">Seleziona...</option>
+                            {% for opt in field.options %}
+                            <option value="{{ opt }}" {{ 'selected' if saved.get(section.id, {}).get(field.id) == opt else '' }}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <input type="text" name="{{ section.id }}__{{ field.id }}" placeholder="{{ field.get('placeholder', '') }}"
+                               value="{{ saved.get(section.id, {}).get(field.id, '') }}" data-field="{{ section.id }}.{{ field.id }}">
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+
+                {% elif section.type == 'repeatable' %}
+                    {% if section.get('suggested') %}
+                    <div class="suggestions" id="suggestions_{{ section.id }}">
+                        {% for s in section.suggested %}
+                        <button type="button" class="chip" onclick="addSuggested('{{ section.id }}', '{{ s }}', this)">+ {{ s }}</button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="repeatable-container" id="container_{{ section.id }}"
+                         data-section="{{ section.id }}"
+                         data-fields='{{ section.fields | tojson }}'
+                         data-min="{{ section.get('min_items', 1) }}"
+                         data-max="{{ section.get('max_items', 10) }}">
+                        <!-- Items rendered by JS from saved data -->
+                    </div>
+                    <button type="button" class="btn-add" id="addBtn_{{ section.id }}"
+                            onclick="addItem('{{ section.id }}')">
+                        + Aggiungi
+                    </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </form>
+    </div>
+
+    <div class="action-bar">
+        <button class="btn btn-secondary" onclick="window.location.href='/questionnaires?club={{ club_slug }}&member={{ member_slug }}'">Indietro</button>
+        <button class="btn btn-primary" onclick="saveAndContinue()">Salva</button>
+        {% if next_id %}
+        <button class="btn btn-success" onclick="saveAndNext()">Salva e Prossimo ›</button>
+        {% else %}
+        <button class="btn btn-success" onclick="saveAndFinish()">Completa ✓</button>
+        {% endif %}
+    </div>
+
+    <script>
+    const CLUB = '{{ club_slug }}';
+    const MEMBER = '{{ member_slug }}';
+    const QID = '{{ q_id }}';
+    const ROLE = '{{ role }}';
+    const DISPLAY = '{{ display_name }}';
+    const SAVED = {{ saved_json | safe }};
+
+    // Auto-save timer
+    let saveTimer = null;
+    const AUTOSAVE_MS = 3000;
+
+    function showSave(state, text) {
+        const el = document.getElementById('saveIndicator');
+        el.className = 'save-indicator ' + state;
+        el.textContent = text;
+        if (state === 'saved') setTimeout(() => { el.style.opacity = '0'; }, 2000);
+    }
+
+    // Repeatable sections: render saved items
+    document.querySelectorAll('.repeatable-container').forEach(container => {
+        const sid = container.dataset.section;
+        const items = SAVED[sid] || [];
+        if (items.length === 0) {
+            // Add minimum items
+            const min = parseInt(container.dataset.min) || 1;
+            for (let i = 0; i < min; i++) addItem(sid);
+        } else {
+            items.forEach((item, idx) => addItem(sid, item));
+        }
+    });
+
+    function addItem(sectionId, prefill) {
+        const container = document.getElementById('container_' + sectionId);
+        const fields = JSON.parse(container.dataset.fields);
+        const max = parseInt(container.dataset.max);
+        const count = container.children.length;
+        if (count >= max) return;
+
+        const div = document.createElement('div');
+        div.className = 'repeatable-item';
+        let html = `<div class="item-header"><span class="item-num">#${count + 1}</span><button type="button" class="btn-remove" onclick="removeItem(this, '${sectionId}')">&times;</button></div>`;
+
+        fields.forEach(f => {
+            const val = (prefill && prefill[f.id]) || '';
+            const escaped = val.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            html += `<div class="field-group"><label class="field-label">${f.label}</label>`;
+            if (f.type === 'textarea') {
+                html += `<textarea data-field="${sectionId}[].${f.id}" placeholder="${f.placeholder || ''}">${val}</textarea>`;
+            } else if (f.type === 'select') {
+                html += `<select data-field="${sectionId}[].${f.id}">`;
+                html += `<option value="">Seleziona...</option>`;
+                (f.options || []).forEach(o => {
+                    html += `<option value="${o}" ${o === val ? 'selected' : ''}>${o}</option>`;
+                });
+                html += `</select>`;
+            } else {
+                html += `<input type="text" data-field="${sectionId}[].${f.id}" value="${escaped}" placeholder="${f.placeholder || ''}">`;
+            }
+            html += `</div>`;
+        });
+
+        div.innerHTML = html;
+        container.appendChild(div);
+        updateAddButton(sectionId);
+        attachAutoSave(div);
+    }
+
+    function addSuggested(sectionId, value, chip) {
+        const container = document.getElementById('container_' + sectionId);
+        const fields = JSON.parse(container.dataset.fields);
+        // Pre-fill first field (usually the name field)
+        const prefill = {};
+        prefill[fields[0].id] = value;
+        addItem(sectionId, prefill);
+        chip.classList.add('used');
+    }
+
+    function removeItem(btn, sectionId) {
+        const container = document.getElementById('container_' + sectionId);
+        const min = parseInt(container.dataset.min);
+        if (container.children.length <= min) return;
+        btn.closest('.repeatable-item').remove();
+        // Renumber
+        container.querySelectorAll('.item-num').forEach((el, i) => { el.textContent = '#' + (i + 1); });
+        updateAddButton(sectionId);
+        scheduleAutoSave();
+    }
+
+    function updateAddButton(sectionId) {
+        const container = document.getElementById('container_' + sectionId);
+        const btn = document.getElementById('addBtn_' + sectionId);
+        if (!btn) return;
+        btn.style.display = container.children.length >= parseInt(container.dataset.max) ? 'none' : '';
+    }
+
+    function collectData() {
+        const data = {};
+
+        // Static fields
+        document.querySelectorAll('[data-section-type="static"]').forEach(section => {
+            const sid = section.dataset.sectionId;
+            data[sid] = {};
+            section.querySelectorAll('[data-field]').forEach(el => {
+                const key = el.dataset.field.split('.')[1];
+                data[sid][key] = el.value;
+            });
+        });
+
+        // Repeatable fields
+        document.querySelectorAll('.repeatable-container').forEach(container => {
+            const sid = container.dataset.section;
+            data[sid] = [];
+            container.querySelectorAll('.repeatable-item').forEach(item => {
+                const obj = {};
+                item.querySelectorAll('[data-field]').forEach(el => {
+                    const key = el.dataset.field.split('.').pop();
+                    obj[key] = el.value;
+                });
+                data[sid].push(obj);
+            });
+        });
+
+        return data;
+    }
+
+    async function save() {
+        showSave('saving', 'Salvataggio...');
+        const data = collectData();
+        try {
+            const res = await fetch(`/api/questionnaire/${CLUB}/${MEMBER}/${QID}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({data, role: ROLE, display_name: DISPLAY})
+            });
+            if (res.ok) {
+                showSave('saved', '✓ Salvato');
+                updateProgress();
+            } else {
+                showSave('error', 'Errore salvataggio');
+            }
+        } catch(e) {
+            showSave('error', 'Errore rete');
+        }
+    }
+
+    function scheduleAutoSave() {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(save, AUTOSAVE_MS);
+    }
+
+    function attachAutoSave(root) {
+        (root || document).querySelectorAll('input, textarea, select').forEach(el => {
+            el.addEventListener('input', scheduleAutoSave);
+            el.addEventListener('change', scheduleAutoSave);
+        });
+    }
+    attachAutoSave();
+
+    async function saveAndContinue() { await save(); }
+
+    async function saveAndNext() {
+        await save();
+        {% if next_id %}
+        window.location.href = `/questionnaire/${CLUB}/${MEMBER}/{{ next_id }}?role=${ROLE}&display_name=${encodeURIComponent(DISPLAY)}`;
+        {% endif %}
+    }
+
+    async function saveAndFinish() {
+        await save();
+        window.location.href = `/questionnaires?club=${CLUB}&member=${MEMBER}`;
+    }
+
+    function updateProgress() {
+        const fields = document.querySelectorAll('input, textarea, select');
+        let filled = 0, total = 0;
+        fields.forEach(f => {
+            if (f.dataset.field || f.name) {
+                total++;
+                if (f.value.trim()) filled++;
+            }
+        });
+        const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+        document.getElementById('progressFill').style.width = pct + '%';
+    }
+    updateProgress();
+    </script>
+</body>
+</html>
