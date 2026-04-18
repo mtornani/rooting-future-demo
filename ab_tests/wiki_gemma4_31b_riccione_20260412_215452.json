@@ -1,0 +1,40 @@
+{
+  "timestamp": "20260412_215452",
+  "model": "gemma4:31b",
+  "wiki": true,
+  "total_time": 2701.26,
+  "total_chars": 25328,
+  "agent_metrics": [
+    {
+      "name": "STW Sportivi Analyst",
+      "time": 1063.7,
+      "chars": 56
+    },
+    {
+      "name": "STW Strutturali Analyst",
+      "time": 21.22,
+      "chars": 3666
+    },
+    {
+      "name": "STW Marketing Analyst",
+      "time": 664.73,
+      "chars": 5376
+    },
+    {
+      "name": "STW Sociali Analyst",
+      "time": 683.9,
+      "chars": 8338
+    },
+    {
+      "name": "Financial Strategist",
+      "time": 27.47,
+      "chars": 4425
+    },
+    {
+      "name": "Strategic Coordinator",
+      "time": 240.24,
+      "chars": 3467
+    }
+  ],
+  "sections": {}
+}

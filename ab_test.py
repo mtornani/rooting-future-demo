@@ -555,7 +555,7 @@ Modalità Gemini diretta (richiede IP non bloccato da Google):
     )
     parser.add_argument(
         "--input",
-        default=r"C:\Users\Mirko\Desktop\BOARD RICCIONE CALCIO 1926",
+        default="data/clubs/riccione-calcio-1926",
         help="Percorso cartella interviste (.docx/.doc)",
     )
     parser.add_argument(
@@ -600,11 +600,11 @@ def main():
     print("=" * 60)
     print("A/B TEST: Riccione Calcio 1926")
     if use_openrouter:
-        print(f"  Provider A: OpenRouter → {args.gemini_model}")
-        print(f"  Provider B: OpenRouter → {_OPENROUTER_GEMMA_MODEL}")
+        print(f"  Provider A: OpenRouter -> {args.gemini_model}")
+        print(f"  Provider B: OpenRouter -> {_OPENROUTER_GEMMA_MODEL}")
     else:
         print(f"  Provider A: Gemini (API diretta)")
-        print(f"  Provider B: Ollama → {args.ollama_model}")
+        print(f"  Provider B: Ollama -> {args.ollama_model}")
     print(f"  Data: {date_str}")
     print("=" * 60)
 
@@ -654,7 +654,7 @@ def main():
             os.environ["OLLAMA_API_KEY"]  = args.openrouter_key
             os.environ["OLLAMA_MODEL"]    = args.gemini_model
             os.environ["OLLAMA_TIMEOUT"]  = "120"
-            print(f"  [env] OpenRouter → {args.gemini_model}")
+            print(f"  [env] OpenRouter -> {args.gemini_model}")
 
         def ollama_setup():
             # Provider B: OpenRouter con modello Gemma 3
@@ -662,7 +662,7 @@ def main():
             os.environ["OLLAMA_API_KEY"]  = args.openrouter_key
             os.environ["OLLAMA_MODEL"]    = _OPENROUTER_GEMMA_MODEL
             os.environ["OLLAMA_TIMEOUT"]  = "120"
-            print(f"  [env] OpenRouter → {_OPENROUTER_GEMMA_MODEL}")
+            print(f"  [env] OpenRouter -> {_OPENROUTER_GEMMA_MODEL}")
     else:
         def gemini_setup():
             # Provider A: Gemini API diretta (rimuove OLLAMA_BASE_URL)
@@ -676,7 +676,7 @@ def main():
             os.environ["OLLAMA_TIMEOUT"]  = "300"
             if args.ollama_model:
                 os.environ["OLLAMA_MODEL"] = args.ollama_model
-            print(f"  [env] Ollama → {args.ollama_url} model={args.ollama_model}")
+            print(f"  [env] Ollama -> {args.ollama_url} model={args.ollama_model}")
 
     gemini_teardown = _restore_env
     ollama_teardown = _restore_env

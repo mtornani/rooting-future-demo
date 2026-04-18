@@ -1,0 +1,230 @@
+{
+  "project": {
+    "name": "Rooting Future",
+    "version": "6.0",
+    "description": "AI-powered Strategic Planning Engine for Football Clubs",
+    "repo": "https://github.com/mtornani/rooting-future-demo.git",
+    "hf_space": "https://huggingface.co/spaces/mtornani/rooting-future",
+    "branch": "feat/llm-wiki-sovereignty",
+    "total_lines_app": 6854,
+    "total_routes": 98,
+    "last_update": "2026-04-18"
+  },
+
+  "implementation_status": {
+    "completed": [
+      {
+        "feature": "Motore AI Open Source (Ollama/Gemma)",
+        "status": "DONE",
+        "details": "gemma3:27b default, max_retries=3, testato A/B vs Gemini",
+        "files": ["config.py", "ai_providers/ollama_provider.py"]
+      },
+      {
+        "feature": "Motore AI Commerciale (Gemini)",
+        "status": "DONE",
+        "details": "gemini-2.5-flash, RAG con File Search, funzionante",
+        "files": ["agents.py", "ai_providers/factory.py"]
+      },
+      {
+        "feature": "Wiki Architecture (v2)",
+        "status": "DONE",
+        "details": "Phase 1 (DOCX->MD) + Phase 2 (MD->KB) completate. 9 raw + 6 KB pages",
+        "files": ["wiki_ingest.py"],
+        "data": {
+          "wiki_raw": "wiki/raw/riccione-calcio-1926/ (9 files)",
+          "wiki_kb": "wiki/kb/ (6 files)"
+        }
+      },
+      {
+        "feature": "Questionari Digitali (8 form)",
+        "status": "DONE",
+        "details": "8 questionari RF mappati dai DOCX originali. Mobile-first, auto-save JSON, export MD",
+        "files": ["questionnaire_schema.py", "templates/questionnaire_index.html", "templates/questionnaire_form.html"],
+        "questionnaires": [
+          "valori-fondamenta (5 campi, repeatable)",
+          "vision (4 campi, statico)",
+          "mission (6 campi, statico)",
+          "swot (4 campi, griglia)",
+          "competitors (4 campi, repeatable 3-6)",
+          "pest (4 campi, griglia)",
+          "stakeholders (5 campi, repeatable 3-13, con chip suggeriti)",
+          "risorse (4 campi, repeatable 3-5)"
+        ],
+        "routes": [
+          "GET /questionnaires",
+          "GET /questionnaire/<club>/<member>/<qid>",
+          "POST /api/questionnaire/<club>/<member>/<qid>",
+          "POST /api/questionnaire/<club>/<member>/export-md",
+          "POST /api/questionnaire/<club>/export-all-md"
+        ]
+      },
+      {
+        "feature": "Pipeline Questionari -> Generazione Piano",
+        "status": "DONE",
+        "details": "Endpoint che aggrega risposte JSON di tutti i membri, costruisce club_data, lancia orchestratore 7 agenti",
+        "files": ["app.py"],
+        "route": "POST /api/generate-from-questionnaires"
+      },
+      {
+        "feature": "Free SWOT Mini-Form (Funnel Hook)",
+        "status": "DONE",
+        "details": "Landing page pubblica 3-step. 5 min compilazione -> analisi SWOT 1 pagina. CTA verso piano completo",
+        "files": ["templates/free_swot.html", "app.py"],
+        "routes": ["GET /free-swot", "POST /api/free-swot"]
+      },
+      {
+        "feature": "Consistency Agent",
+        "status": "DONE",
+        "details": "Nuovo agente P4 tra STW e Financial. Verifica allineamento inter-sezione, flag conflitti, prioritizza budget",
+        "files": ["agents.py"],
+        "agent_role": "CONSISTENCY (priority 4)"
+      },
+      {
+        "feature": "Multi-Agent System (7 agenti)",
+        "status": "DONE",
+        "details": "Coordinator(P0) -> 4 STW(P1-P4) -> Consistency(P4) -> Financial(P6). Parallelo con ThreadPoolExecutor",
+        "agents": [
+          {"name": "Strategic Coordinator", "priority": 0, "output": "Executive Summary"},
+          {"name": "STW Sportivi Analyst", "priority": 1, "output": "8 macro-obiettivi sportivi"},
+          {"name": "STW Strutturali Analyst", "priority": 2, "output": "Infrastrutture e governance"},
+          {"name": "STW Marketing Analyst", "priority": 3, "output": "Brand, comunicazione, revenue"},
+          {"name": "STW Sociali Analyst", "priority": 4, "output": "Stakeholders e territorio"},
+          {"name": "Consistency Reviewer", "priority": 4, "output": "Allineamento e flag budget"},
+          {"name": "Financial Strategist", "priority": 6, "output": "Piano economico-finanziario"}
+        ]
+      },
+      {
+        "feature": "Mobile-First UI Questionari",
+        "status": "DONE",
+        "details": "Viewport responsive, grid layout member-bar, touch-friendly, progress bar, auto-save 3s"
+      },
+      {
+        "feature": "PWA",
+        "status": "DONE",
+        "details": "manifest.json, service worker, installabile su home screen",
+        "files": ["static/manifest.json", "static/sw.js"]
+      },
+      {
+        "feature": "A/B Test Gemini vs Ollama",
+        "status": "DONE",
+        "details": "6/6 test passati, report HTML generato",
+        "files": ["ab_test.py"]
+      },
+      {
+        "feature": "Dati Club Riccione Calcio 1926",
+        "status": "DONE",
+        "details": "48 file in data/clubs/, 5 board members intervistati, 8 tipi questionario",
+        "path": "data/clubs/riccione-calcio-1926/"
+      },
+      {
+        "feature": "Fix Unicode cp1252",
+        "status": "DONE",
+        "details": "Rimossi emoji da log config.py, fix encoding ab_test.py",
+        "files": ["config.py", "ab_test.py"]
+      },
+      {
+        "feature": "Funnel HTML per colleghi",
+        "status": "DONE",
+        "details": "Documento dark-mode mobile-first con funnel completo, pricing, go-to-market. Condivisibile WhatsApp",
+        "file": "funnel_rooting_future.html"
+      },
+      {
+        "feature": "Deploy Script Oracle Free Tier",
+        "status": "DONE",
+        "details": "Script bash per deploy su ARM Ampere A1 always-on. Systemd + nginx + SSL",
+        "file": "deploy_oracle.sh"
+      }
+    ],
+
+    "pending": [
+      {
+        "feature": "Deploy su Oracle Cloud",
+        "status": "PENDING",
+        "details": "Script pronto, serve creare account Oracle + istanza ARM",
+        "effort": "1-2 ore setup manuale",
+        "blockers": ["Account Oracle da creare", "Dominio DNS da configurare"]
+      },
+      {
+        "feature": "Git commit + push",
+        "status": "PENDING",
+        "details": "52 file untracked, 5 file modificati. Serve commit e push",
+        "uncommitted_modified": ["app.py", "agents.py", "config.py", "ollama_provider.py", "ab_test.py"],
+        "untracked_new": 52
+      },
+      {
+        "feature": "Free SWOT con AI reale",
+        "status": "PARTIAL",
+        "details": "Endpoint esiste con fallback formattato. Su app principale usa Gemini per espandere risposte. Su preview server solo fallback"
+      },
+      {
+        "feature": "Test end-to-end generazione piano da questionari",
+        "status": "PENDING",
+        "details": "Endpoint /api/generate-from-questionnaires scritto ma non ancora testato con generazione reale"
+      }
+    ]
+  },
+
+  "architecture": {
+    "data_flow": {
+      "old": "Board compila DOCX -> upload -> python-docx parsing -> markdown -> RAG embeddings -> Gemini agents -> piano",
+      "new": "Board compila form HTML mobile -> JSON auto-save -> export MD -> wiki KB -> 7 AI agents -> piano STW"
+    },
+    "ai_engines": {
+      "premium": {"provider": "Google Gemini", "model": "gemini-2.5-flash", "cost": "pay-per-use"},
+      "free": {"provider": "Ollama Cloud", "model": "gemma3:27b", "cost": "zero", "fix": "max_retries=3"}
+    },
+    "hosting": {
+      "current": "Locale Flask + SSL + Tailscale (raggiungibile da mobile)",
+      "target": "Oracle Cloud Free Tier (ARM Ampere A1, always-on)"
+    }
+  },
+
+  "business": {
+    "gemini_analysis_file": "gemini_strategic_analysis.json",
+    "project_description_file": "project_description.json",
+    "funnel_document": "funnel_rooting_future.html",
+    "ideal_client": "The Ambitious Traditionalist — Club Eccellenza/Serie D con storia lunga ma crescita stagnante",
+    "pricing_model": {
+      "draft": "Gratuito — Mini-SWOT 1 pagina (funnel hook)",
+      "master_stw": "One-shot — Piano completo 30-50 pagine",
+      "navigator": "Subscription trimestrale — Review AI-driven"
+    },
+    "case_study": {
+      "club": "Riccione Calcio 1926",
+      "board_members": 5,
+      "documents_collected": 48,
+      "ab_test": "Gemini vs Gemma3:27b — entrambi funzionanti"
+    }
+  },
+
+  "files_created_this_session": [
+    "questionnaire_schema.py",
+    "templates/questionnaire_index.html",
+    "templates/questionnaire_form.html",
+    "templates/free_swot.html",
+    "preview_server.py",
+    "funnel_rooting_future.html",
+    "gemini_strategic_analysis.json",
+    "project_description.json",
+    "deploy_oracle.sh",
+    ".claude/launch.json",
+    "project_status.json"
+  ],
+
+  "files_modified_this_session": [
+    {"file": "app.py", "changes": "+501 lines: questionnaire routes, free-swot, generate-from-questionnaires"},
+    {"file": "agents.py", "changes": "+40 lines: AgentRole.CONSISTENCY, Consistency Reviewer AgentSpec"},
+    {"file": "config.py", "changes": "Unicode emoji fix, OLLAMA_MODEL default gemma3:27b"},
+    {"file": "ai_providers/ollama_provider.py", "changes": "max_retries=3"},
+    {"file": "ab_test.py", "changes": "Unicode fix, default path riccione-calcio-1926"},
+    {"file": "wiki_ingest.py", "changes": "Default model gemma3:27b, max_retries=3"}
+  ],
+
+  "next_steps_recommended": [
+    "1. Commit e push tutto su GitHub",
+    "2. Test end-to-end: compilare questionari Riccione -> generare piano -> verificare output",
+    "3. Creare account Oracle Cloud e deployare con deploy_oracle.sh",
+    "4. Configurare dominio e SSL per URL pubblico",
+    "5. Generare piano A/B (Gemini vs Ollama) con nuova architettura wiki per comparazione finale"
+  ]
+}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B Test Riccione Calcio 1926 — 08/04/2026 21:30</title>
+<style>
+body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+.header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 32px 40px; }
+.header h1 { margin: 0 0 8px; font-size: 1.8em; }
+.header .subtitle { opacity: 0.8; font-size: 0.95em; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+.cards { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+.card { background: white; border-radius: 12px; padding: 24px; flex: 1; min-width: 260px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card h2 { margin: 0 0 16px; font-size: 1.1em; color: #1a237e; border-bottom: 2px solid #e8eaf6; padding-bottom: 8px; }
+.card .stat { font-size: 2em; font-weight: bold; color: #283593; }
+.card .stat-label { font-size: 0.85em; color: #666; margin-top: 4px; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; margin-top: 12px; }
+.badge-ok { background: #e8f5e9; color: #2e7d32; }
+.badge-fail { background: #ffebee; color: #c62828; }
+.badge-partial { background: #fff8e1; color: #f57f17; }
+.badge-na { background: #eeeeee; color: #757575; }
+h2.section { color: #1a237e; margin-top: 40px; border-bottom: 2px solid #e8eaf6; padding-bottom: 8px; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+th { background: #1a237e; color: white; padding: 12px 16px; text-align: left; font-size: 0.9em; }
+td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; font-size: 0.88em; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8f9ff; }
+.ok-cell { color: #2e7d32; font-weight: bold; }
+.fail-cell { color: #c62828; font-weight: bold; }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+.compare-col { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.compare-col h3 { margin: 0 0 12px; font-size: 1em; color: #1a237e; }
+.compare-col pre { white-space: pre-wrap; word-break: break-word; font-family: inherit;
+                   font-size: 0.85em; line-height: 1.6; margin: 0; color: #333; max-height: 400px;
+                   overflow-y: auto; }
+.verdict { background: white; border-radius: 12px; padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-top: 32px; }
+.verdict h2 { margin: 0 0 20px; color: #1a237e; }
+.verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.verdict-item { text-align: center; padding: 16px; background: #f8f9ff; border-radius: 8px; }
+.verdict-item .v-label { font-size: 0.8em; color: #666; margin-bottom: 8px; }
+.verdict-item .v-value { font-size: 1.5em; font-weight: bold; color: #283593; }
+.overall-pass { color: #2e7d32; font-size: 1.6em; font-weight: bold; }
+.overall-partial { color: #f57f17; font-size: 1.6em; font-weight: bold; }
+.overall-fail { color: #c62828; font-size: 1.6em; font-weight: bold; }
+.placeholder { color: #aaa; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>A/B Test: Riccione Calcio 1926 | Gemini vs gemma4:e4b | 08/04/2026 21:30</h1>
+  <div class="subtitle">Confronto automatico provider AI per piano strategico</div>
+</div>
+<div class="container">
+
+<h2 class="section">Riepilogo Provider</h2>
+<div class="cards">
+  
+<div class="card">
+  <h2>Gemini</h2>
+  <div class="stat">0.0s</div>
+  <div class="stat-label">Tempo totale</div>
+  <div class="stat" style="margin-top:12px">0</div>
+  <div class="stat-label">Caratteri generati</div>
+  <div class="stat" style="margin-top:12px">0/0</div>
+  <div class="stat-label">Agenti completati</div>
+  <span class="badge badge-na">NON DISPONIBILE</span>
+</div>
+  
+<div class="card">
+  <h2>gemma4:e4b</h2>
+  <div class="stat">0.0s</div>
+  <div class="stat-label">Tempo totale</div>
+  <div class="stat" style="margin-top:12px">0</div>
+  <div class="stat-label">Caratteri generati</div>
+  <div class="stat" style="margin-top:12px">0/0</div>
+  <div class="stat-label">Agenti completati</div>
+  <span class="badge badge-na">NON DISPONIBILE</span>
+</div>
+</div>
+
+<h2 class="section">Metriche per Agente</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Agente</th>
+      <th>Gemini Tempo</th>
+      <th>Ollama Tempo</th>
+      <th>Gemini Chars</th>
+      <th>Ollama Chars</th>
+      <th>Gemini Status</th>
+      <th>Ollama Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    
+  </tbody>
+</table>
+
+
+<h2 class="section">STW Sportivi</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+<h2 class="section">STW Strutturali</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+<h2 class="section">STW Marketing</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+<h2 class="section">STW Sociali</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+<h2 class="section">Piano Finanziario</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+<h2 class="section">Executive Summary</h2>
+<div class="compare-grid">
+  <div class="compare-col">
+    <h3>Gemini</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+  <div class="compare-col">
+    <h3>gemma4:e4b</h3>
+    <p class="placeholder">PROVIDER NON DISPONIBILE</p>
+  </div>
+</div>
+
+
+<div class="verdict">
+  <h2>Verdetto A/B Test</h2>
+  <div class="verdict-grid">
+    <div class="verdict-item">
+      <div class="v-label">Completezza Gemini</div>
+      <div class="v-value">0.0%</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Completezza Ollama</div>
+      <div class="v-value">0.0%</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Rapporto Lunghezza (O/G)</div>
+      <div class="v-value">0.0</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Rapporto Velocità (O/G)</div>
+      <div class="v-value">0.0x</div>
+    </div>
+    <div class="verdict-item">
+      <div class="v-label">Risultato Complessivo</div>
+      <div class="v-value overall-fail">FAIL</div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,475 @@
+{
+  "audit_metadata": {
+    "project": "Rooting Future",
+    "audit_type": "RAG Architecture Deep Audit",
+    "version": "1.0-COMPILED",
+    "created_at": "2026-04-06T00:00:00Z",
+    "compiled_at": "2026-04-06T19:30:00Z",
+    "created_by": "Claude (Opus 4.6) + Mirko Tornani",
+    "compiled_by": "Claude Code (Opus 4.6) — audit automatico sul codebase",
+    "purpose": "Audit completo del sistema RAG attuale, identificazione bottleneck, proposta architettura alternativa basata su Gemma 4 / Gemini Embedding 2",
+    "downstream_consumers": [
+      "Claude Code → implementazione audit sul codebase",
+      "Gemini → validazione architetturale e cross-check",
+      "Mirko → presentazione a Nardoni e soci"
+    ]
+  },
+
+  "phase_1_current_state_analysis": {
+    "description": "Stato reale del sistema RAG trovato nel codebase di Rooting Future v5.4",
+
+    "rag_engine": {
+      "provider": "Google Gemini (google-genai SDK) — RAG ibrido: Gemini File Search Store (cloud) + embedding locale con cache pickle",
+      "notes": "NON usa Vertex AI RAG Engine. Usa due livelli RAG paralleli: (1) Gemini File Search Store via google-genai client per upload e indicizzazione documenti, (2) embedding locale via models/embedding-001 con cosine similarity e cache pickle. Non usa LangChain, LlamaIndex, o framework RAG esterni.",
+      "api_endpoint_used": "google.genai.Client — metodi: client.file_search_stores.create(), client.file_search_stores.upload_to_file_search_store(), client.models.embed_content(), client.models.generate_content()",
+      "embedding_model": "models/embedding-001 (Gemini native embedding, dimensioni proprietarie non documentate)",
+      "generation_model": "gemini-2.0-flash (config.py:150)",
+      "api_key_type": "GOOGLE_API_KEY / GEMINI_API_KEY (stessa chiave, alias)",
+      "api_key_location": ".env file + config.local.json override + environment variables (priorità: env vars > config.local.json > .env)",
+      "rate_limits_observed": "Nessun rate limiting esplicito nel codice. Timeout di 10s per operazioni File Search Store, 300s per upload file.",
+      "cost_per_request_estimate": "Gemini 2.0 Flash: ~$0.10/M input tokens, ~$0.40/M output tokens. Embedding-001: $0.00/M tokens (gratuito). Costo stimato per piano completo (8 agenti × ~8K tokens output): ~$0.03-0.05 per piano."
+    },
+
+    "data_ingestion": {
+      "document_types_indexed": [
+        "Piani strategici completi (suddivisi per sezione)",
+        "Documenti generici (doc_type: plan, con section_type filtering)",
+        "Benchmark industriali (tabella benchmarks separata)"
+      ],
+      "chunking_strategy": "Per-sezione naturale: ogni sezione del piano diventa un Document separato. NON usa chunking a finestra fissa. Sezioni < 200 caratteri vengono scartate.",
+      "chunk_size": "1000 caratteri (configurato in ModelConfig ma NON usato attivamente — il chunking reale è per sezione del piano)",
+      "chunk_overlap": "200 caratteri (configurato ma NON usato — le sezioni sono unità atomiche)",
+      "total_documents_estimated": "Dipende dall'uso: ogni piano genera ~6-8 documenti (uno per sezione). Database SQLite in knowledge_base/knowledge.db",
+      "indexing_frequency": "On-demand: i documenti vengono indicizzati quando un piano viene generato e salvato tramite KnowledgeManager.add_plan_to_knowledge()",
+      "notes": "Doppia indicizzazione: (1) SQLite locale per ricerca strutturata, (2) Gemini File Search Store per indicizzazione semantica cloud. Il contenuto viene uploadato come file .txt temporanei in knowledge_base/temp_uploads/"
+    },
+
+    "retrieval_pipeline": {
+      "vector_store": "Ibrido: (1) Pickle file locale (knowledge_base/embeddings.pkl) per embedding cache, (2) SQLite (knowledge_base/knowledge.db) per storage strutturato documenti, (3) Gemini File Search Store (cloud) per indicizzazione semantica",
+      "similarity_metric": "Cosine similarity (implementazione custom in GeminiKnowledgeRAG._cosine_similarity())",
+      "top_k": "5 per semantic_search(), 3 per get_context_for_generation() (max 2 esempi iniettati nel prompt dell'agente)",
+      "reranking": "Nessun reranking esplicito. Ordinamento per score cosine similarity.",
+      "filters_used": [
+        "doc_type='plan' (filtra solo piani strategici)",
+        "category=club_category (filtra per livello: Eccellenza, Serie D, etc.)",
+        "section_type (filtra per tipo sezione: sportivi, strutturali, marketing, etc.)"
+      ],
+      "context_window_usage": "Max 2 esempi RAG × 1500 caratteri preview = ~3000 caratteri di contesto RAG per agente. Su context window gemini-2.0-flash di 1M tokens, l'uso RAG è <1%.",
+      "notes": "Pipeline di retrieval a 3 livelli con fallback: (1) Ricerca strutturata SQLite per categoria+sezione, (2) Semantic search con embedding se disponibili, (3) Keyword search come ultimo fallback (set intersection su parole). L'embedding viene troncato a 2000 caratteri per documento per performance."
+    },
+
+    "generation": {
+      "model": "gemini-2.0-flash (config.py:150)",
+      "system_prompt_location": "agents.py:313-750 — GLOBAL_VOICE_DIRECTIVE (linee 313-356) + prompt specializzati per ciascuno degli 8 agenti",
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "structured_output": "Sì — JSON strutturato via structured_agent.py + data_models.py (DataPoint, StructuredSection). Pydantic per validazione.",
+      "notes": "8 agenti specializzati: Strategic Coordinator, STW Sportivi, STW Strutturali, STW Marketing, STW Sociali, Financial Strategist, Research Validator, Post-Production Editor. Ogni agente riceve RAG context come 'MEMORIA STORICA E BEST PRACTICE' nel prompt. Supporto alternativo per OpenRouter (OpenAI-compatible API) con modelli gratuiti."
+    },
+
+    "dependencies": {
+      "python_packages": [
+        "google-generativeai==0.8.5 (vecchia API, deprecata ma ancora in requirements)",
+        "google-genai==1.55.0 (nuova API usata attivamente per File Search + embedding)",
+        "google-ai-generativelanguage==0.6.15",
+        "google-api-core==2.28.1",
+        "google-api-python-client==2.187.0",
+        "google-auth==2.43.0",
+        "openai==1.58.1 (per compatibilità OpenRouter)",
+        "tavily-python==0.5.0 (web research fallback)",
+        "pandas==2.3.3, numpy==2.3.5 (data processing)",
+        "pydantic==2.12.5 (validazione dati strutturati)"
+      ],
+      "api_keys_required": [
+        "GOOGLE_API_KEY / GEMINI_API_KEY (obbligatoria — embedding + generazione + File Search)",
+        "SERPER_API_KEY (opzionale — web research primario)",
+        "TAVILY_API_KEY (opzionale — web research fallback)",
+        "OPENROUTER_API_KEY (opzionale — provider AI alternativo)",
+        "ENCRYPTION_KEY (sicurezza locale)",
+        "STRIPE_PUBLIC_KEY / STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET (pagamenti)"
+      ],
+      "external_services": [
+        "Google Gemini API (generazione LLM — CRITICO)",
+        "Google Gemini Embedding API (embedding-001 — CRITICO per RAG semantico)",
+        "Google Gemini File Search Store (indicizzazione documenti cloud — OPZIONALE, fallback a locale)",
+        "Serper.dev API (web search — OPZIONALE)",
+        "Tavily API (web search fallback — OPZIONALE)",
+        "OpenRouter API (LLM alternativo — OPZIONALE)",
+        "Stripe (pagamenti — per versione commerciale)"
+      ],
+      "notes": "Dipendenza CRITICA da Google Gemini API per sia generazione che embedding. Senza API key, il sistema degrada a keyword search e nessuna generazione AI. Il File Search Store è opzionale — se fallisce, il RAG locale funziona ancora con embedding + SQLite."
+    }
+  },
+
+  "phase_2_bottleneck_identification": {
+    "description": "Bottleneck identificati dall'analisi del codebase",
+
+    "bottlenecks": [
+      {
+        "id": "BN-001",
+        "category": "vendor_lock",
+        "severity": "high",
+        "component": "Intero stack AI (generazione + embedding + File Search)",
+        "description": "100% del pipeline AI dipende da Google Gemini API. Embedding, generazione e File Search Store sono tutti su un singolo provider con una singola API key.",
+        "evidence": "config.py:121-122 — GOOGLE_API_KEY usata ovunque. knowledge_store.py:1061-1076 — GeminiKnowledgeRAG inizializza client Gemini. file_search_manager.py:45 — genai.Client(api_key). agents.py — tutti gli agenti usano Gemini per generazione.",
+        "impact_on_user": "Se Google cambia pricing, limiti, o depreca l'API, l'intero sistema smette di funzionare. Nessun fallback locale per generazione AI."
+      },
+      {
+        "id": "BN-002",
+        "category": "cost",
+        "severity": "medium",
+        "component": "Gemini API calls per piano",
+        "description": "Ogni piano strategico richiede ~8 chiamate di generazione (una per agente) + N chiamate embedding + upload File Search Store. A scala, i costi API crescono linearmente.",
+        "evidence": "agents.py:1294-1309 — loop su tutti gli agenti con chiamata generate(). knowledge_store.py:1112 — embed_content per ogni documento. Costo stimato: $0.03-0.05/piano con Gemini 2.0 Flash.",
+        "impact_on_user": "Costo contenuto per ora (Gemini Flash è economico), ma non scalabile a centinaia di piani/mese senza budget significativo. Nessun controllo sui costi — no rate limiting, no budget cap."
+      },
+      {
+        "id": "BN-003",
+        "category": "reliability",
+        "severity": "high",
+        "component": "File Search Store (Gemini cloud)",
+        "description": "Il File Search Store è un servizio cloud che può essere lento, timeout-prone, o non disponibile. Il codice ha timeout di 10s per operazioni base e 300s per upload.",
+        "evidence": "file_search_manager.py:21 — API_TIMEOUT = 10. file_search_manager.py:120-126 — polling loop con 300s timeout per upload. file_search_manager.py:68 — 'Timeout verificando store, lo uso comunque'.",
+        "impact_on_user": "Upload di piani può bloccare il flusso per fino a 5 minuti. Se il servizio è giù, l'indicizzazione cloud fallisce silenziosamente (graceful degradation OK)."
+      },
+      {
+        "id": "BN-004",
+        "category": "flexibility",
+        "severity": "medium",
+        "component": "Embedding model (models/embedding-001)",
+        "description": "Il modello embedding-001 è proprietario Google, non fine-tunabile, e le dimensioni del vettore non sono documentate nel codice. Impossibile ottimizzare per terminologia calcistica.",
+        "evidence": "config.py:156 — embedding_model: str = 'models/embedding-001'. knowledge_store.py:1112-1116 — embed_content con task_type fisso. Nessun parametro per dimensioni, truncation, o custom instructions.",
+        "impact_on_user": "L'embedding non distingue tra 'trequartista' e 'mezzala' come farebbe un modello fine-tunato su dati calcistici. Retrieval subottimale per query domain-specific."
+      },
+      {
+        "id": "BN-005",
+        "category": "scalability",
+        "severity": "medium",
+        "component": "Embedding cache (pickle file)",
+        "description": "Gli embedding vengono cachati in un singolo file pickle (embeddings.pkl). A scala, questo file cresce linearmente e diventa lento da caricare/salvare.",
+        "evidence": "knowledge_store.py:1079-1098 — pickle.load/dump dell'intero cache ad ogni operazione. MD5 hash come chiave. Nessuna eviction policy.",
+        "impact_on_user": "Con centinaia di piani, il file pickle può diventare multi-MB e rallentare l'avvio del sistema e ogni operazione di embedding."
+      },
+      {
+        "id": "BN-006",
+        "category": "offline",
+        "severity": "high",
+        "component": "Generazione AI",
+        "description": "Nessuna capacità di generazione offline. Senza connessione internet, il sistema non può generare piani strategici.",
+        "evidence": "agents.py — tutti gli agenti chiamano Gemini API per generazione. Nessun modello locale configurato. OpenRouter è anch'esso cloud-based.",
+        "impact_on_user": "Impossibile fare demo o generare piani in luoghi senza connessione (stadi, riunioni in trasferta, aree rurali). Single point of failure sulla connettività."
+      },
+      {
+        "id": "BN-007",
+        "category": "data_privacy",
+        "severity": "medium",
+        "component": "Upload piani su Gemini File Search Store",
+        "description": "I piani strategici completi vengono uploadati su Google Cloud (File Search Store). Dati sensibili dei club lasciano l'infrastruttura locale.",
+        "evidence": "knowledge_store.py:1304-1336 — full_content uploadato come .txt. file_search_manager.py:115-118 — upload_to_file_search_store(). I file temporanei non vengono eliminati (linea 1334 commentata).",
+        "impact_on_user": "Piani strategici con dati finanziari, obiettivi di mercato, e informazioni riservate dei club vengono inviati a Google. Possibile problema per club con policy di riservatezza stringenti."
+      },
+      {
+        "id": "BN-008",
+        "category": "latency",
+        "severity": "low",
+        "component": "Embedding on-the-fly durante retrieval",
+        "description": "Durante semantic_search, ogni documento viene embeddato al momento del confronto (embed_text per ogni doc). Non c'è pre-embedding all'ingestion.",
+        "evidence": "knowledge_store.py:1170-1173 — for doc in documents: doc_embedding = self.embed_text(doc.content[:2000]). Chiamata API per ogni documento non in cache.",
+        "impact_on_user": "Prima ricerca su documenti nuovi richiede N chiamate embedding API. Mitigato dalla cache pickle, ma la prima volta è lenta."
+      },
+      {
+        "id": "BN-009",
+        "category": "flexibility",
+        "severity": "low",
+        "component": "RAG context injection limitata",
+        "description": "Solo 2 esempi RAG iniettati nel prompt, troncati a 1500 caratteri. Con context window di 1M tokens su Gemini Flash, il RAG usa <1% del contesto disponibile.",
+        "evidence": "agents.py:1052-1067 — rag_context[:2] con content[:1500]. knowledge_store.py:1360-1391 — get_context_for_generation ritorna max 3 docs.",
+        "impact_on_user": "Sottoutilizzo del contesto disponibile. Più esempi RAG e più contesto potrebbero migliorare significativamente la qualità dell'output."
+      },
+      {
+        "id": "BN-010",
+        "category": "reliability",
+        "severity": "low",
+        "component": "File temporanei non eliminati",
+        "description": "I file .txt temporanei creati per l'upload al File Search Store non vengono eliminati (riga di cleanup commentata).",
+        "evidence": "knowledge_store.py:1334 — '# temp_file.unlink()' commentato.",
+        "impact_on_user": "Accumulo di file temporanei in knowledge_base/temp_uploads/ nel tempo."
+      }
+    ],
+
+    "bottleneck_categories": [
+      "cost — costi API ricorrenti",
+      "latency — tempo di risposta del RAG",
+      "reliability — dipendenza da servizi esterni, downtime",
+      "scalability — limiti di volume/frequenza",
+      "flexibility — impossibilità di fine-tuning o customizzazione",
+      "offline — impossibilità di funzionare senza connessione",
+      "vendor_lock — dipendenza da un singolo provider",
+      "data_privacy — dati che lasciano l'infrastruttura locale"
+    ]
+  },
+
+  "phase_3_proposed_architecture": {
+    "description": "Architettura alternativa a due livelli, da validare con Gemini",
+
+    "layer_1_local": {
+      "name": "Motore Base Locale (costo zero)",
+      "embedding_model": {
+        "name": "EmbeddingGemma",
+        "parameters": "308M",
+        "license": "Apache 2.0",
+        "modalities": ["text"],
+        "dimensions": "768 (scalabile a 128 via MRL)",
+        "context_window": "2048 tokens",
+        "ram_required": "<200MB quantizzato",
+        "runtime": "Ollama / LM Studio / llama.cpp",
+        "cost": "zero",
+        "strengths": [
+          "Top-ranked open multilingual embedding model sotto 500M su MTEB",
+          "Gira offline su qualsiasi hardware",
+          "Fine-tuning possibile su dati calcistici",
+          "Integrazione nativa con LlamaIndex, LangChain, Weaviate"
+        ],
+        "limitations": [
+          "Solo testo (no immagini, video, audio)",
+          "Context window 2K vs 8K di Gemini Embedding 2",
+          "Performance inferiore su task multilingue complessi"
+        ]
+      },
+      "vector_store": {
+        "primary": "ChromaDB",
+        "alternative": "SQLite-VSS",
+        "notes": "Locale, zero dipendenze, persistenza su disco. Sostituisce il pickle cache attuale (BN-005) e parte del ruolo di SQLiteKnowledgeStore."
+      },
+      "generation_model": {
+        "name": "Gemma 4 26B A4B (MoE)",
+        "total_parameters": "25.2B",
+        "active_parameters_per_token": "3.8B",
+        "license": "Apache 2.0",
+        "context_window": "256K tokens",
+        "vram_required": "~8-16GB quantizzato Q4",
+        "runtime": "Ollama / LM Studio / vLLM",
+        "cost": "zero",
+        "key_capabilities": [
+          "Function-calling nativo",
+          "JSON strutturato nativo",
+          "System prompt nativo",
+          "Reasoning multi-step",
+          "Benchmark: AIME 2026 89.2%, LiveCodeBench 80.0%"
+        ],
+        "mirko_hardware_note": "⚠️ ATTENZIONE: GTX 1660 ha solo ~6GB VRAM. Gemma 4 26B A4B in Q4 richiede ~8-16GB VRAM. Opzioni: (A) CPU inference via llama.cpp — fattibile con 64GB RAM ma lento (~2-5 tok/s), (B) Offload parziale GPU+CPU, (C) Upgrade GPU necessario per full GPU inference. Vedi phase_4 per dettagli."
+      },
+      "alternative_generation": {
+        "name": "Gemma 4 31B Dense",
+        "notes": "Più potente ma richiede ancora più VRAM (~19GB). NON fattibile su hardware attuale di Mirko."
+      }
+    },
+
+    "layer_2_cloud_optional": {
+      "name": "Estensione Cloud Multimodale (opzionale)",
+      "embedding_model": {
+        "name": "Gemini Embedding 2",
+        "model_id": "gemini-embedding-2-preview",
+        "status": "Public Preview (dal 10 marzo 2026)",
+        "modalities": ["text", "images", "video", "audio", "documents/PDF"],
+        "dimensions": "3072 (scalabile a 1536, 768 via MRL)",
+        "context_window": "8192 tokens (testo)",
+        "cost": "$0.20/M tokens (standard), $0.10/M (batch)",
+        "api": "Gemini API + Vertex AI",
+        "strengths": [
+          "#1 su MTEB multilingue (margine +5 punti)",
+          "Primo embedding nativo multimodale (non CLIP-style)",
+          "Cross-modal retrieval: query testo → risultato video/immagine",
+          "Un singolo endpoint sostituisce 3+ pipeline separate",
+          "Custom task instructions per ottimizzare per use case"
+        ],
+        "limitations": [
+          "Richiede connessione internet",
+          "Ancora in preview (non GA)",
+          "Richiede re-indexing se migri da altro embedding model",
+          "Costo ricorrente (anche se basso)"
+        ],
+        "use_cases_rooting_future": [
+          "Ricerca semantica su clip video di partite",
+          "Embedding di heatmap e grafici tattici",
+          "Ricerca cross-modale: query testuale → frame video pertinente",
+          "Analisi audio (commenti tecnici, interviste)"
+        ]
+      },
+      "generation_model": {
+        "name": "Gemini API (modello corrente già in uso: gemini-2.0-flash)",
+        "notes": "Layer 2 mantiene Gemini come generation model via API per i casi che richiedono multimodale o per quando la qualità locale non è sufficiente"
+      }
+    },
+
+    "migration_path": {
+      "step_1": {
+        "action": "Audit codebase con Claude Code (questo JSON come guida)",
+        "output": "Mappa completa del RAG attuale con bottleneck classificati",
+        "effort": "2-4 ore",
+        "status": "✅ COMPLETATO"
+      },
+      "step_2": {
+        "action": "Validazione con Gemini (JSON compilato come input)",
+        "output": "Conferma/correzione architetturale dall'ecosistema Google",
+        "effort": "30 min",
+        "status": "⏳ PROSSIMO"
+      },
+      "step_3": {
+        "action": "PoC Layer 1: EmbeddingGemma + ChromaDB + Gemma 4 26B locale",
+        "output": "Pipeline RAG funzionante su dati Rooting Future, zero cloud",
+        "effort": "1-2 giorni",
+        "deliverable": "Demo offline funzionante per incontro Nardoni",
+        "hardware_caveat": "Con GTX 1660 (6GB VRAM): usare CPU inference o modello più piccolo (Gemma 3 9B). Per full GPU inference serve upgrade a RTX 4060+ (8GB+)."
+      },
+      "step_4": {
+        "action": "Integrazione Layer 2: Gemini Embedding 2 per dati multimodali",
+        "output": "Pipeline estesa con cross-modal retrieval",
+        "effort": "2-3 giorni",
+        "trigger": "Solo quando/se servono embedding video/immagine"
+      },
+      "step_5": {
+        "action": "Fine-tuning EmbeddingGemma su corpus calcistico",
+        "output": "Embedding model specializzato per terminologia e concetti calcistici",
+        "effort": "1-2 giorni (dati permettendo)",
+        "trigger": "Post-validazione, quando il sistema base è stabile"
+      }
+    }
+  },
+
+  "phase_4_hardware_requirements": {
+    "minimum_viable": {
+      "description": "Setup minimo per Layer 1 completo (GPU inference)",
+      "ram": "16GB",
+      "vram": "8GB (GPU consumer, es. RTX 3060/4060)",
+      "storage": "20GB per modelli + dati",
+      "cpu": "Qualsiasi x86_64 moderno",
+      "os": "Linux / macOS / Windows",
+      "notes": "Con Gemma 4 26B A4B quantizzato Q4, solo 3.8B parametri attivi"
+    },
+    "recommended": {
+      "description": "Setup per performance ottimali",
+      "ram": "32GB",
+      "vram": "16GB+ (es. RTX 4070/4080)",
+      "storage": "50GB",
+      "notes": "Permette Gemma 4 31B Dense o quantizzazioni più alte"
+    },
+    "mirko_current_hardware": {
+      "cpu": "AMD Ryzen 7 7800X3D 8-Core (eccellente — 3D V-Cache ottimo per inferenza)",
+      "ram": "64GB DDR5 (2x 32GB)",
+      "gpu_primary": "NVIDIA GeForce GTX 1660 (~6GB VRAM)",
+      "gpu_secondary": "AMD Radeon Graphics (integrata iGPU — ~512MB, non usabile per inferenza AI)",
+      "os": "Windows 11 Pro N",
+      "storage": "Da verificare (SSD NVMe presumibile)",
+      "compatibility_assessment": {
+        "embedding_gemma_308M": "✅ PERFETTO — gira anche su CPU, <200MB RAM",
+        "chromadb": "✅ PERFETTO — libreria Python, zero requisiti GPU",
+        "gemma_4_26b_a4b_gpu": "⚠️ PROBLEMATICO — richiede 8-16GB VRAM, GTX 1660 ha solo ~6GB",
+        "gemma_4_26b_a4b_cpu": "✅ FATTIBILE MA LENTO — con 64GB RAM c'è spazio abbondante per CPU inference via llama.cpp/Ollama. Stima ~2-5 tok/s su Ryzen 7800X3D.",
+        "gemma_4_26b_a4b_hybrid": "✅ POSSIBILE — offload parziale: layer critici su GPU (6GB), resto su RAM. Performance ~3-8 tok/s.",
+        "gemma_3_9b_alternative": "✅ OTTIMO — Gemma 3 9B Q4 (~5GB) gira interamente su GTX 1660. Quality inferiore ma velocità molto migliore."
+      },
+      "recommendations": [
+        "OPZIONE A (zero costo): CPU inference Gemma 4 26B via Ollama — lento ma funziona con 64GB RAM. Buono per demo.",
+        "OPZIONE B (zero costo): Gemma 3 9B su GPU — gira sulla GTX 1660, veloce ma meno capace.",
+        "OPZIONE C (~€300-400): Upgrade a RTX 4060 Ti 16GB — sblocca GPU inference Gemma 4 26B e Gemma 4 31B Dense.",
+        "OPZIONE D (hybrid): Gemma 4 26B con offload GPU+CPU — compromesso tra velocità e qualità.",
+        "RACCOMANDAZIONE: Per la demo a Nardoni, usare Opzione A o B. Per produzione, considerare Opzione C."
+      ]
+    }
+  },
+
+  "phase_5_risk_analysis": {
+    "risks": [
+      {
+        "id": "RISK-001",
+        "description": "Gemma 4 è uscita il 2 aprile 2026 — 4 giorni fa. Community support e bug report ancora limitati",
+        "mitigation": "Usare Gemma 4 26B A4B che è la più testata. Mantenere fallback su Gemini API. Alternativa: usare Gemma 3 9B/27B (ben collaudata) come ponte.",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-002",
+        "description": "Gemini Embedding 2 è in Public Preview, non GA",
+        "mitigation": "Layer 2 è opzionale. Layer 1 funziona indipendentemente con EmbeddingGemma locale.",
+        "severity": "low"
+      },
+      {
+        "id": "RISK-003",
+        "description": "Re-indexing necessario se si cambia embedding model (da embedding-001 a EmbeddingGemma)",
+        "mitigation": "Shadow index: re-indicizzare in parallelo senza toccare produzione. Il DB SQLite attuale può coesistere con ChromaDB durante la migrazione.",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-004",
+        "description": "Performance RAG locale potrebbe essere inferiore a RAG-as-a-Service su query complesse",
+        "mitigation": "Benchmark A/B prima del cutover. Gemma 4 256K context compensa con più contesto. L'attuale sistema usa solo <1% del contesto disponibile (BN-009).",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-005",
+        "description": "Fine-tuning EmbeddingGemma su dati calcistici richiede dataset curato",
+        "mitigation": "Usare corpus esistente di Rooting Future (piani già generati in SQLite) + terminologia STW come training data.",
+        "severity": "low"
+      },
+      {
+        "id": "RISK-006",
+        "description": "GTX 1660 con 6GB VRAM insufficiente per Gemma 4 26B in full GPU mode",
+        "mitigation": "CPU inference (64GB RAM disponibili), hybrid offload, o downgrade a Gemma 3 9B per GPU inference. Upgrade GPU come investimento futuro.",
+        "severity": "high"
+      },
+      {
+        "id": "RISK-007",
+        "description": "Migrazione richiede refactoring significativo di knowledge_store.py e agents.py",
+        "mitigation": "Approccio incrementale: aggiungere ChromaDB come layer parallelo, poi gradualmente dismettere Gemini File Search Store. Non toccare generazione agenti fino a quando RAG locale è validato.",
+        "severity": "medium"
+      }
+    ]
+  },
+
+  "gemini_validation_prompt": {
+    "description": "Prompt suggerito per passare questo JSON a Gemini per validazione",
+    "prompt": "Sei un architetto AI specializzato nell'ecosistema Google (Gemma, Gemini, Vertex AI). Ti viene fornito un audit JSON COMPILATO di un sistema RAG per una piattaforma di scouting calcistico chiamata Rooting Future. Il sistema attuale usa RAG ibrido: Gemini File Search Store (cloud) + embedding locale (models/embedding-001) con cache pickle + SQLite. La proposta è migrare a un'architettura a due livelli: Layer 1 locale (EmbeddingGemma 308M + ChromaDB + Gemma 4 26B A4B) e Layer 2 cloud opzionale (Gemini Embedding 2). NOTA HARDWARE CRITICA: l'hardware disponibile ha GTX 1660 (6GB VRAM) + 64GB RAM + Ryzen 7 7800X3D. Analizza: 1) La fattibilità tecnica della migrazione dato l'hardware disponibile. 2) Eventuali incompatibilità o problemi non identificati. 3) Se l'architettura proposta sfrutta al meglio l'ecosistema Gemma/Gemini. 4) Raccomandazioni specifiche per il caso d'uso calcistico. 5) Costi comparativi stimati (attuale vs proposto). 6) Se Gemma 3 9B/27B è una migliore scelta ponte rispetto a Gemma 4 26B dato l'hardware. Rispondi in italiano con un JSON strutturato."
+  },
+
+  "codebase_file_map": {
+    "description": "Mappa dei file chiave del sistema RAG nel codebase",
+    "files": {
+      "config.py": {
+        "lines": "1-170+",
+        "role": "Configurazione centralizzata: API keys, ModelConfig (modello, embedding, chunk size), paths",
+        "rag_relevant_lines": "147-161 (ModelConfig), 106-107 (FILE_SEARCH_STORE_ID_PATH), 119-124 (API keys)"
+      },
+      "file_search_manager.py": {
+        "lines": "1-171",
+        "role": "Gestione Gemini File Search Store: creazione store, upload documenti",
+        "rag_relevant_lines": "23-146 (FileSearchManager class completa)"
+      },
+      "knowledge_store.py": {
+        "lines": "1-1500+",
+        "role": "Core RAG: SQLiteKnowledgeStore (DB), GeminiKnowledgeRAG (embedding+search), KnowledgeManager (orchestrazione)",
+        "rag_relevant_lines": "1055-1257 (GeminiKnowledgeRAG), 1263-1450 (KnowledgeManager)"
+      },
+      "agents.py": {
+        "lines": "1-1500+",
+        "role": "Multi-agent orchestration: 8 agenti specializzati, RAG context injection",
+        "rag_relevant_lines": "1046-1067 (RAG prompt injection), 1294-1309 (RAG context fetching in orchestrator)"
+      },
+      "web_research.py": {
+        "lines": "1-413",
+        "role": "Web research pipeline: Serper.dev + Tavily, caching, source evaluation"
+      },
+      "app.py": {
+        "lines": "576-611",
+        "role": "Flask app: inizializzazione FileSearchManager, KnowledgeManager, MultiAgentOrchestrator"
+      },
+      "data_models.py": {
+        "lines": "1-800+",
+        "role": "Modelli dati: Document, SearchResult, PlanRecord, DataPoint"
+      },
+      "structured_agent.py": {
+        "lines": "1-800+",
+        "role": "Generazione strutturata con Pydantic validation"
+      }
+    }
+  }
+}

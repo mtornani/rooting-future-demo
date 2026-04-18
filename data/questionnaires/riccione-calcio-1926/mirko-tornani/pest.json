@@ -1,0 +1,16 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "mirko-tornani",
+  "questionnaire": "pest",
+  "role": "board",
+  "display_name": "Mirko Tornani",
+  "data": {
+    "pest_grid": {
+      "politica": "Normative FIGC per club dilettanti in evoluzione. Incentivi regionali per sport giovanile.",
+      "economica": "Economia locale turistica, stagionale. Sponsor sensibili a visibilita' estiva.",
+      "sociale": "Denatalita' impatta settore giovanile. Forte identita' territoriale.",
+      "tecnologica": "Club in ritardo su digitalizzazione. Opportunita' social media per engagement."
+    }
+  },
+  "updated_at": "2026-04-16T18:15:23.967356"
+}

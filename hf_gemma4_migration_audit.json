@@ -1,0 +1,83 @@
+{
+  "audit_metadata": {
+    "project": "Rooting Future Strategy Engine",
+    "audit_type": "Hugging Face Gemma-4 Migration Audit",
+    "version": "1.0",
+    "date": "2026-04-06",
+    "objective": "Sostituire Gemini API con Gemma 4 via Hugging Face azzerando i costi API, mantenendo/migliorando il modulo RAG come servizio senza rompere l'architettura esistente.",
+    "target_model": "Gemma 4 (Hugging Face Serverless/Dedicated API)",
+    "current_model": "Gemini 2.0 Flash + embedding-001"
+  },
+
+  "current_architecture_analysis": {
+    "generation": {
+      "provider": "Google Gemini API (google-genai)",
+      "model": "gemini-2.0-flash",
+      "cost": "Legato al volume di token (pay-per-use)"
+    },
+    "rag_and_file_search": {
+      "mechanism": "Livello Ibrido",
+      "cloud_layer": "Gemini File Search Store (upload di txt, indicizzazione cloud, recupero nativo da Gemini).",
+      "local_layer": "SQLite (strutturato) + Cache pickle di Embedding locali (models/embedding-001).",
+      "dependency": "L'attuale File Search Manager dipende pesantemente dalle API Google per la memorizzazione e ricerca vettoriale."
+    },
+    "impact_of_removal": "Rimuovere l'API key di Gemini romperà `file_search_manager.py` (linea 30-45) e `knowledge_store.py` che utilizzano `genai.Client`. Attualmente senza Gemini API, il sistema degrada a keyword fallback disabilitando le generazioni AI."
+  },
+
+  "hugging_face_target_architecture": {
+    "1_generation_engine": {
+      "provider": "Hugging Face Inference API / Inference Endpoints",
+      "model_reference": "Gemma 4",
+      "integration": "Utilizzo del client `huggingface_hub` o libreria standard `openai` configurata verso API Hugging Face (molti endpoint HF supportano l'API openai-compatible).",
+      "cost": "Zero (su tier free Serverless) o tariffa oraria calcolabile su Dedicated Endpoint.",
+      "advantages": "Modello open-weight di massima qualità, controllo totale sull'endpoint."
+    },
+    "2_rag_as_a_service_replacement": {
+      "concept": "Poiché Hugging Face non ha nativamente un 'File Search Store' stateful come Google, il RAG come servizio deve essere disaccoppiato in un modulo locale o integrato, mantenendo l'involucro dell'attuale `file_search_manager.py` intatto.",
+      "embedding_model": "Spostamento da `embedding-001` a Hugging Face API (`feature-extraction`) OPPURE embedder locale via `sentence-transformers` (es. `nomic-ai/nomic-embed-text-v1.5` o `BAAI/bge-m3` multilingua). L'embedder locale su CPU/GPU (6GB VRAM è sufficiente per embedding) offre latenza zero e costo zero assoluto.",
+      "vector_store": "ChromaDB (locale). Sostituirà la black-box di Gemini File Search e la scomoda cache `embeddings.pkl`.",
+      "adapter_pattern": "Creare un wrapper `HuggingFaceRAGManager` che esporta la stessa interfaccia di `FileSearchManager`: `upload_file()`, `get_context()`. L'upload leggerà il txt e lo metterà in ChromaDB."
+    }
+  },
+
+  "migration_plan_non_breaking": {
+    "step_1_config_update": {
+      "action": "Aggiungere `HF_TOKEN` in `.env` e `config.py`.",
+      "action_2": "Impostare una variabile `AI_PROVIDER = 'hugging_face'` per effettuare il routing intelligente nel codice esistente senza rimuovere fisicamente la logica Legacy (evita di rompere il codice)."
+    },
+    "step_2_file_search_adapter": {
+      "action": "Riscrivere o estendere `file_search_manager.py`.",
+      "implementation": "Se `AI_PROVIDER == 'hugging_face'`, `FileSearchManager` utilizzerà `ChromaDB` per memorizzare i segmenti e un embedder locale (o HF API) per vettorizzare. Gli stessi input (file di testo) produrranno la stessa output (testo contesto).",
+      "benefit": "Nessun impatto su `agents.py` o `knowledge_store.py`."
+    },
+    "step_3_llm_generation_adapter": {
+      "action": "Adeguare i metodi di call LLM in `agents.py`.",
+      "implementation": "Sostituire `client.models.generate_content` di google-genai con una call compatibile a Hugging Face (es. libreria `openai` con `base_url` verso HF). Gemma 4 supporta bene la generazione strutturata simile a quella usata dagli agenti."
+    },
+    "step_4_knowledge_store_refactor": {
+      "action": "Sostituire l'uso di `models/embedding-001` hardcodedato in `knowledge_store.py` con il nuovo embedder scelto.",
+      "implementation": "Mantenere SQLite per rintracciare i metadata (pianificazione, club, id), usare ChromaDB al posto di pickle per la similarity search."
+    }
+  },
+
+  "risks_and_mitigations": {
+    "risk_1_rate_limits": {
+      "description": "L'API gratuita di Hugging Face (Serverless) ha severe rate limits.",
+      "mitigation": "Un endpoint dedicato HF (pagato a ore) o un fallback. Alternativamente, usare HF Serverless con policy di backoff exp."
+    },
+    "risk_2_rag_performance": {
+      "description": "Gemini indicizzava automaticamente i file grossi. Con HF+Chroma serve implementare un light text-chunking (sliding window) nell'adapter locale.",
+      "mitigation": "Usare librerie standard come `langchain_text_splitters` per garantire il chunking di alta qualità prima di iniettare in ChromaDB."
+    },
+    "risk_3_prompt_compatibility": {
+      "description": "I prompt di `agents.py` e l'injection system sono fortemente tuneti per Gemini 2.0 Flash.",
+      "mitigation": "Gemma 4 ha logiche simili essendo della stessa 'famiglia'. Richiederà piccoli fine-tuning nel format di sistema ma rispetterà il json in output."
+    }
+  },
+  
+  "cost_analysis": {
+    "current_stack": "Gemini API: Pay-per-token (~$0.05 a sessione), File Search Store (temporaneamente gratis, in futuro a pagamento).",
+    "target_stack_serverless": "Hugging Face Inference (Free Tier): $0, Embedding Locali: $0. Costo totale: $0.",
+    "target_stack_dedicated": "HF Endpoint (se necessario per alti volumi): ~$0.5 - $1 per ora di accensione. Azzeramento del pay-per-token."
+  }
+}

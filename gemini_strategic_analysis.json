@@ -1,0 +1,65 @@
+{
+  "project_context": {
+    "name": "Rooting Future",
+    "version": "6.0",
+    "tagline": "AI-powered Strategic Planning Engine for Football Clubs",
+    "core_value": "Democratizing high-level sports consultancy through an AI multi-agent orchestrator."
+  },
+  "strategic_analysis": {
+    "reverse_engineering": {
+      "ideal_client_profile": {
+        "persona": "The Ambitious Traditionalist (Eccellenza/Serie D club)",
+        "core_issue": "Structural Friction: stagnant growth despite long history",
+        "pain_points": [
+          "Board operating on 'gut feeling' rather than data",
+          "Inconsistent sponsorships and talent leakage"
+        ],
+        "technical_readiness": "Uses WhatsApp and mobile forms, but cannot build internal systems"
+      },
+      "market_segments_priority": [
+        "1. Top-Tier Semi-Pro (Serie D / Eccellenza)",
+        "2. Professional Academies (Serie B/C Youth Sectors)",
+        "3. Multi-Sport Hubs (Polisportive)"
+      ],
+      "primary_trigger_events": [
+        "Legacy Shift: New President/Board signaling a 'New Era'",
+        "Sponsor Glass Ceiling: Major sponsor requiring a multi-year plan for funding",
+        "Category Transition: Recent promotion requiring stricter structural compliance"
+      ]
+    },
+    "funnel_design": {
+      "acquisition_funnel": {
+        "awareness": "Focus on outcomes (3-Year Roadmap in 60 mins) via LinkedIn/Facebook",
+        "consideration_hook": "5-minute mini-form generating a 1-page SWOT analysis",
+        "pricing_strategy": {
+          "model": "Hybrid Anchor (Plan + Pulse)",
+          "tiers": {
+            "draft": "Free/Low Cost Basic executive summary",
+            "master_stw": "One-shot full 30-50 page document (PDF/DOCX)",
+            "navigator": "Subscription-based quarterly AI-driven reviews"
+          }
+        },
+        "recall_tactics": {
+          "locker_room_nurturing": "Monthly benchmarking reports on Serie D/Eccellenza trends",
+          "webinar": "Strategy sessions featuring Riccione Calcio 1926 case study"
+        }
+      }
+    },
+    "go_to_market": {
+      "distribution_channels": [
+        "Regional Committees (LND): Digital Innovation Partner",
+        "Software Ecosystems: Integration with OB1 Scout or Global Radar",
+        "Shadow Consultant Network: Tooling for independent Sports Directors (DS)"
+      ],
+      "case_study_leverage": {
+        "subject": "Riccione Calcio 1926",
+        "social_proof": "39 documents collected and transition to mobile-first efficiency",
+        "ab_test_narrative": "Gemini for High-Quality Premium tier vs. Gemma 3:27b for Accessible tier"
+      }
+    }
+  },
+  "technical_recommendations_v6": {
+    "flow_improvement": "Integration of a 'Consistency Agent' between priority 1 and 2",
+    "agent_logic": "Ensure 'STW Sportivi Analyst' goals are automatically flagged by 'Financial Strategist' for budget alignment"
+  }
+}

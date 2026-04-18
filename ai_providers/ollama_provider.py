@@ -51,7 +51,7 @@ class OllamaGenerationProvider(GenerationProvider):
             base_url
             or os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
         ).rstrip("/")
-        self._model = model or os.environ.get("OLLAMA_MODEL", "gemma4:26b")
+        self._model = model or os.environ.get("OLLAMA_MODEL", "gemma3:27b")
         self._api_key = api_key or os.environ.get("OLLAMA_API_KEY", "")
         self._available = False
         self._client = None
@@ -70,6 +70,7 @@ class OllamaGenerationProvider(GenerationProvider):
                 "api_key": self._api_key or "ollama",  # Ollama locale accetta qualsiasi stringa
                 "timeout": self.TIMEOUT,
             }
+            client_kwargs["max_retries"] = 3  # Ollama cloud droppa prima connessione
             self._client = _OpenAI(**client_kwargs)
             self._available = True
             logger.info(
@@ -134,8 +135,8 @@ class OllamaGenerationProvider(GenerationProvider):
                 is_rate_limit = "429" in err_str or "rate" in err_str.lower() or "Rate" in err_str
                 if is_rate_limit and attempt < max_retries - 1:
                     wait = backoff[min(attempt, len(backoff) - 1)]
-                    logger.warning(f"OllamaGenerationProvider: rate limit (attempt {attempt+1}/{max_retries}), attendo {wait}s…")
-                    print(f"    [rate limit] attendo {wait}s prima di riprovare…")
+                    logger.warning(f"OllamaGenerationProvider: rate limit (attempt {attempt+1}/{max_retries}), attendo {wait}s...")
+                    print(f"    [rate limit] attendo {wait}s prima di riprovare...")
                     time.sleep(wait)
                     continue
                 break

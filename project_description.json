@@ -1,0 +1,243 @@
+{
+  "project": {
+    "name": "Rooting Future",
+    "version": "6.0",
+    "tagline": "AI-powered Strategic Planning Engine for Football Clubs",
+    "description": "Sistema multi-agente AI che genera piani strategici professionali per societa' calcistiche. Analizza dati del club tramite questionari strutturati compilati dal board, produce documenti STW (Sportivi, Strutturali, Marketing, Sociali) con piano triennale completo.",
+    "founders": ["Mirko Tornani"],
+    "partners_methodology": "09/03 meeting: Bobe/Dati/Mirko/Andrea",
+    "status": "MVP funzionante, in fase di produttizzazione"
+  },
+
+  "product": {
+    "what_it_does": "Genera un Piano Strategico Triennale completo per club calcistici, basato su dati raccolti dal board e analisi AI multi-agente",
+    "output_document": {
+      "name": "Documento STW (Piano Strategico)",
+      "sections": [
+        "Executive Summary",
+        "STW Sportivi (8 macro-obiettivi con sotto-obiettivi)",
+        "STW Strutturali (infrastrutture, risorse, governance)",
+        "STW Marketing (brand, comunicazione, revenue)",
+        "STW Sociali (stakeholders, territorio, responsabilita' sociale)",
+        "Piano Finanziario"
+      ],
+      "output_formats": ["HTML interattivo", "PDF", "DOCX", "One-Pager Executive"],
+      "length_target": "30-50 pagine equivalenti",
+      "timeline_covered": "Piano triennale (es. 2025-2028)"
+    },
+    "differentiators": [
+      "100% AI-driven: genera in minuti quello che consulenti fanno in mesi",
+      "Costo zero per il motore AI (Ollama cloud + gemma3:27b)",
+      "Multi-agente: 6 agenti specializzati lavorano in parallelo",
+      "Basato su metodologia STW reale usata nella consulenza sportiva",
+      "Questionari digitali mobile-first: board compila da telefono",
+      "Comparabile a output di consulenza da 15-30k EUR"
+    ]
+  },
+
+  "technology_stack": {
+    "backend": "Python/Flask",
+    "ai_engines": {
+      "primary_commercial": {
+        "provider": "Google Gemini",
+        "model": "gemini-2.5-flash",
+        "use_case": "Generazione ad alta qualita', RAG con File Search",
+        "cost": "Pay-per-use (basso per flash)"
+      },
+      "primary_opensource": {
+        "provider": "Ollama Cloud",
+        "model": "gemma3:27b",
+        "use_case": "Generazione a costo zero, scaricabile localmente",
+        "cost": "Gratuito",
+        "stability_fix": "max_retries=3 su OpenAI SDK"
+      }
+    },
+    "architecture_variants": {
+      "v1_legacy": "Gemini + RAG (vector embeddings + File Search)",
+      "v2_wiki": "gemma3:27b + Wiki (markdown knowledge base, no embeddings)"
+    },
+    "multi_agent_system": {
+      "orchestrator": "MultiAgentOrchestrator con priorita' e parallelismo",
+      "agents": [
+        {"role": "Strategic Coordinator", "output": "Executive Summary", "priority": 0},
+        {"role": "STW Sportivi Analyst", "output": "8 macro-obiettivi sportivi", "priority": 1},
+        {"role": "STW Strutturali Analyst", "output": "Infrastrutture e governance", "priority": 1},
+        {"role": "STW Marketing Analyst", "output": "Brand, comunicazione, revenue", "priority": 1},
+        {"role": "STW Sociali Analyst", "output": "Stakeholders e territorio", "priority": 1},
+        {"role": "Financial Strategist", "output": "Piano finanziario", "priority": 2}
+      ]
+    },
+    "data_ingestion": {
+      "old_flow": "Board compila DOCX → upload → python-docx parsing → markdown → AI",
+      "new_flow": "Board compila form HTML su telefono → JSON → markdown → wiki → AI",
+      "questionnaires": [
+        {"id": "valori-fondamenta", "title": "Valori e Fondamenta", "fields": 5, "type": "Identita' club"},
+        {"id": "vision", "title": "Visione", "fields": 4, "type": "Proiezione futuro"},
+        {"id": "mission", "title": "Missione", "fields": 6, "type": "Obiettivi breve periodo"},
+        {"id": "swot", "title": "Analisi SWOT", "fields": 4, "type": "Forze/Debolezze/Opportunita'/Minacce"},
+        {"id": "competitors", "title": "Analisi Competitors", "fields": 4, "repeatable": true, "type": "Concorrenza diretta/indiretta"},
+        {"id": "pest", "title": "Analisi PEST", "fields": 4, "type": "Contesto Politico/Economico/Sociale/Tecnologico"},
+        {"id": "stakeholders", "title": "Analisi Stakeholders", "fields": 5, "repeatable": true, "type": "Portatori di interesse"},
+        {"id": "risorse", "title": "Analisi Risorse", "fields": 4, "repeatable": true, "type": "Risorse Umane/Strutturali/Patrimoniali"}
+      ],
+      "who_compiles": "Ogni membro del Board + collaboratori compilano individualmente tutti gli 8 questionari",
+      "compilation_time_estimate": "30-60 minuti per persona"
+    },
+    "deployment": {
+      "current": "Flask locale con SSL + Tailscale (raggiungibile da mobile)",
+      "target": "Always-on cloud (Oracle Free Tier o Koyeb)",
+      "pwa": true,
+      "mobile_first": true
+    }
+  },
+
+  "business_model": {
+    "target_market": {
+      "primary": "Club calcistici dilettanti italiani (Eccellenza, Promozione, Serie D)",
+      "secondary": "Club calcistici professionistici minori (Serie C, Serie B)",
+      "tertiary": "Club calcistici internazionali (qualsiasi livello)",
+      "total_addressable_market_italy": "Circa 12.000 societa' calcistiche affiliate FIGC",
+      "serviceable_market": "Circa 2.000 club con struttura organizzativa (Eccellenza+)"
+    },
+    "pricing_hypothesis": {
+      "note": "Da definire — il disegno mostra 'sviluppo ed invio risultato dopo il pagamento'",
+      "comparable_consulting_cost": "15.000-30.000 EUR per piano strategico triennale da consulenti",
+      "ai_cost_per_plan": "Praticamente zero con Ollama, pochi centesimi con Gemini Flash"
+    },
+    "delivery_model": "SaaS self-service: board compila questionari, sistema genera piano automaticamente"
+  },
+
+  "customer_journey_sketch": {
+    "source": "Disegno a mano del 09/03 (Bobe/Dati/Mirko/Andrea)",
+    "funnel_stages": {
+      "awareness": {
+        "touchpoints": [
+          "Promozione nuovi prodotti",
+          "Contenuti (articoli, case study)",
+          "Incentivi (prova gratuita?)",
+          "Novita' / Video",
+          "Richiesta contatto diretta",
+          "Punti di forza mostrati",
+          "Risultati (portfolio piani generati)",
+          "Esempi concreti"
+        ],
+        "goal": "Portare il potenziale cliente a VISITARE la piattaforma"
+      },
+      "consideration": {
+        "action": "VISITA alla piattaforma",
+        "decision_point": "Clicca SI (procede) o Clicca NO (abbandona)",
+        "if_no": {
+          "action": "RECALL — Tentativo di fidelizzazione",
+          "tactics": "Email nurturing, contenuti aggiuntivi, demo personalizzata, follow-up telefonico"
+        }
+      },
+      "activation": {
+        "if_yes": {
+          "step_1": "Compilazione documenti (8 questionari digitali)",
+          "step_2": "Inserimento dati societari",
+          "note": "Il disegno mostra un ciclo tra compilazione documenti e dati societari — processo iterativo con il board"
+        }
+      },
+      "conversion": {
+        "action": "Produzione Documento STW (piano strategico generato dall'AI)",
+        "trigger": "Completamento questionari + eventuale pagamento"
+      },
+      "delivery": {
+        "action": "Sviluppo ed invio risultato DOPO il pagamento",
+        "output": "Piano Strategico Triennale completo"
+      },
+      "retention": {
+        "question_from_sketch": "3 ANNI?",
+        "interpretation": "Il piano copre 3 anni — possibilita' di rinnovo/aggiornamento annuale? Monitoraggio implementazione?"
+      }
+    }
+  },
+
+  "ideal_client_profile": {
+    "note": "DA REVERSE-ENGINEERARE DA GEMINI — dati sotto sono ipotesi iniziali",
+    "demographics": {
+      "type": "Societa' calcistica italiana",
+      "category": "Eccellenza, Promozione, Serie D (dilettanti strutturati)",
+      "board_size": "3-8 persone",
+      "budget_annuale": "100k-500k EUR",
+      "location": "Italia, preferibilmente centri medio-piccoli con forte identita' locale",
+      "foundation": "Club con almeno 10-20 anni di storia"
+    },
+    "psychographics": {
+      "ambition": "Vogliono crescere ma non hanno strumenti strategici",
+      "pain_points": [
+        "Non hanno mai fatto un piano strategico formale",
+        "Non possono permettersi consulenti a 15-30k",
+        "Il board ha idee diverse ma non un documento unificante",
+        "Perdono sponsor perche' non dimostrano visione a lungo termine",
+        "Settore giovanile non valorizzato strategicamente"
+      ],
+      "triggers": [
+        "Nuovo presidente/board vuole dare direzione",
+        "Retrocessione o crisi che forza riflessione",
+        "Opportunita' di promozione che richiede pianificazione",
+        "Richiesta da federazione/lega di documenti strategici",
+        "Sponsor importante chiede piano prima di investire"
+      ]
+    },
+    "behavioral": {
+      "digital_maturity": "Media-bassa (usano WhatsApp, qualche social, sito web base)",
+      "decision_making": "Collegiale ma spesso dominata da presidente",
+      "time_availability": "Limitata — tutti volontari o semi-professionisti",
+      "willingness_to_pay": "Sensibili al prezzo, ma riconoscono valore se dimostrato"
+    }
+  },
+
+  "competitive_landscape": {
+    "direct_competitors": [
+      {
+        "name": "Consulenti strategici sportivi tradizionali",
+        "price": "15.000-50.000 EUR",
+        "time": "3-6 mesi",
+        "weakness": "Costo proibitivo per dilettanti"
+      },
+      {
+        "name": "FIFA/UEFA Club Licensing frameworks",
+        "price": "Gratuito (template)",
+        "weakness": "Generico, non personalizzato, non AI-driven"
+      }
+    ],
+    "indirect_competitors": [
+      "Commercialisti/consulenti generici che fanno business plan",
+      "Template business plan sportivi (PDF statici)",
+      "Nessuno — mercato praticamente vuoto per AI + sport dilettantistico"
+    ],
+    "moat": "Primo mover in AI strategy per calcio dilettante + costo zero motore AI"
+  },
+
+  "open_questions_for_gemini": {
+    "reverse_engineering": [
+      "Qual e' il profilo ideale del cliente tipo che trarrebbe massimo valore dal prodotto?",
+      "Quali sono i 3 segmenti di mercato piu' promettenti in ordine di priorita'?",
+      "Qual e' il trigger event piu' comune che porta un club a cercare pianificazione strategica?"
+    ],
+    "funnel_design": [
+      "Quale funnel di acquisizione e' ottimale dato il target (bassa digital maturity, budget limitato)?",
+      "Quali contenuti/incentivi funzionano meglio per awareness nel mondo calcio dilettante?",
+      "Come strutturare il pricing: freemium, one-shot, subscription annuale?",
+      "Come gestire il RECALL (chi clicca NO): quali tattiche di nurturing per calcio dilettante?",
+      "Il modello '3 ANNI' suggerisce subscription o aggiornamento periodico — quale conviene?"
+    ],
+    "go_to_market": [
+      "Canali di distribuzione: federazioni regionali? Fiere settore? Social? Passaparola?",
+      "Partnership strategiche: FIGC, Lega Nazionale Dilettanti, associazioni dirigenti sportivi?",
+      "Caso studio iniziale: Riccione Calcio 1926 come testimonial — come sfruttarlo?"
+    ]
+  },
+
+  "current_case_study": {
+    "club": "Riccione Calcio 1926",
+    "category": "Eccellenza Emilia-Romagna",
+    "board_members_interviewed": ["Brisigotti", "Batani", "Carnevali", "Cesarini", "Veschi"],
+    "documents_collected": 39,
+    "questionnaire_types": 8,
+    "plan_generated": true,
+    "ab_test_completed": true,
+    "ab_test_result": "Gemini produce output piu' lungo, Ollama/gemma3:27b produce output competitivo dopo tuning prompt"
+  }
+}

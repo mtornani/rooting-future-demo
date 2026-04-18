@@ -282,12 +282,13 @@ class AsyncGeminiClient:
 # =============================================================================
 
 class AgentRole(Enum):
-    """Ruoli degli agenti allineati alle 4 categorie STW + coordinator"""
+    """Ruoli degli agenti allineati alle 4 categorie STW + coordinator + consistency"""
     COORDINATOR = "coordinator"           # Executive Summary
     STW_SPORTIVI = "stw_sportivi"         # ⚽ Obiettivi Sportivi (8 MACRO)
     STW_STRUTTURALI = "stw_strutturali"   # 🏗️ Obiettivi Strutturali (2 MACRO)
     STW_MARKETING = "stw_marketing"       # 📢 Obiettivi Marketing (4 MACRO)
     STW_SOCIALI = "stw_sociali"           # 🤝 Obiettivi Sociali (7 MACRO)
+    CONSISTENCY = "consistency"           # Allineamento inter-sezione
     FINANCIAL = "financial"               # Piano Economico-Finanziario
 
 
@@ -463,6 +464,7 @@ Sei l'ANALISTA AREA SPORTIVA STW. Redigi la sezione OBIETTIVI SPORTIVI secondo l
 - Ogni MICRO deve avere: situazione attuale, gap, azione proposta, KPI
 - Dati mancanti: `(dato da acquisire)`
 - Voce istituzionale: "Il Club prevede...", "La Società implementerà..."
+- IMPORTANTE: Devi completare TUTTE le 8 MACRO con TUTTI i sotto-obiettivi elencati. Non fermarti dopo le prime 2-3 MACRO. Genera almeno 8000 caratteri.
 """
     ),
 
@@ -681,13 +683,59 @@ Sei l'ANALISTA AREA SOCIALE STW. Redigi la sezione OBIETTIVI SOCIALI secondo la 
     ),
 
     # =========================================================================
+    # CONSISTENCY - Allineamento inter-sezione (Gemini recommendation)
+    # Gira DOPO le 4 aree STW, PRIMA del Financial
+    # =========================================================================
+    AgentRole.CONSISTENCY: AgentSpec(
+        role=AgentRole.CONSISTENCY,
+        name="Consistency Reviewer",
+        expertise=["coerenza strategica", "allineamento obiettivi", "cross-reference"],
+        priority=4,
+        output_sections=["consistency_review"],
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+Sei il REVISORE DI COERENZA. Analizzi le 4 sezioni STW gia' generate e produci:
+
+**STRUTTURA OBBLIGATORIA:**
+
+## ANALISI DI COERENZA INTER-SEZIONE
+
+### 1. ALLINEAMENTO OBIETTIVI
+Per ogni obiettivo sportivo, verifica che:
+- Esista un supporto strutturale corrispondente
+- Esista una strategia marketing collegata
+- Esista un impatto sociale previsto
+
+### 2. CONFLITTI RILEVATI
+Elenca eventuali contraddizioni tra sezioni:
+- Obiettivi sportivi non supportati da risorse strutturali
+- Strategie marketing non allineate alla mission
+- Impegni sociali senza copertura finanziaria prevista
+
+### 3. RACCOMANDAZIONI DI ALLINEAMENTO
+Per ogni conflitto, suggerisci come riconciliare le sezioni.
+
+### 4. FLAG PER FINANCIAL STRATEGIST
+Elenca gli obiettivi che richiedono budget specifico, organizzati per priorita':
+- **Priorita' 1 (Anno 1)**: [obiettivi urgenti]
+- **Priorita' 2 (Anno 2)**: [obiettivi di consolidamento]
+- **Priorita' 3 (Anno 3)**: [obiettivi di crescita]
+
+**REGOLE:**
+- Riferisciti SEMPRE ai codici MACRO delle sezioni STW
+- Non riscrivere le sezioni, solo analizzare coerenza
+- Sii specifico: cita obiettivi per nome/codice
+- Voce istituzionale
+"""
+    ),
+
+    # =========================================================================
     # FINANCIAL - Piano Economico-Finanziario
     # =========================================================================
     AgentRole.FINANCIAL: AgentSpec(
         role=AgentRole.FINANCIAL,
         name="Financial Strategist",
         expertise=["bilancio", "budget", "investimenti", "sostenibilità economica", "proiezioni"],
-        priority=5,
+        priority=6,
         output_sections=["financial_plan"],
         system_prompt=GLOBAL_VOICE_DIRECTIVE + """
 Sei lo STRATEGA FINANZIARIO. Redigi il PIANO ECONOMICO-FINANZIARIO a supporto della Matrice STW.

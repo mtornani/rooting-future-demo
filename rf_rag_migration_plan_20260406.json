@@ -1,0 +1,492 @@
+{
+  "metadata": {
+    "project": "Rooting Future",
+    "document_type": "RAG Migration Plan + HF Spaces Architecture",
+    "version": "2.0",
+    "created_at": "2026-04-06",
+    "created_by": "Claude Opus 4.6 + Mirko Tornani",
+    "purpose": "Piano di migrazione RAG con architettura a 3 ambienti (locale, HF Spaces, ibrido) — pronto per validazione Gemini e presentazione Nardoni",
+    "companion_file": "rf_rag_audit_COMPILED_20260406.json (audit dettagliato dello stato attuale)"
+  },
+
+  "current_state_summary": {
+    "description": "Sintesi dell'audit completato — stato reale del RAG nel codebase v5.4",
+
+    "rag_stack": {
+      "embedding": "models/embedding-001 (Gemini API, proprietario, non fine-tunabile)",
+      "vector_store": "Pickle cache locale (embeddings.pkl) + SQLite (knowledge.db)",
+      "cloud_index": "Gemini File Search Store (upload .txt, indicizzazione automatica)",
+      "generation": "gemini-2.0-flash (8 agenti specializzati, 0.7 temp, 8192 max_tokens)",
+      "web_research": "Serper.dev (primario) + Tavily (fallback), cache 24h"
+    },
+
+    "hf_spaces_status": {
+      "url": "https://huggingface.co/spaces/mtornani/rooting-future",
+      "branch": "hf-clean",
+      "git_remote": "hf: https://huggingface.co/spaces/mtornani/rooting-future",
+      "sdk": "docker",
+      "port": 7860,
+      "workers": "2 gunicorn workers, 4 threads, 300s timeout",
+      "auth": "simple_auth.py (session-based, SHA256, SameSite=None per iframe)",
+      "license_bypass": "HF_SPACES=1 env var → skip HWID license check",
+      "env_vars_required": ["GEMINI_API_KEY", "SERPER_API_KEY (opzionale)", "TAVILY_API_KEY (opzionale)"],
+      "issues_resolved": [
+        "Cookie persistence in iframe (SameSite=None + Secure + ProxyFix)",
+        "Flask-Login → simple session auth (commit 4c21985)",
+        "License check bypass per cloud (commit e259174)",
+        "System deps WeasyPrint/pycairo in Docker (commit 5f98d1f, 5492989)"
+      ],
+      "cost": "€0/mese (free tier HF Spaces)"
+    },
+
+    "critical_bottlenecks": [
+      {"id": "BN-001", "severity": "high", "issue": "Vendor lock totale su Google Gemini (embedding + generazione + File Search)"},
+      {"id": "BN-006", "severity": "high", "issue": "Zero capacità offline — senza internet niente generazione"},
+      {"id": "BN-007", "severity": "medium", "issue": "Piani strategici uploadati su Google Cloud (data privacy)"},
+      {"id": "BN-004", "severity": "medium", "issue": "Embedding non ottimizzabile per terminologia calcistica"},
+      {"id": "BN-005", "severity": "medium", "issue": "Pickle cache non scalabile (cresce linearmente, no eviction)"}
+    ]
+  },
+
+  "hardware_context": {
+    "current": {
+      "cpu": "AMD Ryzen 7 7800X3D 8-Core (3D V-Cache — eccellente per inferenza)",
+      "ram": "64GB DDR5 (2x 32GB)",
+      "gpu": "NVIDIA GeForce GTX 1660 (~6GB VRAM)",
+      "os": "Windows 11 Pro N",
+      "assessment": "CPU e RAM eccellenti. GPU insufficiente per Gemma 4 26B GPU-only ma sufficiente per CPU inference con 64GB RAM."
+    },
+    "planned_upgrade": {
+      "trigger": "Acquisto GPU per GTA 6 (uscita prevista autunno 2026)",
+      "expected_gpu_range": "RTX 4070 Ti (12GB) — RTX 4080 Super (16GB) — RTX 5070 (12-16GB)",
+      "impact_on_rag": "Qualsiasi GPU ≥12GB VRAM sblocca Gemma 4 26B A4B in full GPU mode (~15-30 tok/s). Con 16GB VRAM anche Gemma 4 31B Dense diventa fattibile.",
+      "recommendation": "Se scegli RTX con ≥16GB VRAM, hai il setup perfetto per AI locale + gaming. RTX 4070 Ti Super (16GB) o RTX 5070 (atteso 16GB) sono il sweet spot."
+    },
+    "phases": {
+      "phase_a_now": "GTX 1660 → CPU inference Gemma 4 26B (lento, ~2-5 tok/s) OPPURE Gemma 3 9B su GPU (veloce, qualità inferiore)",
+      "phase_b_post_upgrade": "RTX ≥12GB → GPU inference Gemma 4 26B A4B (~15-30 tok/s) — produzione locale piena"
+    }
+  },
+
+  "proposed_architecture": {
+    "description": "Architettura a 3 ambienti con RAG locale + HF Spaces come distribuzione cloud gratuita",
+
+    "environments": {
+      "env_1_local_dev": {
+        "name": "Sviluppo & Demo Locale (PC Mirko)",
+        "description": "RAG 100% locale, zero cloud, zero costi. Per sviluppo, testing, demo offline a Nardoni.",
+        "stack": {
+          "embedding": "EmbeddingGemma (308M, Apache 2.0, 768 dim, <200MB RAM)",
+          "vector_store": "ChromaDB (locale, persistente su disco, zero config)",
+          "generation": {
+            "phase_a": "Gemma 4 26B A4B via Ollama (CPU inference, ~2-5 tok/s con 64GB RAM)",
+            "phase_b": "Gemma 4 26B A4B via Ollama (GPU inference post-upgrade, ~15-30 tok/s)",
+            "fallback": "Gemma 3 9B via Ollama (GPU inference su GTX 1660, ~20-40 tok/s)"
+          },
+          "web_research": "Opzionale (Serper/Tavily se online, skip se offline)"
+        },
+        "cost": "€0 ricorrenti",
+        "pros": ["Zero dipendenze cloud", "Data privacy totale", "Fine-tuning possibile", "Demo offline"],
+        "cons": ["Velocità limitata pre-upgrade GPU", "Setup iniziale richiede download modelli (~15-20GB)"]
+      },
+
+      "env_2_hf_spaces": {
+        "name": "Produzione Cloud — HF Spaces (già attivo)",
+        "description": "Distribuzione gratuita per utenti/clienti. Usa API cloud per generazione (inevitabile su free tier HF senza GPU).",
+        "stack": {
+          "embedding": {
+            "option_a": "EmbeddingGemma via CPU nel container Docker (308M, gira su qualsiasi CPU)",
+            "option_b": "Gemini Embedding 2 via API (se servono embedding multimodali)",
+            "recommendation": "Option A — EmbeddingGemma è abbastanza piccolo da girare in CPU nel container HF senza GPU dedicata"
+          },
+          "vector_store": "ChromaDB in-container (persistenza su HF Spaces persistent storage /data)",
+          "generation": {
+            "primary": "Gemini 2.0 Flash via API (come ora — necessario, HF free tier non ha GPU)",
+            "alternative": "OpenRouter API (modelli gratuiti: Gemma 3 27B, DeepSeek V3, Llama 4 — già configurato in config.py)",
+            "future": "HF Inference Endpoints con Gemma 4 26B (a pagamento, ~$0.60/h su A10G)"
+          },
+          "web_research": "Serper.dev + Tavily (come ora)"
+        },
+        "deployment": {
+          "docker": "Dockerfile esistente (python:3.11-slim, porta 7860)",
+          "env_vars": ["GEMINI_API_KEY", "SERPER_API_KEY", "TAVILY_API_KEY", "HF_SPACES=1"],
+          "persistent_storage": "/data (ChromaDB + SQLite — sopravvive a rebuild container)",
+          "branch": "hf-clean",
+          "push_command": "git push hf hf-clean:main"
+        },
+        "cost": "€0/mese (free tier) — solo costi API Gemini (~€1-5/mese per uso moderato)",
+        "pros": ["Accessibile da browser ovunque", "Zero infrastruttura da gestire", "Free tier generoso", "Già funzionante"],
+        "cons": ["Generazione richiede API cloud (no GPU su free tier)", "Cold start ~30-60s", "2 vCPU + 16GB RAM (free tier)"]
+      },
+
+      "env_3_hf_spaces_pro": {
+        "name": "Produzione Cloud Potenziata — HF Spaces Pro (futuro)",
+        "description": "Upgrade opzionale quando il business lo giustifica. GPU dedicata su HF = RAG 100% on-platform.",
+        "stack": {
+          "embedding": "EmbeddingGemma (CPU, come env_2)",
+          "vector_store": "ChromaDB con persistent storage",
+          "generation": "Gemma 4 26B A4B su GPU HF (A10G 24GB o L4 24GB)",
+          "web_research": "Serper.dev + Tavily"
+        },
+        "cost": "~$0.60-1.00/h GPU (A10G) — stimato €50-150/mese per uso moderato",
+        "trigger": "Quando il numero di clienti giustifica il costo",
+        "pros": ["Zero dipendenza da API esterne", "Bassa latenza", "Scalabile", "Data privacy (tutto su HF)"],
+        "cons": ["Costo mensile", "Richiede gestione billing HF"]
+      }
+    },
+
+    "unified_codebase_strategy": {
+      "description": "Un solo codebase che si adatta all'ambiente via env vars",
+      "env_detection": {
+        "HF_SPACES": "Se '1' → ambiente cloud HF (env_2 o env_3)",
+        "LOCAL_RAG": "Se '1' → RAG locale con Ollama + ChromaDB (env_1)",
+        "GEMINI_API_KEY": "Se presente → usa Gemini API per generazione (fallback cloud)",
+        "OLLAMA_BASE_URL": "Se presente → usa Ollama per generazione locale (default http://localhost:11434)"
+      },
+      "abstraction_needed": {
+        "embedding_interface": {
+          "description": "Interfaccia comune per EmbeddingGemma (locale) e Gemini Embedding (cloud)",
+          "methods": ["embed_text(text) → List[float]", "embed_query(query) → List[float]"],
+          "implementations": ["LocalEmbedding (EmbeddingGemma via sentence-transformers o Ollama)", "GeminiEmbedding (models/embedding-001 o gemini-embedding-2)"]
+        },
+        "vector_store_interface": {
+          "description": "Migrare da pickle cache a ChromaDB (funziona sia locale che su HF)",
+          "methods": ["add_documents(docs)", "search(query, top_k) → results"],
+          "migration": "ChromaDB sostituisce sia embeddings.pkl che parte di SQLiteKnowledgeStore"
+        },
+        "generation_interface": {
+          "description": "Interfaccia comune per Ollama (locale) e Gemini API (cloud)",
+          "methods": ["generate(prompt, system_prompt, temperature, max_tokens) → str"],
+          "implementations": ["OllamaGenerator (Gemma 4 locale)", "GeminiGenerator (gemini-2.0-flash API)", "OpenRouterGenerator (già esistente)"]
+        }
+      }
+    }
+  },
+
+  "migration_plan": {
+    "description": "Piano di migrazione incrementale — ogni step è indipendente e deployabile",
+
+    "step_1": {
+      "name": "Astrazione Provider AI",
+      "action": "Creare interfacce astratte per embedding, vector store e generation. Refactoring di knowledge_store.py e agents.py.",
+      "files_to_modify": [
+        "knowledge_store.py — estrarre EmbeddingInterface, VectorStoreInterface",
+        "agents.py — estrarre GenerationInterface da StrategicAgent",
+        "config.py — aggiungere OLLAMA_BASE_URL, LOCAL_RAG flag"
+      ],
+      "effort": "4-6 ore",
+      "risk": "basso (refactoring interno, no cambio funzionalità)",
+      "output": "Codebase pronto per multi-provider senza rompere il funzionamento attuale",
+      "status": "da_fare"
+    },
+
+    "step_2": {
+      "name": "ChromaDB come Vector Store",
+      "action": "Sostituire pickle cache + embedding on-the-fly con ChromaDB. Pre-embedding all'ingestion.",
+      "changes": [
+        "Aggiungere chromadb a requirements.txt",
+        "Implementare ChromaVectorStore che implementa VectorStoreInterface",
+        "Migrare embeddings.pkl → ChromaDB collection",
+        "Pre-embedding documenti all'ingestion (non più on-the-fly)",
+        "Persistent storage su /data per HF Spaces"
+      ],
+      "effort": "3-4 ore",
+      "risk": "medio (re-indexing necessario, ma shadow index possibile)",
+      "output": "Vector store scalabile, persistente, con pre-embedding",
+      "status": "da_fare"
+    },
+
+    "step_3": {
+      "name": "EmbeddingGemma Locale",
+      "action": "Integrare EmbeddingGemma come provider embedding locale (zero API calls).",
+      "changes": [
+        "Aggiungere sentence-transformers a requirements-local.txt (per embedding locale)",
+        "Implementare LocalEmbedding con EmbeddingGemma (308M)",
+        "Config: LOCAL_RAG=1 → usa EmbeddingGemma, altrimenti Gemini API",
+        "Test A/B: confronto qualità retrieval EmbeddingGemma vs embedding-001"
+      ],
+      "effort": "2-3 ore",
+      "risk": "basso (EmbeddingGemma è testato e stabile)",
+      "output": "Embedding offline funzionante, zero costi API per indicizzazione",
+      "note_hf_spaces": "EmbeddingGemma (308M) gira in CPU nel container Docker HF — nessun problema. Aggiungere sentence-transformers al requirements.txt principale.",
+      "status": "da_fare"
+    },
+
+    "step_4": {
+      "name": "Ollama Generation Locale",
+      "action": "Aggiungere Ollama come provider di generazione locale per Gemma 4 26B.",
+      "changes": [
+        "Implementare OllamaGenerator (OpenAI-compatible API, localhost:11434)",
+        "Config: LOCAL_RAG=1 + OLLAMA_BASE_URL → genera con Ollama",
+        "Adattare prompt degli 8 agenti per Gemma 4 (context window 256K, format diverso)",
+        "Fallback automatico: se Ollama non risponde → Gemini API"
+      ],
+      "effort": "3-4 ore",
+      "risk": "medio (prompt tuning necessario — Gemma 4 ha stile diverso da Gemini Flash)",
+      "output": "Generazione offline completa con Gemma 4 26B",
+      "phase_a_note": "Pre-upgrade GPU: usare Gemma 3 9B o CPU inference. Post-upgrade: switch a Gemma 4 26B A4B.",
+      "status": "da_fare"
+    },
+
+    "step_5": {
+      "name": "Dismissione Gemini File Search Store",
+      "action": "Rimuovere dipendenza da Gemini File Search Store (cloud). ChromaDB lo sostituisce completamente.",
+      "changes": [
+        "Disabilitare upload a File Search Store in KnowledgeManager",
+        "Rimuovere file_search_manager.py (o mantenerlo come opzionale Layer 2)",
+        "Rimuovere file temporanei in knowledge_base/temp_uploads/",
+        "Aggiornare app.py per non inizializzare FileSearchManager se LOCAL_RAG=1"
+      ],
+      "effort": "1-2 ore",
+      "risk": "basso (ChromaDB già funzionante a questo punto)",
+      "output": "Nessun dato esce dall'infrastruttura locale. BN-003, BN-007 risolti.",
+      "status": "da_fare"
+    },
+
+    "step_6": {
+      "name": "Deploy HF Spaces con RAG Ibrido",
+      "action": "Aggiornare Dockerfile e deploy HF con EmbeddingGemma locale + Gemini API per generazione.",
+      "changes": [
+        "Aggiornare Dockerfile: aggiungere sentence-transformers + download EmbeddingGemma al build",
+        "Aggiungere persistent storage /data per ChromaDB",
+        "HF_SPACES=1 → EmbeddingGemma CPU + ChromaDB locale + Gemini API generazione",
+        "Test end-to-end su HF Spaces"
+      ],
+      "effort": "2-3 ore",
+      "risk": "medio (dimensione Docker image aumenta ~500MB per sentence-transformers + modello)",
+      "output": "HF Spaces con embedding locale (zero costi embedding) + generazione cloud",
+      "status": "da_fare"
+    },
+
+    "step_7_optional": {
+      "name": "Fine-tuning EmbeddingGemma su Corpus Calcistico",
+      "action": "Addestrare EmbeddingGemma su terminologia e concetti calcistici usando i piani già generati.",
+      "training_data": [
+        "Piani strategici in SQLite knowledge.db (corpus esistente)",
+        "Terminologia STW (stakeholder sportivi, strutturali, marketing, sociali)",
+        "Report OB1 e documenti di settore",
+        "Glossario calcistico IT/EN (trequartista, mezzala, pressing, gegenpressing, etc.)"
+      ],
+      "effort": "1-2 giorni",
+      "trigger": "Post Step 3, quando il sistema base è validato",
+      "status": "futuro"
+    },
+
+    "step_8_optional": {
+      "name": "Layer 2 — Gemini Embedding 2 Multimodale",
+      "action": "Aggiungere supporto per embedding video/immagine via Gemini Embedding 2 API.",
+      "use_cases": [
+        "Embedding clip video partite → ricerca semantica su azioni di gioco",
+        "Embedding heatmap e grafici tattici → retrieval visuale",
+        "Cross-modal: query testo 'pressing alto zona 14' → frame video pertinenti"
+      ],
+      "effort": "2-3 giorni",
+      "trigger": "Quando il prodotto necessita di analisi video/immagine",
+      "status": "futuro"
+    }
+  },
+
+  "cost_comparison": {
+    "current_system": {
+      "description": "100% cloud-dependent",
+      "monthly_estimate": {
+        "gemini_api_generation": "€3-10/mese (8 agenti × N piani, Gemini Flash è economico)",
+        "gemini_embedding": "€0 (embedding-001 è gratuito)",
+        "gemini_file_search_store": "€0 (incluso nell'API key)",
+        "serper_dev": "€0-5/mese (2500 query free, poi $50/10K)",
+        "tavily": "€0-5/mese (1000 query free)",
+        "hf_spaces": "€0 (free tier)",
+        "total": "€3-20/mese"
+      },
+      "risk_cost": "Se Google cambia pricing o depreca API, costo potrebbe esplodere senza alternativa"
+    },
+
+    "proposed_system_local": {
+      "description": "Layer 1 locale (post GPU upgrade)",
+      "one_time_cost": {
+        "gpu_upgrade": "€400-600 (RTX 4070 Ti Super 16GB — comunque comprata per GTA 6)",
+        "ai_incremental_cost": "€0 (GPU comprata per gaming, AI è bonus gratuito)"
+      },
+      "monthly_estimate": {
+        "local_inference": "€0 (Gemma 4 + EmbeddingGemma + ChromaDB)",
+        "electricity": "~€5-10/mese (GPU inference on-demand, non 24/7)",
+        "serper_dev": "€0-5/mese (opzionale, per web research)",
+        "hf_spaces": "€0 (free tier, usa Gemini API solo per cloud users)",
+        "total": "€0-15/mese (di cui €0 per AI locale)"
+      }
+    },
+
+    "proposed_system_hf_only": {
+      "description": "Solo HF Spaces senza locale (se non si vuole gestire infrastruttura)",
+      "monthly_estimate": {
+        "gemini_api": "€3-10/mese (generazione, come ora)",
+        "embedding": "€0 (EmbeddingGemma in CPU nel container)",
+        "hf_spaces": "€0 (free tier)",
+        "total": "€3-10/mese"
+      },
+      "note": "Riduce comunque i costi eliminando embedding API calls e File Search Store overhead"
+    },
+
+    "savings_summary": {
+      "immediate": "Embedding locale (EmbeddingGemma) elimina costi embedding API e File Search Store latency",
+      "post_gpu_upgrade": "Generazione locale elimina ~€3-10/mese di API costs + sblocca offline + data privacy",
+      "break_even_gpu": "GPU comprata per gaming → costo AI incrementale = €0. Break-even immediato."
+    }
+  },
+
+  "hf_spaces_specific": {
+    "description": "Dettagli tecnici specifici per ottimizzare il deploy su HF Spaces",
+
+    "docker_optimizations": {
+      "current_image_size": "~1.5GB stimato (python:3.11-slim + deps + WeasyPrint libs)",
+      "post_migration_size": "~2.0-2.5GB (+ sentence-transformers + EmbeddingGemma 308M)",
+      "optimization_tips": [
+        "Multi-stage build: build deps in stage 1, copy solo runtime in stage 2",
+        "Pre-download EmbeddingGemma nel Dockerfile (evita download a ogni cold start)",
+        "Usare --no-cache-dir per pip install (già fatto)"
+      ]
+    },
+
+    "persistent_storage": {
+      "path": "/data (montato automaticamente su HF Spaces)",
+      "use_for": [
+        "ChromaDB database (vettori + metadati)",
+        "SQLite knowledge.db (piani, utenti, benchmark)",
+        "Search cache (web research)"
+      ],
+      "important": "Il container HF può essere ricostruito in qualsiasi momento. TUTTO ciò che deve persistere va in /data."
+    },
+
+    "cold_start_optimization": {
+      "current": "~30-60s (download deps, init app)",
+      "post_migration": "~45-90s (+ caricamento EmbeddingGemma in RAM)",
+      "mitigation": "EmbeddingGemma è solo 308M — caricamento in ~2-5s su CPU. Impatto minimo."
+    },
+
+    "free_tier_limits": {
+      "cpu": "2 vCPU",
+      "ram": "16GB",
+      "storage": "50GB persistent",
+      "note": "16GB RAM è più che sufficiente per EmbeddingGemma (308M) + ChromaDB + Flask app. Nessun problema."
+    },
+
+    "secrets_management": {
+      "method": "HF Spaces Secrets (Settings → Repository secrets)",
+      "secrets_needed": [
+        "GEMINI_API_KEY (per generazione cloud)",
+        "SERPER_API_KEY (opzionale)",
+        "TAVILY_API_KEY (opzionale)",
+        "ENCRYPTION_KEY (per dati utente)"
+      ]
+    }
+  },
+
+  "risk_analysis": {
+    "risks": [
+      {
+        "id": "RISK-001",
+        "description": "Gemma 4 appena rilasciata (2 aprile 2026) — community support limitato",
+        "mitigation": "Usare Gemma 3 9B/27B come ponte fino a quando Gemma 4 è matura. Switch quando Ollama/LM Studio hanno build stabili.",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-002",
+        "description": "Docker image più grande su HF Spaces (+~500MB per sentence-transformers + modello)",
+        "mitigation": "Multi-stage build. EmbeddingGemma è solo 308M params — impatto contenuto. HF free tier ha 50GB storage.",
+        "severity": "low"
+      },
+      {
+        "id": "RISK-003",
+        "description": "Re-indexing necessario migrando da embedding-001 a EmbeddingGemma (vettori incompatibili)",
+        "mitigation": "Shadow index con ChromaDB: creare nuova collection in parallelo, switch atomico quando pronta.",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-004",
+        "description": "Qualità output Gemma 4 26B locale vs Gemini 2.0 Flash cloud — potrebbe essere inferiore",
+        "mitigation": "Benchmark A/B su 5-10 piani prima del cutover. Se Gemma 4 non regge, mantenere Gemini API e usare locale solo per demo/offline.",
+        "severity": "medium"
+      },
+      {
+        "id": "RISK-005",
+        "description": "HF Spaces free tier ha limiti CPU/RAM che potrebbero impattare EmbeddingGemma",
+        "mitigation": "EmbeddingGemma usa <200MB RAM e inference è ~10-50ms/query su CPU. Largamente entro i limiti (16GB RAM, 2 vCPU).",
+        "severity": "low"
+      },
+      {
+        "id": "RISK-006",
+        "description": "GPU upgrade timing incerto — GTA 6 potrebbe slittare",
+        "mitigation": "Phase A (pre-upgrade) è completamente funzionale con CPU inference o Gemma 3 9B. L'upgrade GPU migliora le performance ma non è bloccante.",
+        "severity": "low"
+      },
+      {
+        "id": "RISK-007",
+        "description": "Prompt tuning necessario — Gemma 4 ha stile di risposta diverso da Gemini Flash",
+        "mitigation": "Dedicare 2-4 ore a testare e adattare i prompt degli 8 agenti. Il context window 256K di Gemma 4 permette più esempi RAG.",
+        "severity": "medium"
+      }
+    ]
+  },
+
+  "presentation_nardoni": {
+    "description": "Punti chiave per la presentazione ai soci",
+
+    "headline": "Rooting Future diventa indipendente: AI locale + cloud gratuito, zero costi ricorrenti",
+
+    "key_points": [
+      {
+        "point": "Oggi dipendiamo al 100% da Google Gemini API — se cambiano i prezzi o la deprecano, il sistema si ferma",
+        "solution": "Architettura a 2 livelli: motore AI locale (Gemma 4, open source, gratis) + cloud opzionale"
+      },
+      {
+        "point": "Il sistema già funziona su HF Spaces (cloud gratuito) accessibile da browser",
+        "solution": "Manteniamo HF Spaces come distribuzione cloud, aggiungiamo embedding locale per ridurre costi"
+      },
+      {
+        "point": "I dati dei club vengono inviati a Google per l'indicizzazione (privacy)",
+        "solution": "Con RAG locale, i dati restano sul nostro server. Zero data leakage."
+      },
+      {
+        "point": "Costo GPU per AI locale = €0 incrementale",
+        "solution": "La GPU viene comprata per altri scopi (gaming). L'AI locale è un bonus gratuito su hardware già acquistato."
+      },
+      {
+        "point": "Demo offline possibile — non serve internet per generare piani",
+        "solution": "Fondamentale per demo in stadi, riunioni, viaggi. Differenziatore competitivo."
+      }
+    ],
+
+    "demo_plan": {
+      "pre_gpu_upgrade": "Demo con Gemma 3 9B su GTX 1660 (veloce, qualità buona) o CPU inference Gemma 4 (lento ma massima qualità)",
+      "post_gpu_upgrade": "Demo con Gemma 4 26B su nuova GPU — velocità e qualità produzione"
+    }
+  },
+
+  "gemini_validation_prompt": {
+    "description": "Prompt per validazione con Gemini — aggiornato con contesto HF Spaces",
+    "prompt": "Sei un architetto AI specializzato nell'ecosistema Google (Gemma, Gemini, Vertex AI) e nelle piattaforme di deployment (Hugging Face Spaces, Docker). Ti viene fornito un piano di migrazione JSON per Rooting Future, una piattaforma SaaS di scouting calcistico. STATO ATTUALE: RAG ibrido su Gemini API (embedding-001 + File Search Store + gemini-2.0-flash), deployato su HF Spaces (Docker, free tier). PROPOSTA: Migrare a architettura multi-ambiente: (1) Locale: EmbeddingGemma 308M + ChromaDB + Gemma 4 26B A4B via Ollama, (2) HF Spaces: EmbeddingGemma CPU + ChromaDB + Gemini API per generazione, (3) Futuro: HF Spaces Pro con GPU per Gemma 4. HARDWARE: Ryzen 7 7800X3D, 64GB RAM, GTX 1660 (upgrade a RTX 4070+ previsto per gaming). Analizza: 1) Fattibilità EmbeddingGemma (308M) in CPU nel container Docker HF free tier (2 vCPU, 16GB RAM). 2) Compatibilità ChromaDB con HF Spaces persistent storage. 3) Se Gemma 3 9B o Gemma 4 26B è più indicato come ponte pre-upgrade GPU. 4) Stima impatto su Docker image size e cold start time. 5) Raccomandazioni per ottimizzare il deploy HF Spaces. 6) Costi comparativi: attuale (100% Gemini API) vs proposto (embedding locale + generazione API). Rispondi in italiano con un JSON strutturato."
+  },
+
+  "next_actions": {
+    "immediate": [
+      "Passare questo JSON a Gemini per validazione architetturale (30 min)",
+      "Installare Ollama + scaricare Gemma 3 9B per test immediati su GTX 1660",
+      "pip install chromadb + sentence-transformers in ambiente locale"
+    ],
+    "this_week": [
+      "Step 1: Refactoring interfacce astratte (4-6 ore)",
+      "Step 2: Migrazione a ChromaDB (3-4 ore)",
+      "Step 3: EmbeddingGemma locale (2-3 ore)"
+    ],
+    "next_week": [
+      "Step 4: Ollama generation (3-4 ore)",
+      "Step 5: Dismissione File Search Store (1-2 ore)",
+      "Step 6: Deploy HF Spaces aggiornato (2-3 ore)"
+    ],
+    "post_gpu_upgrade": [
+      "Switch da Gemma 3 9B a Gemma 4 26B A4B",
+      "Benchmark A/B locale vs cloud",
+      "Step 7: Fine-tuning EmbeddingGemma (opzionale)"
+    ]
+  }
+}

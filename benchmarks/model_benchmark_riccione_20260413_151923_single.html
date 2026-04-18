@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Model Benchmark - Riccione Calcio 1926</title>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #e0e0e0; margin: 0; padding: 20px; }
+    h1 { color: #58a6ff; border-bottom: 2px solid #30363d; padding-bottom: 15px; }
+    h2 { color: #58a6ff; margin-top: 30px; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th { background: #161b22; color: #58a6ff; padding: 12px; text-align: center; }
+    td { padding: 10px; border-bottom: 1px solid #30363d; text-align: center; }
+    tr:hover { background: #161b22; }
+</style>
+</head>
+<body>
+<h1>Model Benchmark: Riccione Calcio 1926</h1>
+<p style="color:#888">13/04/2026 15:19 | 1 modelli testati | 6 agenti per modello</p>
+
+<h2>Classifica Modelli</h2>
+<div style="display:flex;gap:15px;flex-wrap:wrap;margin:20px 0">
+        <div style="background:#1e1e2e;border-radius:12px;padding:20px;min-width:220px;border-left:4px solid #dc3545">
+            <div style="font-size:12px;color:#888">#1</div>
+            <div style="font-size:18px;font-weight:bold;color:#e0e0e0;margin:8px 0">kimi-k2.5</div>
+            <div style="color:#aaa">2/6 agenti OK</div>
+            <div style="font-size:24px;font-weight:bold;color:#58a6ff;margin:8px 0">23,133 chars</div>
+            <div style="color:#888">2073.9s totali</div>
+        </div></div>
+
+<h2>Dettaglio Per Agente</h2>
+<table>
+<thead><tr><th>Agente</th><th>kimi-k2.5<br><small>chars / tempo</small></th></tr></thead>
+<tbody><tr><td style='font-weight:bold'>Strategic Coordinator</td><td style='text-align:center;color:#dc3545'>ERRORE<br><small>Connection error.</small></td></tr><tr><td style='font-weight:bold'>STW Sociali</td><td style='text-align:center'>14,216<br><small>381.94s</small></td></tr><tr><td style='font-weight:bold'>STW Marketing</td><td style='text-align:center'>8,917<br><small>111.38s</small></td></tr><tr><td style='font-weight:bold'>STW Strutturali</td><td style='text-align:center;color:#dc3545'>ERRORE<br><small>Connection error.</small></td></tr><tr><td style='font-weight:bold'>Financial Strategist</td><td style='text-align:center;color:#dc3545'>ERRORE<br><small>Connection error.</small></td></tr><tr><td style='font-weight:bold'>STW Sportivi</td><td style='text-align:center;color:#dc3545'>ERRORE<br><small>Connection error.</small></td></tr></tbody>
+</table>
+
+<h2>Diagnostica</h2>
+<p style="color:#888">Metriche dettagliate per ogni chiamata (Fix 4).</p>
+<table>
+<thead><tr>
+    <th>Modello</th><th>Agente</th><th>Prompt Chars</th><th>~Tokens</th>
+    <th>Tentativi</th><th>Attesa Retry</th><th>Tempo Tot.</th>
+    <th>Output Chars</th><th>HTTP</th><th>Status</th>
+</tr></thead>
+<tbody><tr>
+                <td>kimi-k2.5</td>
+                <td>Strategic Coordinator</td>
+                <td>4,377</td>
+                <td>1,094</td>
+                <td>2</td>
+                <td>30s</td>
+                <td>394.55s</td>
+                <td style="color:#dc3545">0</td>
+                <td>0</td>
+                <td style="color:#dc3545">FAIL</td>
+            </tr><tr>
+                <td>kimi-k2.5</td>
+                <td>STW Sociali</td>
+                <td>4,426</td>
+                <td>1,106</td>
+                <td>2</td>
+                <td>30s</td>
+                <td>381.94s</td>
+                <td style="color:#28a745">14,216</td>
+                <td>200</td>
+                <td style="color:#28a745">OK</td>
+            </tr><tr>
+                <td>kimi-k2.5</td>
+                <td>STW Marketing</td>
+                <td>4,449</td>
+                <td>1,112</td>
+                <td>1</td>
+                <td>0s</td>
+                <td>111.38s</td>
+                <td style="color:#28a745">8,917</td>
+                <td>200</td>
+                <td style="color:#28a745">OK</td>
+            </tr><tr>
+                <td>kimi-k2.5</td>
+                <td>STW Strutturali</td>
+                <td>4,472</td>
+                <td>1,118</td>
+                <td>2</td>
+                <td>30s</td>
+                <td>394.92s</td>
+                <td style="color:#dc3545">0</td>
+                <td>0</td>
+                <td style="color:#dc3545">FAIL</td>
+            </tr><tr>
+                <td>kimi-k2.5</td>
+                <td>Financial Strategist</td>
+                <td>4,511</td>
+                <td>1,127</td>
+                <td>2</td>
+                <td>30s</td>
+                <td>394.97s</td>
+                <td style="color:#dc3545">0</td>
+                <td>0</td>
+                <td style="color:#dc3545">FAIL</td>
+            </tr><tr>
+                <td>kimi-k2.5</td>
+                <td>STW Sportivi</td>
+                <td>4,886</td>
+                <td>1,221</td>
+                <td>2</td>
+                <td>30s</td>
+                <td>396.14s</td>
+                <td style="color:#dc3545">0</td>
+                <td>0</td>
+                <td style="color:#dc3545">FAIL</td>
+            </tr></tbody>
+</table>
+
+<h2>Output Comparativo</h2>
+<p style="color:#888">Clicca su ogni agente per espandere e confrontare gli output.</p>
+
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">Strategic Coordinator</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px">
+                    <h4 style="color:#dc3545;margin:0 0 10px 0">kimi-k2.5 (ERRORE)</h4>
+                    <pre style="color:#888">Connection error.</pre>
+                </div></div>
+        </details>
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">STW Sociali</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px;overflow:auto;max-height:400px">
+                    <h4 style="color:#58a6ff;margin:0 0 10px 0">kimi-k2.5 (14,216 chars)</h4>
+                    <pre style="white-space:pre-wrap;color:#d4d4d4;font-size:12px;line-height:1.5">**OBIETTIVI SOCIALI**
+
+Il Riccione Calcio 1926, consapevole del proprio ruolo di impresa sociale oltre che sportiva e radicato nella comunità locale dal lontano 1926, definisce gli obiettivi sociali del presente Piano Strategico come elemento fondamentale del proprio sviluppo sostenibile. In un contesto territoriale caratterizzato da una duplice anima – quella residenziale, con una popolazione in progressivo invecchiamento e fenomeni di detanalità, e quella turistica, con una stagionalità che influenza le dinamiche di partecipazione sociale – il Club si pone come soggetto attivo di coesione, inclusione e innovazione sociale. Le linee strategiche qui delineate si fondano sull'analisi delle risorse disponibili, del contesto competitivo – dove il Club compete non solo con altre realtà calcistiche (dall'ambito dilettantistico locale ai professionisti delle province limitrofe), ma con ogni forma di aggregazione sociale, tempo libero e pratica sportiva alternativa – e sui fattori PEST che vedono crescente attenzione verso la sostenibilità ambientale e l'impatto sociale misurabile, evitando approcci superficiali o meramente dichiarativi.
+
+---
+
+**1. IMPATTO SOCIALE E COESIONE COMUNITARIA**
+
+*Stato Attuale*
+Il Club rappresenta attualmente un punto di riferimento per le famiglie del territorio riccese e per il comprensorio romagnolo, offrendo attività sportive che coinvolgono principalmente il settore giovanile maschile e, in misura minore, le categorie senior. Tuttavia, la capacità di penetrazione sociale risulta ancora limitata rispetto al potenziale offerto dalla tradizione storica della società e dalla capillarità del territorio. L'offerta risulta concentrata prevalentemente sull'attività agonistica propriamente detta, con una marginalità delle iniziative di carattere socio-educativo e intergenerazionale, in un contesto demografico segnato dalla riduzione delle nascite e dall'invecchiamento della popolazione residente.
+
+*Target*
+Entro il triennio 2024-2027, il Riccione Calcio 1926 intende trasformarsi da semplice organizzazione sportiva in "hub sociale" di riferimento per il territorio, ampliando il proprio bacino d'utenza al di là dei tradizionali confini del tesserato attivo. L'obiettivo è raggiungere una copertura demografica che includa attivamente le fasce di popolazione over-60 (contrastando l'isolamento sociale derivante dall'invecchiamento demografico) e quella pre-scolare, creando un ponte generazionale che utilizzi il calcio e lo sport come linguaggio universale di inclusione e trasmissione di valori.
+
+*Azioni*
+Per conseguire tale obiettivo, il Club implementerà il progetto "Dal Vivo al Verde", dedicato all'organizzazione di attività motorie per anziani presso le strutture sportive in ore mattutine e pomeridiane non utilizzate dalle squadre agonistiche, con particolare attenzione alla prevenzione delle patologie degenerative e al mantenimento dell'autonomia psico-fisica. Parallelamente, sarà avviato il progetto "Scuola di Tifo e di Vita", in </pre>
+                </div></div>
+        </details>
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">STW Marketing</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px;overflow:auto;max-height:400px">
+                    <h4 style="color:#58a6ff;margin:0 0 10px 0">kimi-k2.5 (8,917 chars)</h4>
+                    <pre style="white-space:pre-wrap;color:#d4d4d4;font-size:12px;line-height:1.5">**Riccione Calcio 1926 – Società Sportiva Dilettantistica**
+*Piano Strategico Marketing 2024-2027*
+**SEZIONE: OBIETTIVI MARKETING**
+
+---
+
+### 1. BRAND IDENTITY E POSITIONING TERRITORIALE
+
+**Stato Attuale**
+Il Riccione Calcio 1926 custodisce un patrimonio identitario secolare che rappresenta un'ancora di stabilità nel tessuto sociale della Romagna. Tuttavia, l'analisi delle risorse evidenzia come il potenziale storico-emozionale del brand non sia ancora pienamente tradotto in equity commerciale e appeal sistematico. La concorrenza con club professionistici delle zone limitrofe (Cesena, Rimini, Forlì) e la frammentazione dell'offerta sportivo-ricreativa nel territorio richiedono un posizionamento differenziante che valorizzi l'autenticità del calcio di radice contro l'industrializzazione del calcio-spettacolo.
+
+**Target**
+- Primario: Residenti di Riccione e comuni limitrofi (25-55 anni), famiglie con figli in età scolare, imprese locali del terziario turistico e commerciale
+- Secondario: Turisti stagionali (estate/inverno), expat romagnoli, appassionati di calcio storico italiano
+- Terziario: Istituzioni locali, scuole, associazioni del terzo settore
+
+**Azioni Strategiche**
+- **Restyling identitario conservativo**: Aggiornamento del marchio e del logo mantenendo i richiami storici al 1926, con declinazione di un "Brand Book" che codifichi i valori di "Radici e Futuro" (coerente con l'analisi PEST su sostenibilità)
+- **Storytelling territoriale**: Campagna "I Colori della Romagna" che colleghi il club ai simboli locali (mare, colline, ospitalità), differenziandosi dai competitor diretti attraverso l'emotività del "calcio di quartiere"
+- **Merchandising premium**: Sviluppo linea "Heritage 1926" con materiali eco-sostenibili (risposta ai fattori tecnologici/ambientali PEST) e corner shop fisico presso la sede sportiva
+
+**KPI**
+- Awareness brand misurata tramite survey campionaria: +25% nel triennio
+- Vendite merchandise: €45.000 annui entro il 2026
+- Engagement rate medio su contenuti brandizzati: 6%
+
+**Budget Stimato**
+€35.000 (progettazione grafica, produzione materiali, campagna lancio)
+
+---
+
+### 2. COMUNICAZIONE INTEGRATA E DIGITALIZZAZIONE
+
+**Stato Attuale**
+La comunicazione attuale si avvale di canali tradizionali con presenza social discontinua. L'analisi PEST evidenzia la necessità di un salto tecnologico per competere con altri hobby e attività del territorio che attraggono il target giovanile, contrastando la tendenza alla "detanalità" segnalata nei fattori sociali.
+
+**Target**
+- Digital native (18-35 anni) da riconquistare alla passione calcistica locale
+- Genitori under 50 attivi sui social
+- Media locali e piattaforme sportive regionali
+
+**Azioni Strategiche**
+- **Piattaforma digitale proprietaria**: Sviluppo nuovo sito web responsive con area riservata soci, e-commerce integrato e sezione "Live" per streaming partite (partnership con piattaforme locali)
+- **Content strategy "Backstage"**: Produzione video dietro le quinte (allenamenti, i</pre>
+                </div></div>
+        </details>
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">STW Strutturali</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px">
+                    <h4 style="color:#dc3545;margin:0 0 10px 0">kimi-k2.5 (ERRORE)</h4>
+                    <pre style="color:#888">Connection error.</pre>
+                </div></div>
+        </details>
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">Financial Strategist</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px">
+                    <h4 style="color:#dc3545;margin:0 0 10px 0">kimi-k2.5 (ERRORE)</h4>
+                    <pre style="color:#888">Connection error.</pre>
+                </div></div>
+        </details>
+        <details style="margin:15px 0">
+            <summary style="cursor:pointer;font-size:16px;font-weight:bold;color:#e0e0e0;padding:10px;background:#2d2d3d;border-radius:8px">STW Sportivi</summary>
+            <div style="display:flex;gap:15px;flex-wrap:wrap;margin-top:10px">
+                <div style="flex:1;min-width:300px;max-width:50%;background:#1e1e2e;border-radius:8px;padding:15px">
+                    <h4 style="color:#dc3545;margin:0 0 10px 0">kimi-k2.5 (ERRORE)</h4>
+                    <pre style="color:#888">Connection error.</pre>
+                </div></div>
+        </details>
+
+<hr style="border-color:#30363d;margin:30px 0">
+<p style="color:#666;font-size:12px">Generato da model_benchmark.py | Rooting Future LLM Wiki Sovereignty</p>
+</body>
+</html>
