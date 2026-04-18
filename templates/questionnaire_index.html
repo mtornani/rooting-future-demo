@@ -92,6 +92,9 @@
             {% for slug, name in clubs %}
             <option value="{{ slug }}" {% if slug == current_club %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
+            {% if not clubs %}
+            <option value="riccione-calcio-1926" {% if current_club == 'riccione-calcio-1926' %}selected{% endif %}>Riccione Calcio 1926</option>
+            {% endif %}
         </select>
     </div>
 
@@ -121,6 +124,27 @@
     </div>
 
     <script>
+    // Pre-select club from URL param when data/clubs dir is empty server-side
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const urlClub = params.get('club');
+        if (urlClub) {
+            const sel = document.getElementById('clubSelect');
+            if (!sel.value) {
+                for (let opt of sel.options) {
+                    if (opt.value === urlClub) { opt.selected = true; break; }
+                }
+                if (!sel.value) {
+                    const opt = document.createElement('option');
+                    opt.value = urlClub;
+                    opt.text = urlClub.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            }
+        }
+    })();
+
     function navigate(qid) {
         const club = document.getElementById('clubSelect').value;
         const name = document.getElementById('memberName').value.trim();
