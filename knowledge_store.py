@@ -650,54 +650,98 @@ class SQLiteKnowledgeStore:
             logger.error(f"Database error in save_plan: {e}")
             raise DatabaseError(message=f"Errore durante il salvataggio del piano {plan.id}", details=str(e))
 
-    def list_plans(
-        self,
-        status: str = "",
-        category: str = "",
-        club_name: str = "",
-        owner_id: int = None,
-        plan_ids: List[str] = None,
-        limit: int = 50,
-        offset: int = 0,
-        exclude_status: str = ""
-    ) -> Tuple[List[PlanRecord], int]:
-        """
-        Lista piani con filtri e paginazione.
-        Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
-        """
-        conditions = []
-        params = []
+        def list_plans(
 
-        # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
-        if owner_id:
-            assigned_ids = self.get_assigned_plans(owner_id)
-            if assigned_ids:
-                placeholders = ",".join(["?" for _ in assigned_ids])
-                conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
-                params.append(owner_id)
-                params.extend(assigned_ids)
-            else:
-                conditions.append("owner_id = ?")
-                params.append(owner_id)
+            self,
 
-        if status:
-            conditions.append("status = ?")
-            params.append(status)
+            status: str = "",
 
-        if exclude_status:
-            conditions.append("status != ?")
-            params.append(exclude_status)
+            category: str = "",
 
-        if category:
-            conditions.append("category = ?")
-            params.append(category)
+            club_name: str = "",
 
-        if club_name:
-            conditions.append("club_name LIKE ?")
-            params.append(f"%{club_name}%")
+            owner_id: int = None,
 
+            plan_ids: List[str] = None,
+
+            limit: int = 50,
+
+            offset: int = 0,
+
+            exclude_status: str = ""
+
+        ) -> Tuple[List[PlanRecord], int]:
+
+            """
+
+            Lista piani con filtri e paginazione.
+
+            Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
+
+            """
+
+            conditions = []
+
+            params = []
+
+    
+
+            # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
+
+            if owner_id:
+
+                # Mostra i piani di cui è owner O quelli che gli sono stati assegnati
+
+                assigned_ids = self.get_assigned_plans(owner_id)
+
+                if assigned_ids:
+
+                    placeholders = ",".join(["?" for _ in assigned_ids])
+
+                    conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
+
+                    params.append(owner_id)
+
+                    params.extend(assigned_ids)
+
+                else:
+
+                    conditions.append("owner_id = ?")
+
+                    params.append(owner_id)
+
+    
+
+            if status:
+
+                conditions.append("status = ?")
+
+                params.append(status)
+
+            
+
+            if exclude_status:
+
+                conditions.append("status != ?")
+
+                params.append(exclude_status)
+
+    
+
+            if category:
+
+                conditions.append("category = ?")
+
+                params.append(category)
+
+            if club_name:
+
+                conditions.append("club_name LIKE ?")
+
+                params.append(f"%{club_name}%")
+        
         if plan_ids is not None:
-            if not plan_ids:
+            if not plan_ids: 
                 return [], 0
             placeholders = ",".join(["?" for _ in plan_ids])
             conditions.append(f"id IN ({placeholders})")
@@ -722,10 +766,11 @@ class SQLiteKnowledgeStore:
 
             plans = []
             for row in rows:
+                # DECIFRATURA: Decifriamo i dati del piano prima di restituirli
                 decrypted_json = decrypt_data(row["plan_data"])
                 try:
                     plan_data = json.loads(decrypted_json)
-                except Exception:
+                except:
                     plan_data = {}
 
                 plans.append(PlanRecord(
@@ -1002,6 +1047,482 @@ class SQLiteKnowledgeStore:
 
             return stats
 
+
+# =============================================================================
+# GEMINI FILE SEARCH / RAG
+# =============================================================================
+
+class GeminiKnowledgeRAG:
+    """
+    RAG as a Service con Gemini File Search.
+    Per ricerca semantica avanzata nella knowledge base.
+    """
+
+    def __init__(self, api_key: str = GEMINI_API_KEY):
+        if not GENAI_AVAILABLE:
+            logger.warning("google-generativeai not available. RAG features disabled.")
+            self.available = False
+            return
+
+        if not api_key:
+            logger.warning("GEMINI_API_KEY not set. RAG features disabled.")
+            self.available = False
+            return
+
+        # Nuova API google-genai usa un client
+        self.client = genai.Client()
+        self.model_name = MODEL_CONFIG.name
+        self.embedding_model = MODEL_CONFIG.embedding_model
+        self.available = True
+
+        # Storage per embeddings locali
+        self.embeddings_path = KNOWLEDGE_DIR / "embeddings.pkl"
+        self.embeddings_cache: Dict[str, List[float]] = {}
+        self._load_embeddings()
+
+    def _load_embeddings(self):
+        """Carica embeddings cached"""
+        if self.embeddings_path.exists():
+            try:
+                with open(self.embeddings_path, "rb") as f:
+                    self.embeddings_cache = pickle.load(f)
+            except Exception as e:
+                logger.warning(f"Error loading embeddings cache: {e}")
+                self.embeddings_cache = {}
+
+    def _save_embeddings(self):
+        """Salva embeddings cache"""
+        try:
+            with open(self.embeddings_path, "wb") as f:
+                pickle.dump(self.embeddings_cache, f)
+        except Exception as e:
+            logger.warning(f"Error saving embeddings cache: {e}")
+
+    def embed_text(self, text: str) -> Optional[List[float]]:
+        """Genera embedding per testo"""
+        if not self.available:
+            return None
+
+        # Check cache
+        text_hash = hashlib.md5(text.encode()).hexdigest()
+        if text_hash in self.embeddings_cache:
+            return self.embeddings_cache[text_hash]
+
+        try:
+            result = self.client.models.embed_content(
+                model=self.embedding_model,
+                contents=text,
+                config={'task_type': 'RETRIEVAL_DOCUMENT'}
+            )
+            embedding = result.embeddings[0].values
+
+            # Cache
+            self.embeddings_cache[text_hash] = embedding
+            self._save_embeddings()
+
+            return embedding
+        except Exception as e:
+            logger.error(f"Embedding error: {e}")
+            return None
+
+    def embed_query(self, query: str) -> Optional[List[float]]:
+        """Genera embedding per query (ottimizzato per retrieval)"""
+        if not self.available:
+            return None
+
+        try:
+            result = self.client.models.embed_content(
+                model=self.embedding_model,
+                contents=query,
+                config={'task_type': 'RETRIEVAL_QUERY'}
+            )
+            return result.embeddings[0].values
+        except Exception as e:
+            logger.error(f"Query embedding error: {e}")
+            return None
+
+    def semantic_search(
+        self,
+        query: str,
+        documents: List[Document],
+        top_k: int = 5
+    ) -> List[SearchResult]:
+        """
+        Ricerca semantica nei documenti.
+
+        Args:
+            query: Query di ricerca
+            documents: Lista documenti da cercare
+            top_k: Numero risultati
+
+        Returns:
+            Lista SearchResult ordinata per score
+        """
+        if not self.available:
+            # Fallback a ricerca keyword
+            return self._keyword_search(query, documents, top_k)
+
+        query_embedding = self.embed_query(query)
+        if not query_embedding:
+            return self._keyword_search(query, documents, top_k)
+
+        results = []
+        for doc in documents:
+            doc_embedding = self.embed_text(doc.content[:2000])  # Limit per performance
+            if doc_embedding:
+                score = self._cosine_similarity(query_embedding, doc_embedding)
+                results.append(SearchResult(
+                    document=doc,
+                    score=score,
+                ))
+
+        # Ordina per score
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        """Calcola cosine similarity"""
+        import math
+        dot_product = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot_product / (norm_a * norm_b)
+
+    def _keyword_search(
+        self,
+        query: str,
+        documents: List[Document],
+        top_k: int
+    ) -> List[SearchResult]:
+        """Fallback a ricerca keyword"""
+        query_words = set(query.lower().split())
+        results = []
+
+        for doc in documents:
+            doc_words = set(doc.content.lower().split())
+            overlap = len(query_words & doc_words)
+            score = overlap / len(query_words) if query_words else 0
+
+            if score > 0:
+                results.append(SearchResult(document=doc, score=score))
+
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+    def generate_with_context(
+        self,
+        query: str,
+        context_documents: List[Document],
+        system_prompt: str = ""
+    ) -> str:
+        """
+        Genera risposta usando RAG con contesto dai documenti.
+
+        Args:
+            query: Domanda/richiesta
+            context_documents: Documenti per contesto
+            system_prompt: Prompt di sistema opzionale
+        """
+        if not self.available:
+            return "RAG non disponibile. Configurare GEMINI_API_KEY."
+
+        # Costruisci contesto
+        context_parts = []
+        for doc in context_documents[:5]:  # Max 5 documenti
+            context_parts.append(f"### {doc.title}\n{doc.content[:1500]}\n")
+
+        context = "\n---\n".join(context_parts)
+
+        prompt = f"""
+{system_prompt}
+
+CONTESTO DALLA KNOWLEDGE BASE:
+{context}
+
+---
+
+RICHIESTA: {query}
+
+Rispondi basandoti sul contesto fornito. Se l'informazione non è presente nel contesto, indicalo chiaramente.
+"""
+
+        try:
+            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
+            return response.text
+        except Exception as e:
+            logger.error(f"Generation error: {e}")
+            return f"Errore nella generazione: {e}"
+
+
+# =============================================================================
+# UNIFIED KNOWLEDGE MANAGER
+# =============================================================================
+
+class ProviderKnowledgeRAG:
+    """
+    RAG alternativo che usa le interfacce ai_providers.
+    Drop-in replacement per GeminiKnowledgeRAG quando LOCAL_RAG=1.
+    Interfaccia identica a GeminiKnowledgeRAG (.available, .semantic_search()).
+    """
+
+    def __init__(self, embedding_provider=None, vector_store=None):
+        self._embedding_provider = embedding_provider
+        self._vector_store = vector_store  # ChromaVectorStore (opzionale)
+        self.available = embedding_provider is not None
+
+    def semantic_search(
+        self,
+        query: str,
+        documents: List["Document"],
+        top_k: int = 5,
+    ) -> List["SearchResult"]:
+        """
+        Ricerca semantica nei documenti via EmbeddingProvider.
+        Stesso contratto di GeminiKnowledgeRAG.semantic_search().
+        """
+        if not self.available or self._embedding_provider is None:
+            return self._keyword_search(query, documents, top_k)
+
+        # Se abbiamo ChromaDB, usa quello
+        if self._vector_store is not None:
+            try:
+                hits = self._vector_store.search(query, top_k=top_k)
+                hit_ids = {h["id"] for h in hits}
+                # Reordina i Document corrispondenti
+                id_to_doc = {d.id: d for d in documents}
+                results = []
+                for h in hits:
+                    doc = id_to_doc.get(h["id"])
+                    if doc:
+                        results.append(SearchResult(document=doc, score=h["score"]))
+                if results:
+                    return results
+            except Exception as e:
+                logger.warning(f"ProviderKnowledgeRAG ChromaDB search fallito: {e}")
+
+        # Fallback: calcola similarità in-memory via EmbeddingProvider
+        query_emb = self._embedding_provider.embed_text(query)
+        if query_emb is None:
+            return self._keyword_search(query, documents, top_k)
+
+        import math
+
+        def _cosine(a, b):
+            dot = sum(x * y for x, y in zip(a, b))
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(x * x for x in b))
+            return dot / (na * nb) if na and nb else 0.0
+
+        results = []
+        for doc in documents:
+            doc_emb = self._embedding_provider.embed_text(doc.content[:2000])
+            if doc_emb is not None:
+                score = _cosine(query_emb, doc_emb)
+                results.append(SearchResult(document=doc, score=score))
+
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+    def _keyword_search(self, query: str, documents, top_k: int):
+        query_words = set(query.lower().split())
+        results = []
+        for doc in documents:
+            doc_words = set(doc.content.lower().split())
+            overlap = len(query_words & doc_words)
+            score = overlap / len(query_words) if query_words else 0
+            if score > 0:
+                results.append(SearchResult(document=doc, score=score))
+        results.sort(key=lambda x: x.score, reverse=True)
+        return results[:top_k]
+
+
+class KnowledgeManager:
+    """
+    Manager unificato per knowledge store.
+    Combina SQLite storage + Gemini RAG (o ProviderKnowledgeRAG se rag_override presente).
+    """
+
+    def __init__(self, file_search_manager: Any = None, rag_override=None):
+        self.store = SQLiteKnowledgeStore()
+        # rag_override: ProviderKnowledgeRAG (LOCAL_RAG=1) o None → GeminiKnowledgeRAG (default)
+        self.rag = rag_override if rag_override is not None else GeminiKnowledgeRAG()
+        self.file_search_manager = file_search_manager
+
+    def add_plan_to_knowledge(self, plan_record: PlanRecord, owner_id: int = None) -> str:
+        """Salva piano e indicizza per RAG (Aggiornato OPT-001)"""
+        # Salva in SQLite
+        plan_id = self.store.save_plan(plan_record, owner_id)
+
+        # Crea documenti separati per sezione per RAG granulare
+        for section, text in plan_record.plan_data.items():
+            content = ""
+            if isinstance(text, str):
+                content = text
+            elif isinstance(text, dict) and 'content' in text:
+                content = text['content']
+            
+            if len(content) < 200: continue
+
+            doc = Document(
+                id=f"plan_{plan_id}_{section}",
+                title=f"Piano {plan_record.club_name} - Sezione {section}",
+                content=content,
+                doc_type="plan",
+                section_type=section,
+                club_name=plan_record.club_name,
+                category=plan_record.category,
+                metadata={
+                    "plan_id": plan_id,
+                    "credibility_score": plan_record.credibility_score,
+                }
+            )
+            self.store.add_document(doc)
+
+        # Carica su Gemini File Search Store (RAG a servizio)
+        if self.file_search_manager:
+            try:
+                # Costruisci contenuto completo del piano per l'upload
+                full_content_parts = [f"Piano Strategico: {plan_record.club_name}\n"]
+                for section, text in plan_record.plan_data.items():
+                    content = ""
+                    if isinstance(text, str):
+                        content = text
+                    elif isinstance(text, dict) and 'content' in text:
+                        content = text['content']
+                    
+                    if content:
+                        full_content_parts.append(f"\n--- SEZIONE: {section} ---\n{content}")
+                
+                full_content = "\n".join(full_content_parts)
+
+                # Crea un file temporaneo per l'upload
+                temp_dir = Path(KNOWLEDGE_DIR / "temp_uploads")
+                temp_dir.mkdir(exist_ok=True)
+                temp_file = temp_dir / f"{plan_id}.txt"
+                temp_file.write_text(full_content, encoding="utf-8")
+                
+                success = self.file_search_manager.upload_file(temp_file)
+                if success:
+                    logger.info(f"Plan {plan_id} uploaded to Gemini File Search Store")
+                else:
+                    logger.warning(f"Failed to upload plan {plan_id} to Gemini File Search Store")
+                
+                # Rimuovi file temporaneo
+                # temp_file.unlink() 
+            except Exception as e:
+                logger.error(f"Error during Gemini File Search upload: {e}")
+
+        return plan_id
+
+    def search_similar_plans(
+        self,
+        query: str = "",
+        category: str = "",
+        top_k: int = 5
+    ) -> List[SearchResult]:
+        """Cerca piani simili"""
+        # Recupera documenti tipo plan
+        docs = self.store.search_documents(
+            query=query,
+            doc_type="plan",
+            category=category,
+            limit=50
+        )
+
+        if self.rag.available and query:
+            return self.rag.semantic_search(query, docs, top_k)
+
+        return [SearchResult(document=d, score=1.0) for d in docs[:top_k]]
+
+    def get_context_for_generation(
+        self,
+        club_category: str,
+        section_type: str
+    ) -> List[Document]:
+        """
+        Recupera contesto per generazione sezione (Ottimizzato OPT-001).
+        Utile per template e esempi da piani precedenti.
+        """
+        # Cerca piani della stessa categoria e tipo sezione usando l'indice
+        docs = self.store.search_documents(
+            doc_type="plan",
+            category=club_category,
+            section_type=section_type,
+            limit=5
+        )
+
+        if not docs:
+            # Fallback: cerca per categoria e filtra nel contenuto
+            docs = self.store.search_documents(
+                doc_type="plan",
+                category=club_category,
+                limit=10
+            )
+            # Filtra per sezione nel contenuto
+            filtered = []
+            for doc in docs:
+                if section_type.lower() in doc.content.lower():
+                    filtered.append(doc)
+            return filtered[:3] if filtered else docs[:3]
+
+        return docs[:3]
+
+    def export_full_knowledge_base(self, output_path: Path = None) -> Path:
+        """Esporta knowledge base completa per backup"""
+        if output_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = OUTPUT_DIR / f"knowledge_backup_{timestamp}.json"
+
+        with sqlite3.connect(self.store.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            export_data = {
+                "exported_at": datetime.now().isoformat(),
+                "statistics": self.store.get_statistics(),
+                "documents": [dict(row) for row in conn.execute("SELECT * FROM documents").fetchall()],
+                "plans": [dict(row) for row in conn.execute("SELECT * FROM plans").fetchall()],
+                "benchmarks": [dict(row) for row in conn.execute("SELECT * FROM benchmarks").fetchall()],
+            }
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(export_data, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"Knowledge base exported to: {output_path}")
+        return output_path
+
+    def import_knowledge_base(self, import_path: Path) -> Dict[str, int]:
+        """Importa knowledge base da backup"""
+        with open(import_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        counts = {"documents": 0, "plans": 0, "benchmarks": 0}
+
+        with sqlite3.connect(self.store.db_path) as conn:
+            for doc in data.get("documents", []):
+                try:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, tuple(doc.values()))
+                    counts["documents"] += 1
+                except Exception as e:
+                    logger.warning(f"Error importing document: {e}")
+
+            for plan in data.get("plans", []):
+                try:
+                    conn.execute("""
+                        INSERT OR REPLACE INTO plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, tuple(plan.values()))
+                    counts["plans"] += 1
+                except Exception as e:
+                    logger.warning(f"Error importing plan: {e}")
+
+            conn.commit()
+
+        logger.info(f"Imported: {counts}")
+        return counts
+
     # -------------------------------------------------------------------------
     # GENERATION SESSIONS (REF-003)
     # -------------------------------------------------------------------------
@@ -1242,400 +1763,3 @@ class SQLiteKnowledgeStore:
         except Exception as e:
             logger.error(f"Failed to get license stats: {e}")
             return {"total": 0, "active": 0, "revoked": 0, "expiring_soon": 0}
-
-
-# =============================================================================
-# GEMINI FILE SEARCH / RAG
-# =============================================================================
-
-class GeminiKnowledgeRAG:
-    """
-    RAG as a Service con Gemini File Search.
-    Per ricerca semantica avanzata nella knowledge base.
-    """
-
-    def __init__(self, api_key: str = GEMINI_API_KEY):
-        if not GENAI_AVAILABLE:
-            logger.warning("google-generativeai not available. RAG features disabled.")
-            self.available = False
-            return
-
-        if not api_key:
-            logger.warning("GEMINI_API_KEY not set. RAG features disabled.")
-            self.available = False
-            return
-
-        # Nuova API google-genai usa un client
-        self.client = genai.Client()
-        self.model_name = MODEL_CONFIG.name
-        self.embedding_model = MODEL_CONFIG.embedding_model
-        self.available = True
-
-        # Storage per embeddings locali
-        self.embeddings_path = KNOWLEDGE_DIR / "embeddings.pkl"
-        self.embeddings_cache: Dict[str, List[float]] = {}
-        self._load_embeddings()
-
-    def _load_embeddings(self):
-        """Carica embeddings cached"""
-        if self.embeddings_path.exists():
-            try:
-                with open(self.embeddings_path, "rb") as f:
-                    self.embeddings_cache = pickle.load(f)
-            except Exception as e:
-                logger.warning(f"Error loading embeddings cache: {e}")
-                self.embeddings_cache = {}
-
-    def _save_embeddings(self):
-        """Salva embeddings cache"""
-        try:
-            with open(self.embeddings_path, "wb") as f:
-                pickle.dump(self.embeddings_cache, f)
-        except Exception as e:
-            logger.warning(f"Error saving embeddings cache: {e}")
-
-    def embed_text(self, text: str) -> Optional[List[float]]:
-        """Genera embedding per testo"""
-        if not self.available:
-            return None
-
-        # Check cache
-        text_hash = hashlib.md5(text.encode()).hexdigest()
-        if text_hash in self.embeddings_cache:
-            return self.embeddings_cache[text_hash]
-
-        try:
-            result = self.client.models.embed_content(
-                model=self.embedding_model,
-                contents=text,
-                config={'task_type': 'RETRIEVAL_DOCUMENT'}
-            )
-            embedding = result.embeddings[0].values
-
-            # Cache
-            self.embeddings_cache[text_hash] = embedding
-            self._save_embeddings()
-
-            return embedding
-        except Exception as e:
-            logger.error(f"Embedding error: {e}")
-            return None
-
-    def embed_query(self, query: str) -> Optional[List[float]]:
-        """Genera embedding per query (ottimizzato per retrieval)"""
-        if not self.available:
-            return None
-
-        try:
-            result = self.client.models.embed_content(
-                model=self.embedding_model,
-                contents=query,
-                config={'task_type': 'RETRIEVAL_QUERY'}
-            )
-            return result.embeddings[0].values
-        except Exception as e:
-            logger.error(f"Query embedding error: {e}")
-            return None
-
-    def semantic_search(
-        self,
-        query: str,
-        documents: List[Document],
-        top_k: int = 5
-    ) -> List[SearchResult]:
-        """
-        Ricerca semantica nei documenti.
-
-        Args:
-            query: Query di ricerca
-            documents: Lista documenti da cercare
-            top_k: Numero risultati
-
-        Returns:
-            Lista SearchResult ordinata per score
-        """
-        if not self.available:
-            # Fallback a ricerca keyword
-            return self._keyword_search(query, documents, top_k)
-
-        query_embedding = self.embed_query(query)
-        if not query_embedding:
-            return self._keyword_search(query, documents, top_k)
-
-        results = []
-        for doc in documents:
-            doc_embedding = self.embed_text(doc.content[:2000])  # Limit per performance
-            if doc_embedding:
-                score = self._cosine_similarity(query_embedding, doc_embedding)
-                results.append(SearchResult(
-                    document=doc,
-                    score=score,
-                ))
-
-        # Ordina per score
-        results.sort(key=lambda x: x.score, reverse=True)
-        return results[:top_k]
-
-    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
-        """Calcola cosine similarity"""
-        import math
-        dot_product = sum(x * y for x, y in zip(a, b))
-        norm_a = math.sqrt(sum(x * x for x in a))
-        norm_b = math.sqrt(sum(x * x for x in b))
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return dot_product / (norm_a * norm_b)
-
-    def _keyword_search(
-        self,
-        query: str,
-        documents: List[Document],
-        top_k: int
-    ) -> List[SearchResult]:
-        """Fallback a ricerca keyword"""
-        query_words = set(query.lower().split())
-        results = []
-
-        for doc in documents:
-            doc_words = set(doc.content.lower().split())
-            overlap = len(query_words & doc_words)
-            score = overlap / len(query_words) if query_words else 0
-
-            if score > 0:
-                results.append(SearchResult(document=doc, score=score))
-
-        results.sort(key=lambda x: x.score, reverse=True)
-        return results[:top_k]
-
-    def generate_with_context(
-        self,
-        query: str,
-        context_documents: List[Document],
-        system_prompt: str = ""
-    ) -> str:
-        """
-        Genera risposta usando RAG con contesto dai documenti.
-
-        Args:
-            query: Domanda/richiesta
-            context_documents: Documenti per contesto
-            system_prompt: Prompt di sistema opzionale
-        """
-        if not self.available:
-            return "RAG non disponibile. Configurare GEMINI_API_KEY."
-
-        # Costruisci contesto
-        context_parts = []
-        for doc in context_documents[:5]:  # Max 5 documenti
-            context_parts.append(f"### {doc.title}\n{doc.content[:1500]}\n")
-
-        context = "\n---\n".join(context_parts)
-
-        prompt = f"""
-{system_prompt}
-
-CONTESTO DALLA KNOWLEDGE BASE:
-{context}
-
----
-
-RICHIESTA: {query}
-
-Rispondi basandoti sul contesto fornito. Se l'informazione non è presente nel contesto, indicalo chiaramente.
-"""
-
-        try:
-            response = self.client.models.generate_content(model=self.model_name, contents=prompt)
-            return response.text
-        except Exception as e:
-            logger.error(f"Generation error: {e}")
-            return f"Errore nella generazione: {e}"
-
-
-# =============================================================================
-# UNIFIED KNOWLEDGE MANAGER
-# =============================================================================
-
-class KnowledgeManager:
-    """
-    Manager unificato per knowledge store.
-    Combina SQLite storage + Gemini RAG.
-    """
-
-    def __init__(self, file_search_manager: Any = None):
-        self.store = SQLiteKnowledgeStore()
-        self.rag = GeminiKnowledgeRAG()
-        self.file_search_manager = file_search_manager
-
-    def add_plan_to_knowledge(self, plan_record: PlanRecord, owner_id: int = None) -> str:
-        """Salva piano e indicizza per RAG (Aggiornato OPT-001)"""
-        # Salva in SQLite
-        plan_id = self.store.save_plan(plan_record, owner_id)
-
-        # Crea documenti separati per sezione per RAG granulare
-        for section, text in plan_record.plan_data.items():
-            content = ""
-            if isinstance(text, str):
-                content = text
-            elif isinstance(text, dict) and 'content' in text:
-                content = text['content']
-            
-            if len(content) < 200: continue
-
-            doc = Document(
-                id=f"plan_{plan_id}_{section}",
-                title=f"Piano {plan_record.club_name} - Sezione {section}",
-                content=content,
-                doc_type="plan",
-                section_type=section,
-                club_name=plan_record.club_name,
-                category=plan_record.category,
-                metadata={
-                    "plan_id": plan_id,
-                    "credibility_score": plan_record.credibility_score,
-                }
-            )
-            self.store.add_document(doc)
-
-        # Carica su Gemini File Search Store (RAG a servizio)
-        if self.file_search_manager:
-            try:
-                # Costruisci contenuto completo del piano per l'upload
-                full_content_parts = [f"Piano Strategico: {plan_record.club_name}\n"]
-                for section, text in plan_record.plan_data.items():
-                    content = ""
-                    if isinstance(text, str):
-                        content = text
-                    elif isinstance(text, dict) and 'content' in text:
-                        content = text['content']
-                    
-                    if content:
-                        full_content_parts.append(f"\n--- SEZIONE: {section} ---\n{content}")
-                
-                full_content = "\n".join(full_content_parts)
-
-                # Crea un file temporaneo per l'upload
-                temp_dir = Path(KNOWLEDGE_DIR / "temp_uploads")
-                temp_dir.mkdir(exist_ok=True)
-                temp_file = temp_dir / f"{plan_id}.txt"
-                temp_file.write_text(full_content, encoding="utf-8")
-                
-                success = self.file_search_manager.upload_file(temp_file)
-                if success:
-                    logger.info(f"Plan {plan_id} uploaded to Gemini File Search Store")
-                else:
-                    logger.warning(f"Failed to upload plan {plan_id} to Gemini File Search Store")
-                
-                # Rimuovi file temporaneo
-                # temp_file.unlink() 
-            except Exception as e:
-                logger.error(f"Error during Gemini File Search upload: {e}")
-
-        return plan_id
-
-    def search_similar_plans(
-        self,
-        query: str = "",
-        category: str = "",
-        top_k: int = 5
-    ) -> List[SearchResult]:
-        """Cerca piani simili"""
-        # Recupera documenti tipo plan
-        docs = self.store.search_documents(
-            query=query,
-            doc_type="plan",
-            category=category,
-            limit=50
-        )
-
-        if self.rag.available and query:
-            return self.rag.semantic_search(query, docs, top_k)
-
-        return [SearchResult(document=d, score=1.0) for d in docs[:top_k]]
-
-    def get_context_for_generation(
-        self,
-        club_category: str,
-        section_type: str
-    ) -> List[Document]:
-        """
-        Recupera contesto per generazione sezione (Ottimizzato OPT-001).
-        Utile per template e esempi da piani precedenti.
-        """
-        # Cerca piani della stessa categoria e tipo sezione usando l'indice
-        docs = self.store.search_documents(
-            doc_type="plan",
-            category=club_category,
-            section_type=section_type,
-            limit=5
-        )
-
-        if not docs:
-            # Fallback: cerca per categoria e filtra nel contenuto
-            docs = self.store.search_documents(
-                doc_type="plan",
-                category=club_category,
-                limit=10
-            )
-            # Filtra per sezione nel contenuto
-            filtered = []
-            for doc in docs:
-                if section_type.lower() in doc.content.lower():
-                    filtered.append(doc)
-            return filtered[:3] if filtered else docs[:3]
-
-        return docs[:3]
-
-    def export_full_knowledge_base(self, output_path: Path = None) -> Path:
-        """Esporta knowledge base completa per backup"""
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = OUTPUT_DIR / f"knowledge_backup_{timestamp}.json"
-
-        with sqlite3.connect(self.store.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-
-            export_data = {
-                "exported_at": datetime.now().isoformat(),
-                "statistics": self.store.get_statistics(),
-                "documents": [dict(row) for row in conn.execute("SELECT * FROM documents").fetchall()],
-                "plans": [dict(row) for row in conn.execute("SELECT * FROM plans").fetchall()],
-                "benchmarks": [dict(row) for row in conn.execute("SELECT * FROM benchmarks").fetchall()],
-            }
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(export_data, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"Knowledge base exported to: {output_path}")
-        return output_path
-
-    def import_knowledge_base(self, import_path: Path) -> Dict[str, int]:
-        """Importa knowledge base da backup"""
-        with open(import_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        counts = {"documents": 0, "plans": 0, "benchmarks": 0}
-
-        with sqlite3.connect(self.store.db_path) as conn:
-            for doc in data.get("documents", []):
-                try:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, tuple(doc.values()))
-                    counts["documents"] += 1
-                except Exception as e:
-                    logger.warning(f"Error importing document: {e}")
-
-            for plan in data.get("plans", []):
-                try:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO plans VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, tuple(plan.values()))
-                    counts["plans"] += 1
-                except Exception as e:
-                    logger.warning(f"Error importing plan: {e}")
-
-            conn.commit()
-
-        logger.info(f"Imported: {counts}")
-        return counts
