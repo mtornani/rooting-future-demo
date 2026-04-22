@@ -33,6 +33,7 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
+from wiki_reader import WikiReader
 from config import (
     GEMINI_API_KEY,
     MODEL_CONFIG,
@@ -282,12 +283,13 @@ class AsyncGeminiClient:
 # =============================================================================
 
 class AgentRole(Enum):
-    """Ruoli degli agenti allineati alle 4 categorie STW + coordinator"""
+    """Ruoli degli agenti allineati alle 4 categorie STW + coordinator + consistency"""
     COORDINATOR = "coordinator"           # Executive Summary
     STW_SPORTIVI = "stw_sportivi"         # ⚽ Obiettivi Sportivi (8 MACRO)
     STW_STRUTTURALI = "stw_strutturali"   # 🏗️ Obiettivi Strutturali (2 MACRO)
     STW_MARKETING = "stw_marketing"       # 📢 Obiettivi Marketing (4 MACRO)
     STW_SOCIALI = "stw_sociali"           # 🤝 Obiettivi Sociali (7 MACRO)
+    CONSISTENCY = "consistency"           # Allineamento inter-sezione
     FINANCIAL = "financial"               # Piano Economico-Finanziario
 
 
@@ -463,6 +465,7 @@ Sei l'ANALISTA AREA SPORTIVA STW. Redigi la sezione OBIETTIVI SPORTIVI secondo l
 - Ogni MICRO deve avere: situazione attuale, gap, azione proposta, KPI
 - Dati mancanti: `(dato da acquisire)`
 - Voce istituzionale: "Il Club prevede...", "La Società implementerà..."
+- IMPORTANTE: Devi completare TUTTE le 8 MACRO con TUTTI i sotto-obiettivi elencati. Non fermarti dopo le prime 2-3 MACRO. Genera almeno 8000 caratteri.
 """
     ),
 
@@ -681,13 +684,59 @@ Sei l'ANALISTA AREA SOCIALE STW. Redigi la sezione OBIETTIVI SOCIALI secondo la 
     ),
 
     # =========================================================================
+    # CONSISTENCY - Allineamento inter-sezione (Gemini recommendation)
+    # Gira DOPO le 4 aree STW, PRIMA del Financial
+    # =========================================================================
+    AgentRole.CONSISTENCY: AgentSpec(
+        role=AgentRole.CONSISTENCY,
+        name="Consistency Reviewer",
+        expertise=["coerenza strategica", "allineamento obiettivi", "cross-reference"],
+        priority=4,
+        output_sections=["consistency_review"],
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+Sei il REVISORE DI COERENZA. Analizzi le 4 sezioni STW gia' generate e produci:
+
+**STRUTTURA OBBLIGATORIA:**
+
+## ANALISI DI COERENZA INTER-SEZIONE
+
+### 1. ALLINEAMENTO OBIETTIVI
+Per ogni obiettivo sportivo, verifica che:
+- Esista un supporto strutturale corrispondente
+- Esista una strategia marketing collegata
+- Esista un impatto sociale previsto
+
+### 2. CONFLITTI RILEVATI
+Elenca eventuali contraddizioni tra sezioni:
+- Obiettivi sportivi non supportati da risorse strutturali
+- Strategie marketing non allineate alla mission
+- Impegni sociali senza copertura finanziaria prevista
+
+### 3. RACCOMANDAZIONI DI ALLINEAMENTO
+Per ogni conflitto, suggerisci come riconciliare le sezioni.
+
+### 4. FLAG PER FINANCIAL STRATEGIST
+Elenca gli obiettivi che richiedono budget specifico, organizzati per priorita':
+- **Priorita' 1 (Anno 1)**: [obiettivi urgenti]
+- **Priorita' 2 (Anno 2)**: [obiettivi di consolidamento]
+- **Priorita' 3 (Anno 3)**: [obiettivi di crescita]
+
+**REGOLE:**
+- Riferisciti SEMPRE ai codici MACRO delle sezioni STW
+- Non riscrivere le sezioni, solo analizzare coerenza
+- Sii specifico: cita obiettivi per nome/codice
+- Voce istituzionale
+"""
+    ),
+
+    # =========================================================================
     # FINANCIAL - Piano Economico-Finanziario
     # =========================================================================
     AgentRole.FINANCIAL: AgentSpec(
         role=AgentRole.FINANCIAL,
         name="Financial Strategist",
         expertise=["bilancio", "budget", "investimenti", "sostenibilità economica", "proiezioni"],
-        priority=5,
+        priority=6,
         output_sections=["financial_plan"],
         system_prompt=GLOBAL_VOICE_DIRECTIVE + """
 Sei lo STRATEGA FINANZIARIO. Redigi il PIANO ECONOMICO-FINANZIARIO a supporto della Matrice STW.
@@ -805,8 +854,26 @@ class StrategicAgent:
         self.cache = AICache() # Inizializza cache
         self._provider = get_active_provider()  # "gemini" o "openrouter"
         self._openrouter_client = None
+        self._generation_provider = None  # ai_providers.GenerationProvider (Ollama o Gemini)
 
-        if self._provider == "openrouter":
+        # --- Ollama path: OLLAMA_BASE_URL presente → usa adapter layer ---
+        _ollama_url = os.environ.get("OLLAMA_BASE_URL", "").strip()
+        if _ollama_url:
+            try:
+                from ai_providers.ollama_provider import OllamaGenerationProvider
+                self._generation_provider = OllamaGenerationProvider(base_url=_ollama_url)
+                self.available = self._generation_provider.available
+                if self.available:
+                    _model = os.environ.get("OLLAMA_MODEL", "gemma4:26b")
+                    logger.info(f"Agent {spec.name}: Ollama inizializzato (url={_ollama_url}, model={_model})")
+                else:
+                    logger.warning(f"Agent {spec.name}: OllamaGenerationProvider non disponibile")
+            except Exception as e:
+                logger.error(f"Agent {spec.name}: Errore init Ollama: {e}")
+                self._generation_provider = None
+                self.available = False
+
+        elif self._provider == "openrouter":
             # --- OpenRouter provider ---
             or_key = OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY", "")
             or_model = os.environ.get("OPENROUTER_MODEL", OPENROUTER_DEFAULT_MODEL)
@@ -830,9 +897,12 @@ class StrategicAgent:
             api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or GEMINI_API_KEY
             if GENAI_AVAILABLE and api_key:
                 try:
+                    from ai_providers.gemini_provider import detect_best_gemini_model
+                    _gemini_model_name = detect_best_gemini_model(api_key)
                     genai.configure(api_key=api_key)
-                    self.model = genai.GenerativeModel(MODEL_CONFIG.name)
+                    self.model = genai.GenerativeModel(_gemini_model_name)
                     self.available = True
+                    logger.info(f"Agent {spec.name}: Gemini model={_gemini_model_name}")
                 except Exception as e:
                     logger.error(f"Errore durante l'inizializzazione del client Gemini: {e}")
                     self.model = None
@@ -918,7 +988,8 @@ e soggette a revisione post-allineamento.
         research_data: Dict = None,
         context: Dict = None,
         stakeholder_meta: Dict = None,
-        rag_context: List[Any] = None
+        rag_context: List[Any] = None,
+        wiki_context: str = ""
     ) -> Dict[str, Any]:
         """
         Genera output per l'area di competenza, usando il File Search Tool.
@@ -934,11 +1005,12 @@ e soggette a revisione post-allineamento.
             return self._generate_mock(club_data)
 
         prompt_content = self._build_simple_prompt(
-            club_data, 
-            research_data, 
-            context, 
+            club_data,
+            research_data,
+            context,
             stakeholder_meta,
-            rag_context
+            rag_context,
+            wiki_context
         )
 
         # === AI CACHE CHECK ===
@@ -948,8 +1020,24 @@ e soggette a revisione post-allineamento.
             raw_content = cached_response
             citations = [] # Citations not cached/needed for replay
         else:
+            # === OLLAMA PATH (adapter layer) ===
+            if self._generation_provider is not None:
+                try:
+                    logger.debug(f"Invio richiesta a Ollama per {self.spec.name}")
+                    raw_content = self._generation_provider.generate(
+                        prompt=prompt_content,
+                        temperature=MODEL_CONFIG.temperature,
+                        max_tokens=MODEL_CONFIG.max_tokens,
+                    )
+                    citations = []
+                    self.cache.set(prompt_content, raw_content)
+                except Exception as e:
+                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
+                    log_exception(wrapped, context=f"agent_{self.spec.name}")
+                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+
             # === OPENROUTER PATH ===
-            if self._provider == "openrouter" and self._openrouter_client:
+            elif self._provider == "openrouter" and self._openrouter_client:
                 try:
                     logger.debug(f"Invio richiesta a OpenRouter per {self.spec.name}")
                     raw_content = self._openrouter_client.generate_content(
@@ -988,7 +1076,7 @@ e soggette a revisione post-allineamento.
                     try:
                         # Riprova SENZA tools
                         logger.info(f"Retrying Agent {self.spec.name} WITHOUT tools...")
-                        fallback_model = genai.GenerativeModel(MODEL_CONFIG.name) # No tools
+                        fallback_model = self.model or genai.GenerativeModel(MODEL_CONFIG.name) # No tools
                         response = fallback_model.generate_content(
                             prompt_content,
                             generation_config=genai.types.GenerationConfig(
@@ -1040,7 +1128,8 @@ e soggette a revisione post-allineamento.
         research_data: Dict = None,
         context: Dict = None,
         stakeholder_meta: Dict = None,
-        rag_context: List[Any] = None
+        rag_context: List[Any] = None,
+        wiki_context: str = ""
     ) -> str:
         """
         Costruisce un prompt semplificato con supporto per conflict-aware generation e RAG.
@@ -1065,6 +1154,11 @@ e soggette a revisione post-allineamento.
                 rag_info += f"**ESEMPIO {idx+1} (da {club}):**\n{preview}\n\n"
             
             rag_info += "---\n"
+
+        # === WIKI KNOWLEDGE BASE ===
+        wiki_info = ""
+        if wiki_context:
+            wiki_info = "\n---\n" + wiki_context + "\n---\n"
 
         # === STAKEHOLDER CONTEXT (Multi-Stakeholder Conflict Awareness) ===
         stakeholder_info = ""
@@ -1148,7 +1242,7 @@ e soggette a revisione post-allineamento.
             context_text = json.dumps(context, indent=2, ensure_ascii=False)
             context_info = f"\nOUTPUT ALTRI AGENTI (per sintesi):\n{context_text[:1500]}"
 
-        return f"{self.spec.system_prompt}\n\n{rag_info}{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
+        return f"{self.spec.system_prompt}\n\n{rag_info}{wiki_info}{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
         
     def _get_relevant_benchmarks(self, category: str) -> str:
         """Recupera benchmark rilevanti per la categoria"""
@@ -1200,6 +1294,7 @@ class MultiAgentOrchestrator:
         self.knowledge_store = knowledge_store
         self.file_search_store_name = file_search_store_name
         self.async_client = AsyncGeminiClient(max_workers=6, rate_limit=60)  # OPT-002
+        self.wiki_reader = WikiReader()
         self._init_agents()
 
     def _init_agents(self):
@@ -1308,10 +1403,23 @@ class MultiAgentOrchestrator:
                     logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
             # ---------------------------
 
+            # --- WIKI CONTEXT ---
+            wiki_context = ""
+            if self.wiki_reader.available:
+                club_slug = club_data.get("club_slug", "")
+                if not club_slug:
+                    from wiki_reader import slugify
+                    club_slug = slugify(club_data.get("club_name", ""))
+                wiki_context = self.wiki_reader.get_context_for_agent(
+                    agent.spec.name, club_slug, club_data.get("category", "eccellenza").lower()
+                )
+            # --------------------
+
             output = agent.generate(
-                club_data, 
+                club_data,
                 research_data,
-                rag_context=rag_context
+                rag_context=rag_context,
+                wiki_context=wiki_context
             )
 
             agent_time = time.time() - agent_start
@@ -1420,10 +1528,23 @@ class MultiAgentOrchestrator:
                         logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
                 # ---------------------------
 
+                # --- WIKI CONTEXT ---
+                wiki_context = ""
+                if self.wiki_reader.available:
+                    club_slug = club_data.get("club_slug", "")
+                    if not club_slug:
+                        from wiki_reader import slugify
+                        club_slug = slugify(club_data.get("club_name", ""))
+                    wiki_context = self.wiki_reader.get_context_for_agent(
+                        agent.spec.name, club_slug, club_data.get("category", "eccellenza").lower()
+                    )
+                # --------------------
+
                 output = agent.generate(
                     club_data,
                     research_data,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    wiki_context=wiki_context
                 )
 
                 agent_time = time.time() - agent_start

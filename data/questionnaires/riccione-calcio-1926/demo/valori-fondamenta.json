@@ -1,0 +1,26 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "valori-fondamenta",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "valori": [
+      {"valore": "Tradizione", "descrizione": "Rispettare le radici centenarie del club fondato nel 1926"},
+      {"valore": "Territorio", "descrizione": "Essere punto di riferimento per la comunità di Riccione e della Riviera"},
+      {"valore": "Crescita Giovanile", "descrizione": "Investire nel futuro attraverso il settore giovanile: il vivaio è il cuore del club"},
+      {"valore": "Professionalità", "descrizione": "Operare con standard elevati in ogni area: tecnica, amministrativa e comunicativa"},
+      {"valore": "Passione", "descrizione": "Il calcio come amore per lo sport, per la città e per i colori biancazzurri"}
+    ],
+    "fondamenta": [
+      {"pilastro": "Settore Giovanile", "motivazione": "Il vivaio è fonte di identità, risparmio economico e proiezione futura del club"},
+      {"pilastro": "Sostenibilità Economica", "motivazione": "Crescere senza dipendere da un singolo benefattore: diversificare le fonti di revenue"},
+      {"pilastro": "Radicamento Territoriale", "motivazione": "Riccione come città turistica offre opportunità uniche di sponsor, visibilità e partnership"},
+      {"pilastro": "Governance Strutturata", "motivazione": "Passare da gestione intuitiva a processi definiti, ruoli chiari e piano triennale misurabile"}
+    ],
+    "note_fondamenta": {
+      "opinione": ""
+    }
+  },
+  "updated_at": "2026-04-18T10:00:00.000000"
+}

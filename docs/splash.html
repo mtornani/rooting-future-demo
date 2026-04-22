@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooting Future – Inizia il tuo Piano Strategico</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0f1117;
+            --bg-card: #1a1d28;
+            --bg-elevated: #242736;
+            --text: #e8e8ed;
+            --text-2: #9a9ab0;
+            --text-3: #6b6b80;
+            --accent: #667eea;
+            --success: #34d399;
+            --warning: #fbbf24;
+            --border: #2a2d3a;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --r: 8px; --r-lg: 14px;
+        }
+        body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+        .container { max-width: 520px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
+
+        /* HEADER */
+        .hero { text-align: center; padding: 32px 16px 24px; }
+        .logo { font-size: 28px; margin-bottom: 8px; }
+        .hero h1 { font-size: 22px; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
+        .hero h1 span { background: linear-gradient(135deg, #667eea, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { color: var(--text-2); font-size: 14px; line-height: 1.5; }
+
+        /* STEP INDICATOR */
+        .steps { display: flex; align-items: center; justify-content: center; gap: 0; margin: 20px 0; }
+        .step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+        .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+        .step-dot.active { background: var(--accent); color: white; }
+        .step-dot.pending { background: var(--bg-elevated); color: var(--text-3); border: 1px solid var(--border); }
+        .step-label { font-size: 10px; color: var(--text-3); text-align: center; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .step-label.active { color: var(--accent); }
+        .step-line { flex: 1; height: 1px; background: var(--border); max-width: 40px; margin-bottom: 16px; }
+
+        /* FORM CARD */
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
+        .card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .card-sub { font-size: 13px; color: var(--text-2); margin-bottom: 20px; }
+
+        .field { margin-bottom: 16px; }
+        .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .field input, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px; color: var(--text); font-size: 15px; font-family: var(--font); outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+        .field input:focus, .field select:focus { border-color: var(--accent); }
+        .field input::placeholder { color: var(--text-3); }
+        .field select option { background: var(--bg-card); }
+
+        .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* FREE VALUE SECTION */
+        .value-card { background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(167,139,250,0.06)); border: 1px solid rgba(102,126,234,0.2); border-radius: var(--r-lg); padding: 20px; margin-bottom: 16px; }
+        .value-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .checklist { display: flex; flex-direction: column; gap: 8px; }
+        .check-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.4; }
+        .check-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+        .check-text strong { display: block; font-size: 13px; color: var(--text); }
+        .check-text span { font-size: 12px; color: var(--text-2); }
+
+        .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+        .stat-box { text-align: center; background: var(--bg-card); border-radius: var(--r); padding: 10px 6px; }
+        .stat-num { font-size: 20px; font-weight: 800; color: var(--warning); display: block; }
+        .stat-desc { font-size: 11px; color: var(--text-2); line-height: 1.3; }
+
+        /* SYSTEM STATUS */
+        .status-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 16px; font-size: 12px; color: var(--text-2); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .status-dot.loading { background: var(--warning); animation: pulse 1.4s ease-in-out infinite; }
+        .status-dot.ready { background: var(--success); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* SUBMIT BUTTON */
+        .btn-submit { width: 100%; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: var(--r); padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: var(--font); transition: opacity 0.2s, transform 0.1s; position: relative; }
+        .btn-submit:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+        .btn-submit:active:not(:disabled) { transform: translateY(0); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* LOADING STATE */
+        .loading-overlay { display: none; text-align: center; padding: 40px 20px; }
+        .loading-overlay.show { display: block; }
+        .form-wrap.hidden { display: none; }
+        .spinner { display: inline-block; width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .loading-sub { font-size: 14px; color: var(--text-2); }
+        .loading-steps { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .loading-step { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-card); border-radius: var(--r); font-size: 13px; border: 1px solid var(--border); }
+        .loading-step .ls-icon { font-size: 16px; }
+        .loading-step.ls-done { border-color: rgba(52,211,153,0.3); }
+        .loading-step.ls-active { border-color: rgba(102,126,234,0.4); animation: border-pulse 1.5s ease infinite; }
+        @keyframes border-pulse { 0%, 100% { border-color: rgba(102,126,234,0.4); } 50% { border-color: rgba(102,126,234,0.8); } }
+
+        /* ERROR */
+        .error-msg { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); border-radius: var(--r); padding: 12px 14px; font-size: 13px; color: #f87171; margin-bottom: 12px; display: none; }
+        .error-msg.show { display: block; }
+
+        /* FOOTER NOTE */
+        .footer-note { text-align: center; font-size: 12px; color: var(--text-3); padding-top: 8px; }
+        .footer-note a { color: var(--accent); text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- HERO -->
+    <div class="hero">
+        <div class="logo">⚽</div>
+        <h1>Il tuo club merita un <span>piano strategico</span></h1>
+        <p>Inserisci i dati del club per ricevere un'analisi personalizzata. Gratis, in pochi minuti.</p>
+    </div>
+
+    <!-- STEP INDICATOR -->
+    <div class="steps">
+        <div class="step">
+            <div class="step-dot active">1</div>
+            <div class="step-label active">Il club</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+            <div class="step-dot pending">2</div>
+            <div class="step-label">Questionari</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+            <div class="step-dot pending">3</div>
+            <div class="step-label">Piano</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+            <div class="step-dot pending">4</div>
+            <div class="step-label">Documenti</div>
+        </div>
+    </div>
+
+    <!-- WHAT YOU GET (FREE VALUE) -->
+    <div class="value-card">
+        <div class="value-title">📋 Cosa riceve il tuo club</div>
+        <div class="checklist">
+            <div class="check-item">
+                <div class="check-icon">🎯</div>
+                <div class="check-text">
+                    <strong>Piano Strategico Completo</strong>
+                    <span>Aree sportiva, strutturale, marketing e sociale — adattate alla tua realtà</span>
+                </div>
+            </div>
+            <div class="check-item">
+                <div class="check-icon">📊</div>
+                <div class="check-text">
+                    <strong>Benchmark vs altri club</strong>
+                    <span>Come si posiziona il tuo club rispetto alla categoria e alla regione</span>
+                </div>
+            </div>
+            <div class="check-item">
+                <div class="check-icon">💡</div>
+                <div class="check-text">
+                    <strong>Azioni concrete e prioritarie</strong>
+                    <span>Non teoria: obiettivi misurabili con tempistiche e responsabili</span>
+                </div>
+            </div>
+            <div class="check-item">
+                <div class="check-icon">📄</div>
+                <div class="check-text">
+                    <strong>3 documenti esportabili</strong>
+                    <span>PDF completo, sintesi HTML, one-pager per il board</span>
+                </div>
+            </div>
+        </div>
+        <div class="stat-row">
+            <div class="stat-box">
+                <span class="stat-num">14.000+</span>
+                <div class="stat-desc">ASD calcistiche in Italia</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-num">82%</span>
+                <div class="stat-desc">senza un piano scritto</div>
+            </div>
+            <div class="stat-box">
+                <span class="stat-num">15 min</span>
+                <div class="stat-desc">per avere il tuo</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYSTEM STATUS -->
+    <div class="status-bar" id="statusBar">
+        <div class="status-dot loading" id="statusDot"></div>
+        <span id="statusText">Connessione al sistema in corso…</span>
+    </div>
+
+    <!-- FORM + LOADING -->
+    <div id="formWrap">
+        <div class="card">
+            <div class="card-title">Dati del club</div>
+            <div class="card-sub">Bastano 2 minuti. Tutto il resto lo gestiamo noi.</div>
+
+            <div class="error-msg" id="errorMsg"></div>
+
+            <div class="field">
+                <label>Nome del club *</label>
+                <input type="text" id="clubName" placeholder="es. Riccione Calcio 1926" autocomplete="organization">
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Categoria *</label>
+                    <select id="category">
+                        <option value="">Seleziona…</option>
+                        <option value="eccellenza">Eccellenza</option>
+                        <option value="promozione">Promozione</option>
+                        <option value="prima-categoria">Prima Categoria</option>
+                        <option value="seconda-categoria">Seconda Categoria</option>
+                        <option value="terza-categoria">Terza Categoria</option>
+                        <option value="juniores">Juniores Regionale</option>
+                        <option value="dilettanti">Dilettanti (altro)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Regione *</label>
+                    <select id="region">
+                        <option value="">Seleziona…</option>
+                        <option>Abruzzo</option>
+                        <option>Basilicata</option>
+                        <option>Calabria</option>
+                        <option>Campania</option>
+                        <option>Emilia-Romagna</option>
+                        <option>Friuli-Venezia Giulia</option>
+                        <option>Lazio</option>
+                        <option>Liguria</option>
+                        <option>Lombardia</option>
+                        <option>Marche</option>
+                        <option>Molise</option>
+                        <option>Piemonte</option>
+                        <option>Puglia</option>
+                        <option>Sardegna</option>
+                        <option>Sicilia</option>
+                        <option>Toscana</option>
+                        <option>Trentino-Alto Adige</option>
+                        <option>Umbria</option>
+                        <option>Valle d'Aosta</option>
+                        <option>Veneto</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Città</label>
+                <input type="text" id="city" placeholder="es. Riccione">
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Componenti nel board</label>
+                    <select id="boardSize">
+                        <option value="">Quanti siete?</option>
+                        <option value="1-3">1–3 persone</option>
+                        <option value="4-6">4–6 persone</option>
+                        <option value="7-10">7–10 persone</option>
+                        <option value="11+">Più di 10</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Email referente</label>
+                    <input type="email" id="email" placeholder="presidente@club.it" autocomplete="email">
+                </div>
+            </div>
+
+            <button class="btn-submit" id="submitBtn" onclick="handleSubmit()">
+                Inizia il Piano Strategico →
+            </button>
+            <div class="footer-note" style="margin-top:12px">
+                Nessun account richiesto. I dati restano riservati.<br>
+                <a href="index.html">Come funziona il sistema ↗</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOADING SCREEN -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-title">Prepariamo il tuo piano…</div>
+        <div class="loading-sub">Il sistema sta elaborando i dati del club</div>
+        <div class="loading-steps" id="loadingSteps">
+            <div class="loading-step ls-active" id="ls1">
+                <span class="ls-icon">💾</span>
+                <span>Registrazione dati del club</span>
+            </div>
+            <div class="loading-step" id="ls2">
+                <span class="ls-icon">🧠</span>
+                <span>Avvio sistema di analisi</span>
+            </div>
+            <div class="loading-step" id="ls3">
+                <span class="ls-icon">📋</span>
+                <span>Caricamento questionari</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const HF = "https://mtornani-rooting-future.hf.space";
+    let systemReady = false;
+    let wakeCheckInterval = null;
+
+    // Wake HF Spaces immediately on page load
+    function startWakePolling() {
+        checkSystemStatus();
+        wakeCheckInterval = setInterval(checkSystemStatus, 8000);
+    }
+
+    function checkSystemStatus() {
+        fetch(HF + "/api/system/status", { mode: "cors", cache: "no-cache" })
+            .then(r => {
+                if (r.ok) {
+                    setSystemReady();
+                }
+            })
+            .catch(() => {
+                // Still loading — keep polling
+            });
+    }
+
+    function setSystemReady() {
+        if (systemReady) return;
+        systemReady = true;
+        clearInterval(wakeCheckInterval);
+        const dot = document.getElementById("statusDot");
+        const txt = document.getElementById("statusText");
+        dot.classList.remove("loading");
+        dot.classList.add("ready");
+        txt.textContent = "Sistema pronto — puoi procedere";
+    }
+
+    function showError(msg) {
+        const el = document.getElementById("errorMsg");
+        el.textContent = msg;
+        el.classList.add("show");
+    }
+
+    function clearError() {
+        document.getElementById("errorMsg").classList.remove("show");
+    }
+
+    async function handleSubmit() {
+        clearError();
+
+        const clubName = document.getElementById("clubName").value.trim();
+        const category = document.getElementById("category").value;
+        const region = document.getElementById("region").value;
+        const city = document.getElementById("city").value.trim();
+        const boardSize = document.getElementById("boardSize").value;
+        const email = document.getElementById("email").value.trim();
+
+        if (!clubName) { showError("Inserisci il nome del club."); return; }
+        if (!category) { showError("Seleziona la categoria."); return; }
+        if (!region) { showError("Seleziona la regione."); return; }
+
+        const btn = document.getElementById("submitBtn");
+        btn.disabled = true;
+        btn.textContent = "Invio in corso…";
+
+        // Show loading screen
+        document.getElementById("formWrap").classList.add("hidden");
+        document.getElementById("loadingOverlay").classList.add("show");
+
+        // Step 1: save anagrafica
+        let slug = "";
+        try {
+            const res = await fetch(HF + "/api/wiki/anagrafica", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ club_name: clubName, category, region, city, board_size: boardSize, email, notes: "" }),
+                mode: "cors"
+            });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            slug = data.slug || "";
+            markStep(1);
+        } catch (e) {
+            // If HF is sleeping, still redirect to demo with what we have
+            slug = slugify(clubName);
+            markStep(1);
+        }
+
+        // Step 2: mark system ready
+        markStep(2);
+        await sleep(600);
+
+        // Step 3: redirect
+        markStep(3);
+        await sleep(500);
+
+        const params = new URLSearchParams();
+        if (slug) params.set("club_prefill", slug);
+        params.set("club_name", encodeURIComponent(clubName));
+        window.location.href = HF + "/demo/questionari?" + params.toString();
+    }
+
+    function markStep(n) {
+        const el = document.getElementById("ls" + n);
+        if (el) {
+            el.classList.remove("ls-active");
+            el.classList.add("ls-done");
+            el.querySelector(".ls-icon").textContent = "✅";
+        }
+        const next = document.getElementById("ls" + (n + 1));
+        if (next) next.classList.add("ls-active");
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function slugify(name) {
+        return name.toLowerCase().trim()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/[\s_]+/g, "-")
+            .replace(/-+/g, "-")
+            .replace(/^-|-$/g, "");
+    }
+
+    // Boot
+    startWakePolling();
+</script>
+</body>
+</html>

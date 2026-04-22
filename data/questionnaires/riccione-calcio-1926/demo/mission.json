@@ -1,0 +1,18 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "mission",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "mission_main": {
+      "parole_chiave": "formazione, territorio, calcio, giovani, comunità, crescita, valori",
+      "cosa_facciamo": "Pratichiamo calcio a livello agonistico e formativo, dalla prima squadra al settore giovanile, con squadre dai Piccoli Amici alla Prima Squadra",
+      "come_lo_facciamo": "Con allenatori qualificati, strutture dedicate, un metodo di gioco riconoscibile e un rapporto diretto con le famiglie del territorio",
+      "per_chi": "Per i ragazzi e le famiglie di Riccione e dei comuni limitrofi della Riviera Romagnola, dagli 5 ai 35 anni",
+      "benefici": "Formazione sportiva e umana di qualità, senso di appartenenza alla comunità, opportunità di crescita agonistica fino ai campionati nazionali",
+      "mission_bozza": "Riccione Calcio 1926 forma campioni e cittadini: sviluppiamo talento e valori attraverso il calcio, radicati nel territorio della Riviera e proiettati verso l'eccellenza regionale"
+    }
+  },
+  "updated_at": "2026-04-18T10:10:00.000000"
+}

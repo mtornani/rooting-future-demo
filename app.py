@@ -223,26 +223,9 @@ from data_ingestor import (
     DOCX_AVAILABLE,
 )
 
-# Authentication (Simple session-based for HF Spaces compatibility)
-from simple_auth import init_auth, login_required, get_current_user
-
-# Create a property-like access for current_user
-class CurrentUserProxy:
-    """Proxy to get current user on each access"""
-    def __getattr__(self, name):
-        user = get_current_user()
-        return getattr(user, name)
-
-    def __bool__(self):
-        return get_current_user().is_authenticated
-
-    def __repr__(self):
-        user = get_current_user()
-        if user.is_authenticated:
-            return f"<User {user.email}>"
-        return "<AnonymousUser>"
-
-current_user = CurrentUserProxy()
+# Authentication
+from auth_manager import init_auth
+from flask_login import login_required, current_user
 
 
 # =============================================================================
@@ -252,11 +235,6 @@ current_user = CurrentUserProxy()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
-
-# ProxyFix for HF Spaces (behind reverse proxy)
-if os.environ.get("HF_SPACES"):
-    from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Configurazione Logging Aggressiva (Anti-Noise)
 logging.basicConfig(
@@ -348,12 +326,7 @@ def check_system_activation():
     Verifica l'attivazione della licenza prima di ogni richiesta.
     Controlla sia la validità della chiave che la scadenza temporale.
     Esclude rotte di login, static e la pagina di attivazione stessa.
-    Skip entirely on HF Spaces (no HWID licensing in cloud).
     """
-    # Skip license check on HF Spaces - cloud uses session auth only
-    if os.environ.get("HF_SPACES"):
-        return
-
     allowed_routes = ["activation", "static", "auth.login", "auth.logout"]
     if request.endpoint in allowed_routes or not request.endpoint:
         return
@@ -382,13 +355,14 @@ def activation():
             licenser.save_license(email, key, duration_days=duration_days)
 
             # Auto-creazione utente se non esiste
-            from simple_auth import hash_password, SimpleUser, login_user
+            from auth_manager import bcrypt, User
+            from flask_login import login_user
 
             existing_user = knowledge_manager.store.get_user_by_email(email)
             if not existing_user:
                 # Genera password temporanea basata su parte della license key
                 temp_password = key[:8]  # Primi 8 caratteri della chiave
-                password_hash = hash_password(temp_password)
+                password_hash = bcrypt.generate_password_hash(temp_password).decode('utf-8')
 
                 # Crea utente con ruolo 'manager' e crediti iniziali
                 user_id = knowledge_manager.store.create_user(
@@ -407,7 +381,7 @@ def activation():
 
             # Auto-login dell'utente
             if existing_user:
-                user = SimpleUser(existing_user)
+                user = User(existing_user)
                 login_user(user)
 
             flash("Sistema Attivato con Successo!", "success")
@@ -570,6 +544,27 @@ def inject_now():
 
 
 # =============================================================================
+# AI PROVIDERS — ADAPTER LAYER
+# Crea i provider giusti in base alle env vars. Zero impatto se LOCAL_RAG=0.
+# =============================================================================
+
+try:
+    from ai_providers.factory import create_all_providers
+    _ai_embedding_provider, _ai_generation_provider, _ai_vector_store = create_all_providers()
+    logger.info(
+        f"AI Providers inizializzati: "
+        f"embedding={type(_ai_embedding_provider).__name__}, "
+        f"generation={type(_ai_generation_provider).__name__}, "
+        f"vector_store={type(_ai_vector_store).__name__ if _ai_vector_store else 'SQLite(default)'}"
+    )
+except Exception as e:
+    logger.warning(f"AI Providers non inizializzati (fallback a Gemini): {e}")
+    _ai_embedding_provider = None
+    _ai_generation_provider = None
+    _ai_vector_store = None
+
+
+# =============================================================================
 # COMPONENTI (inizializzazione con gestione errori)
 # =============================================================================
 
@@ -583,7 +578,23 @@ except Exception as e:
     file_search_store_name = None
 
 # Knowledge manager (per apprendimento)
-knowledge_manager = KnowledgeManager(file_search_manager=file_search_manager)
+# Se LOCAL_RAG=1, inietta ProviderKnowledgeRAG al posto di GeminiKnowledgeRAG
+_rag_override = None
+if _ai_embedding_provider is not None and os.environ.get("LOCAL_RAG", "0").strip() == "1":
+    try:
+        from knowledge_store import ProviderKnowledgeRAG
+        _rag_override = ProviderKnowledgeRAG(
+            embedding_provider=_ai_embedding_provider,
+            vector_store=_ai_vector_store,
+        )
+        logger.info("KnowledgeManager: usando ProviderKnowledgeRAG (LOCAL_RAG=1)")
+    except Exception as e:
+        logger.warning(f"ProviderKnowledgeRAG non inizializzato: {e}")
+
+knowledge_manager = KnowledgeManager(
+    file_search_manager=file_search_manager,
+    rag_override=_rag_override,
+)
 
 # Session Manager (REF-003 / UX-001b)
 from session_manager import init_session_manager
@@ -776,45 +787,6 @@ def check_system_lockout():
 # =============================================================================
 
 
-@app.route("/setup-admin")
-def setup_admin():
-    """Endpoint temporaneo per creare l'admin su HF Spaces"""
-    from simple_auth import hash_password
-
-    admin_email = 'mirkotornani@gmail.com'
-    admin_password = 'admin'
-
-    try:
-        existing = knowledge_manager.store.get_user_by_email(admin_email)
-        if existing:
-            # Re-hash password with simple_auth to fix any bcrypt legacy hashes
-            pw_hash = hash_password(admin_password)
-            knowledge_manager.store.cursor.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (pw_hash, existing['id'])
-            )
-            knowledge_manager.store.conn.commit()
-            return jsonify({
-                "status": "exists_rehashed",
-                "message": f"Admin {admin_email} exists (id {existing['id']}), password re-hashed with simple_auth",
-                "hint": "Login with password: admin"
-            })
-
-        pw_hash = hash_password(admin_password)
-        knowledge_manager.store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
-        user = knowledge_manager.store.get_user_by_email(admin_email)
-        if user:
-            knowledge_manager.store.update_user_credits(user['id'], 100)
-
-        return jsonify({
-            "status": "created",
-            "message": f"Admin created: {admin_email} / {admin_password}",
-            "user_id": user['id'] if user else None
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
 @app.route("/")
 @login_required
 def index():
@@ -827,33 +799,12 @@ def index():
     try:
         db_stats = knowledge_manager.store.get_statistics()
         plans_stats = db_stats.get("plans", {})
-        # Get recent plans for dashboard
-        recent_plans = []
-        try:
-            owner_filter = None
-            if current_user.role not in ("super_admin", "admin"):
-                owner_filter = int(current_user.id)
-            recent_raw, _ = knowledge_manager.store.list_plans(
-                owner_id=owner_filter, limit=5, offset=0
-            )
-            recent_plans = [
-                {
-                    "plan_id": p.id,
-                    "club_name": p.club_name,
-                    "status": p.status,
-                    "last_modified": p.created_at,
-                }
-                for p in recent_raw
-            ]
-        except Exception as e:
-            logger.warning(f"Failed to load recent plans: {e}")
-
         stats = {
             "total_plans": plans_stats.get("total", 0),
             "by_status": plans_stats.get("by_status", {"draft": 0}),
             "sections_needing_review": plans_stats.get("by_status", {}).get("review", 0),
             "average_credibility": plans_stats.get("avg_credibility", 0),
-            "recent_plans": recent_plans,
+            "recent_plans": [],  # TODO: implementare lista piani recenti
         }
     except Exception as e:
         logger.error(f"Errore caricamento statistiche: {e}")
@@ -864,19 +815,6 @@ def index():
             "average_credibility": 0,
             "recent_plans": [],
         }
-
-    # License info for dashboard
-    hf_spaces_mode = bool(os.environ.get("HF_SPACES"))
-    license_valid = False
-    license_status_info = {}
-    hwid = ""
-    if not hf_spaces_mode:
-        try:
-            license_valid = check_license_valid()
-            license_status_info = licenser.get_license_status()
-            hwid = licenser.get_machine_code()
-        except Exception:
-            pass
 
     return render_template(
         "dashboard_hybrid.html",
@@ -889,10 +827,6 @@ def index():
         docx_available=DOCX_AVAILABLE,
         user=current_user,
         stripe_public_key=STRIPE_PUBLIC_KEY,
-        hf_spaces_mode=hf_spaces_mode,
-        license_valid=license_valid,
-        license_status=license_status_info,
-        hwid=hwid,
     )
 
 
@@ -1348,9 +1282,9 @@ def api_admin_create_user():
         return jsonify({"success": False, "error": "Utente già esistente"}), 400
 
     # Crea
-    from simple_auth import hash_password
+    from auth_manager import bcrypt
 
-    pw_hash = hash_password(password)
+    pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
     user_id = knowledge_manager.store.create_user(
         email, pw_hash, full_name, role="user"
     )
@@ -1512,12 +1446,12 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
     try:
         def report_progress(message, percent):
             session_manager.save_checkpoint(
-                session_id,
-                "progress",
-                percent,
-                metadata_update={"last_message": message, "actual_percent": percent}
+                session_id, 
+                "progress", 
+                percent, 
+                metadata_update={"last_message": message}
             )
-            # Compatibilita con vecchio HUD
+            # Compatibilità con vecchio HUD
             update_project_status(session_id, "processing", progress=percent, message=message)
 
         report_progress("Inizializzazione sistema...", 5)
@@ -1611,8 +1545,6 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         metadata["audit_report"] = audit_report
 
         # Salva record finale
-        # Store metadata inside plan_data for persistence
-        plan["_metadata"] = metadata
         plan_record = PlanRecord(
             id=review.plan_id,
             club_name=club_name,
@@ -1624,6 +1556,7 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
             sources_count=len(sources),
             credibility_score=audit_report.get("overall_quality_score", 0),
             owner_id=user_id,
+            metadata=metadata,
         )
         knowledge_manager.store.save_plan(plan_record)
         
@@ -1638,7 +1571,7 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": review.plan_id})
         
         # Detrai crediti al completamento
-        knowledge_manager.store.update_user_credits(user_id, -1)
+        knowledge_manager.store.deduct_credits(user_id, 1)
         
         logger.info(f"Background generation completed for {club_name}: {review.plan_id}")
 
@@ -1646,304 +1579,6 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         logger.error(f"Error in background task for {session_id}: {e}")
         session_manager.mark_failed(session_id, str(e))
         update_project_status(session_id, "error", message=f"Errore: {str(e)}")
-
-
-def _run_docx_generation_task(session_id: str, files_data: list, club_name: str,
-                               project_id: str, hard_data: dict, request_mode: str, user_id: int):
-    """
-    Background task per generazione piano da DOCX upload.
-    Replica la logica di /api/generate-from-docx ma in un thread separato con progress tracking.
-    """
-    from auditor_agent import AuditorAgent
-
-    try:
-        def report_progress(message, percent):
-            session_manager.save_checkpoint(
-                session_id, "progress", percent,
-                metadata_update={"last_message": message, "actual_percent": percent}
-            )
-            update_project_status(session_id, "processing", progress=percent, message=message)
-
-        report_progress("Inizializzazione sistema...", 5)
-
-        # 1. Process DOCX files -> Payload
-        report_progress(f"Elaborazione {len(files_data)} file DOCX...", 8)
-        logger.info(f"[DOCX BG] Starting DOCX processing for {len(files_data)} files")
-        try:
-            payload = process_docx_files_to_payload(
-                files=files_data,
-                club_name=club_name,
-                project_id=project_id,
-                hard_data=hard_data,
-            )
-        except Exception as e:
-            logger.error(f"[DOCX BG] DOCX processing failed: {e}", exc_info=True)
-            raise RuntimeError(f"Errore elaborazione DOCX: {str(e)}")
-        payload["request_mode"] = request_mode
-        report_progress(f"DOCX elaborati: {len(payload['stakeholders_inputs'])} stakeholder trovati", 12)
-        logger.info(f"[DOCX BG] Extracted {len(payload['stakeholders_inputs'])} stakeholders")
-
-        # 2. Data Ingestor - Conflict Resolution
-        report_progress("Sintesi stakeholder multi-source...", 15)
-        logger.info("[DOCX BG] Starting stakeholder synthesis...")
-        try:
-            synthesized, generation_params = process_n8n_webhook_payload(payload)
-        except Exception as e:
-            logger.error(f"[DOCX BG] Stakeholder synthesis failed: {e}", exc_info=True)
-            raise RuntimeError(f"Errore sintesi stakeholder: {str(e)}")
-        logger.info(f"[DOCX BG] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}")
-
-        # 3. Web Research (production mode)
-        research_data = {}
-        if request_mode == "production":
-            report_progress("Ricerca web strategica in corso...", 25)
-            try:
-                research_data = research_aggregator.comprehensive_club_research(
-                    club_name=generation_params["club_name"],
-                    city=generation_params.get("city", ""),
-                    category=generation_params.get("category", ""),
-                    competitors=[],
-                    region=generation_params.get("region", ""),
-                )
-                research_aggregator.export_research_report(research_data)
-            except Exception as e:
-                logger.warning(f"[DOCX BG] Research failed: {e}")
-
-        # 4. Generate strategic plan
-        report_progress("Generazione contenuti con Multi-Agent Orchestrator...", 35)
-        club_data = generation_params.copy()
-        club_data["synthesized_vision"] = synthesized.unified_vision
-        club_data["swot_aggregated"] = {
-            k: [item for item, _, _ in v[:5]]
-            for k, v in synthesized.swot_aggregated.items()
-        }
-        club_data["priority_ranking"] = []
-        for p in synthesized.priority_ranking[:5]:
-            if isinstance(p, (list, tuple)) and len(p) >= 1:
-                club_data["priority_ranking"].append(p[0])
-            else:
-                club_data["priority_ranking"].append(p)
-
-        logger.info("[DOCX BG] Starting Multi-Agent Orchestrator...")
-        try:
-            result = orchestrator.generate_strategic_plan(
-                club_data=club_data,
-                research_data=research_data.get("club", {}),
-                parallel=True,
-                on_progress=report_progress,
-            )
-        except Exception as e:
-            logger.error(f"[DOCX BG] Orchestrator failed: {e}", exc_info=True)
-            raise RuntimeError(f"Errore generazione piano: {str(e)}")
-
-        # 5. Generate Structured Plan (Scientific) v6.0
-        report_progress("Generazione analisi scientifica v6.0...", 75)
-        try:
-            structured_plan = structured_orchestrator.generate_plan(
-                club_data=club_data, research_data=research_data,
-                on_progress=report_progress,
-            )
-        except Exception as e:
-            logger.error(f"[DOCX BG] Structured generation failed: {e}")
-            structured_plan = None
-
-        plan = result["plan"]
-        sources = result["sources"]
-        metadata = result["metadata"]
-
-        # Merge structured sections
-        if structured_plan:
-            from utils.structured_converter import structured_plan_to_markdown
-            structured_sections = structured_plan_to_markdown(structured_plan)
-            plan.update(structured_sections)
-            logger.info(f"[DOCX BG] Merged {len(structured_sections)} structured sections")
-
-        # 6. DOCX metadata
-        metadata["source"] = "docx_upload"
-        metadata["files_processed"] = payload["files_processed"]
-        metadata["document_types"] = payload["document_types_detected"]
-        metadata["stakeholder_count"] = len(payload["stakeholders_inputs"])
-        metadata["stakeholder_alignment"] = synthesized.stakeholder_alignment_score
-        metadata["conflicts_count"] = len(synthesized.conflicts_detected)
-        metadata["project_id"] = payload.get("project_id")
-        metadata["total_questionnaires"] = len(payload["files_processed"])
-        total_fields = sum(
-            len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
-        )
-        metadata["verified_data_count"] = max(total_fields, len(payload["files_processed"]) * 15)
-        metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
-
-        # 7. Club identity (colors)
-        club_identity = get_club_identity(
-            club_name=generation_params["club_name"],
-            custom_primary=hard_data.get("primary_color"),
-            custom_secondary=hard_data.get("secondary_color"),
-        )
-        metadata["primary_color"] = club_identity["primary"]
-        metadata["secondary_color"] = club_identity["secondary"]
-        metadata["category"] = generation_params.get("category", "")
-
-        # 8. Reports generation
-        report_progress("Generazione report (PDF, One-Pager, Executive)...", 85)
-        export_paths = []
-
-        if request_mode == "production":
-            safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            # PDF
-            try:
-                from export_pdf_server import PdfServerExporter
-                pdf_exporter = PdfServerExporter()
-                pdf_path = pdf_exporter.export(
-                    plan_data=plan,
-                    club_name=generation_params["club_name"],
-                    sources=sources,
-                    metadata=metadata,
-                )
-                export_paths.append(pdf_path.name)
-                logger.info(f"[DOCX BG] PDF: {pdf_path.name}")
-            except Exception as e:
-                logger.warning(f"[DOCX BG] PDF failed: {e}")
-
-            # One-Pager
-            try:
-                from export_onepager import create_onepager
-                from stw_analyzer import STWAnalyzer
-                analyzer = STWAnalyzer()
-                full_stw_data = analyzer.analyze_plan_coverage(plan)
-                onepager_path = create_onepager(
-                    plan_data=plan,
-                    club_name=generation_params["club_name"],
-                    metadata=metadata,
-                    stw_progress=full_stw_data,
-                )
-                export_paths.append(onepager_path.name)
-                logger.info(f"[DOCX BG] One-Pager: {onepager_path.name}")
-            except Exception as e:
-                logger.warning(f"[DOCX BG] One-Pager failed: {e}")
-
-            # Executive Report
-            try:
-                exec_html = plan_renderer.render_executive_html(
-                    plan_data=plan,
-                    club_name=generation_params["club_name"],
-                    category=generation_params.get("category", "Eccellenza"),
-                    metadata=metadata,
-                )
-                exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
-                exec_path = OUTPUT_DIR / exec_filename
-                with open(exec_path, "w", encoding="utf-8") as f:
-                    f.write(exec_html)
-                export_paths.append(exec_filename)
-                logger.info(f"[DOCX BG] Executive: {exec_filename}")
-            except Exception as e:
-                logger.warning(f"[DOCX BG] Executive failed: {e}")
-
-            # Scientific Report
-            try:
-                if structured_plan:
-                    sci_path_str = plan_renderer.render_structured(structured_plan)
-                    sci_path = Path(sci_path_str)
-                    export_paths.append(sci_path.name)
-                    logger.info(f"[DOCX BG] Scientific: {sci_path.name}")
-            except Exception as e:
-                logger.warning(f"[DOCX BG] Scientific failed: {e}")
-
-        # 9. Review + Audit (resilient - failures don't block plan saving)
-        report_progress("Creazione review e audit qualita...", 90)
-        audit_report = {"status": "skipped", "overall_quality_score": 70}
-        review = None
-        try:
-            review = editor.create_review_from_plan(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                sources=sources,
-                metadata=metadata,
-                owner_id=user_id,
-            )
-            logger.info(f"[DOCX BG] Review created: {review.plan_id}")
-        except Exception as e:
-            logger.error(f"[DOCX BG] Review creation failed: {e}", exc_info=True)
-
-        try:
-            auditor = AuditorAgent()
-            audit_report = auditor.audit_plan(plan, club_data, metadata.get("financial_estimates", {}))
-            metadata["audit_report"] = audit_report
-            logger.info(f"[DOCX BG] Audit complete: score={audit_report.get('overall_quality_score', 'N/A')}")
-        except Exception as e:
-            logger.error(f"[DOCX BG] Audit failed: {e}", exc_info=True)
-
-        # 10. Save plan record
-        report_progress("Salvataggio piano...", 95)
-        plan_id = review.plan_id if review else f"plan_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        try:
-            # Store metadata inside plan_data for persistence
-            plan["_metadata"] = metadata
-            plan_record = PlanRecord(
-                id=plan_id,
-                club_name=generation_params["club_name"],
-                category=generation_params.get("category", ""),
-                region=generation_params.get("region", ""),
-                created_at=datetime.now().isoformat(),
-                status="draft",
-                plan_data=plan,
-                sources_count=len(sources),
-                credibility_score=audit_report.get("overall_quality_score", 0),
-                owner_id=user_id,
-            )
-            if export_paths:
-                plan_record.export_paths = export_paths
-            knowledge_manager.store.save_plan(plan_record)
-            logger.info(f"[DOCX BG] Plan saved: {plan_id}")
-        except Exception as e:
-            logger.error(f"[DOCX BG] Plan save failed: {e}", exc_info=True)
-            raise RuntimeError(f"Errore salvataggio piano: {str(e)}")
-
-        # 11. Structured logging (non-critical)
-        try:
-            log_plan_generation_completed(
-                plan_id=plan_id,
-                club_name=generation_params["club_name"],
-                duration_seconds=0,
-                agent_count=6,
-                sections_count=len(plan),
-                stakeholder_count=len(payload.get("stakeholders_inputs", [])),
-                source="docx_upload_async",
-            )
-        except Exception as e:
-            logger.warning(f"[DOCX BG] Structured logging failed: {e}")
-
-        # 12. Mark completed (set plan_id in metadata BEFORE marking completed
-        # to avoid race condition where SSE sees "completed" but plan_id is null)
-        session_manager.save_checkpoint(
-            session_id, "final", 100,
-            metadata_update={"plan_id": plan_id, "last_message": "Piano generato con successo!"}
-        )
-        session_manager.mark_completed(session_id, plan, sources=sources)
-        update_project_status(session_id, "completed", progress=100, message="Piano pronto!", data={"plan_id": plan_id})
-
-        # 13. Deduct credits (non-critical)
-        try:
-            knowledge_manager.store.update_user_credits(user_id, -1)
-        except Exception as e:
-            logger.warning(f"[DOCX BG] Credit deduction failed: {e}")
-
-        logger.info(f"[DOCX BG] Generation completed: {plan_id}")
-
-    except Exception as e:
-        error_msg = f"Errore: {str(e)}"
-        logger.error(f"[DOCX BG] Error in background task for {session_id}: {e}", exc_info=True)
-        # Update last_message so SSE shows the actual error, not the last step name
-        try:
-            session_manager.save_checkpoint(
-                session_id, "error", 0,
-                metadata_update={"last_message": error_msg, "actual_percent": 0}
-            )
-        except Exception:
-            pass
-        session_manager.mark_failed(session_id, str(e))
-        update_project_status(session_id, "error", message=error_msg)
 
 
 @app.route("/api/progress/<session_id>")
@@ -1954,68 +1589,35 @@ def api_progress_stream(session_id):
     def generate():
         last_progress = -1
         last_status = ""
-        last_message = ""
-        stall_count = 0  # Detect stalled progress
-        MAX_STALL = 300  # 5 minutes without progress change = stalled
-
+        
         while True:
             session_data = session_manager.get_session(session_id)
             if not session_data:
                 yield f"data: {json.dumps({'status': 'error', 'message': 'Sessione non trovata'})}\n\n"
                 break
-
-            # Use actual_percent from metadata (set by report_progress) instead of section-based %
-            current_progress = session_data.metadata.get("actual_percent", session_data.progress_percentage)
+            
+            # Invia aggiornamento se cambiato
+            current_progress = session_data.progress_percentage
             current_status = session_data.status.value
-            current_message = session_data.metadata.get("last_message", "")
-
-            if current_progress != last_progress or current_status != last_status or current_message != last_message:
+            
+            if current_progress != last_progress or current_status != last_status:
                 data = {
                     "progress": round(current_progress, 1),
                     "status": current_status,
-                    "message": current_message,
+                    "message": session_data.metadata.get("last_message", ""),
                     "completed_sections": session_data.completed_sections,
                     "plan_id": session_data.metadata.get("plan_id")
                 }
                 yield f"data: {json.dumps(data)}\n\n"
                 last_progress = current_progress
                 last_status = current_status
-                last_message = current_message
-                stall_count = 0  # Reset stall counter on any change
-            else:
-                stall_count += 1
-
+            
             if current_status in ["completed", "failed"]:
                 break
-
-            # Detect stalled task (no progress for MAX_STALL seconds)
-            if stall_count >= MAX_STALL:
-                yield f"data: {json.dumps({'status': 'failed', 'message': 'Generazione bloccata (nessun progresso per 5 minuti). Riprova.'})}\n\n"
-                session_manager.mark_failed(session_id, "Stalled - no progress for 5 minutes")
-                break
-
+                
             time.sleep(1)
-
+            
     return Response(generate(), mimetype="text/event-stream")
-
-
-@app.route("/api/session-status/<session_id>")
-def api_session_status(session_id):
-    """Debug endpoint: controlla lo stato di una sessione di generazione."""
-    session_data = session_manager.get_session(session_id)
-    if not session_data:
-        return jsonify({"error": "Session not found", "session_id": session_id}), 404
-    return jsonify({
-        "session_id": session_id,
-        "status": session_data.status.value,
-        "progress": session_data.metadata.get("actual_percent", session_data.progress_percentage),
-        "message": session_data.metadata.get("last_message", ""),
-        "error_log": session_data.error_log,
-        "completed_sections": session_data.completed_sections,
-        "pending_sections": session_data.pending_sections,
-        "created_at": session_data.created_at,
-        "updated_at": session_data.updated_at,
-    })
 
 
 @app.route("/api/generate", methods=["POST"])
@@ -3440,14 +3042,9 @@ def api_browse_folder():
 @route_error_handler
 def api_generate_from_docx():
     """
-    Endpoint DOCX upload + generazione piano (ASYNC).
-    Restituisce session_id immediatamente, il client si connette a SSE per il progresso.
+    Endpoint completo: upload DOCX + generazione piano.
     """
-    # Auth check (JSON-friendly, no redirect)
-    if not current_user.is_authenticated:
-        return jsonify({"success": False, "error": "Sessione scaduta. Ricarica la pagina e accedi di nuovo."}), 401
-
-    # Verifica disponibilita python-docx
+    # Verifica disponibilità python-docx
     if not DOCX_AVAILABLE:
         return jsonify(
             {
@@ -3488,7 +3085,7 @@ def api_generate_from_docx():
         f"[DOCX Generate] Processing {len(valid_files)} files for {club_name}"
     )
 
-    # Read file bytes before request context closes
+    # Prepara file per processing
     import io
 
     files_to_process = []
@@ -3496,65 +3093,278 @@ def api_generate_from_docx():
         content = io.BytesIO(f.read())
         files_to_process.append((content, f.filename))
 
-    # Get user_id before request context closes
-    user_id = int(current_user.id) if current_user.is_authenticated else None
+    # 1. Processa DOCX -> Payload
+    payload = process_docx_files_to_payload(
+        files=files_to_process,
+        club_name=club_name,
+        project_id=project_id,
+        hard_data=hard_data,
+    )
+    payload["request_mode"] = request_mode
 
-    # Check credits before starting
-    if user_id:
+    logger.info(
+        f"[DOCX Generate] Extracted {len(payload['stakeholders_inputs'])} stakeholders"
+    )
+
+    # 2. Process con Data Ingestor (Conflict Resolution)
+    synthesized, generation_params = process_n8n_webhook_payload(payload)
+
+    logger.info(
+        f"[DOCX Generate] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}"
+    )
+
+    # 3. Web Research (se production mode)
+    research_data = {}
+    if request_mode == "production":
         try:
-            user_data = knowledge_manager.store.get_user_by_id(user_id)
-            user_credits = user_data.get("credits", 0) if user_data else 0
-            if user_credits <= 0:
-                return jsonify({
-                    "success": False,
-                    "error": "Crediti insufficienti. Contatta il referente per ottenere nuovi crediti."
-                }), 403
+            research_data = research_aggregator.comprehensive_club_research(
+                club_name=generation_params["club_name"],
+                city=generation_params.get("city", ""),
+                category=generation_params.get("category", ""),
+                competitors=[],
+                region=generation_params.get("region", ""),
+            )
+            research_aggregator.export_research_report(research_data)
         except Exception as e:
-            logger.warning(f"[DOCX Generate] Credit check failed (proceeding anyway): {e}")
+            logger.warning(f"[DOCX Generate] Research failed: {e}")
 
+    # 4. Genera piano
+    logger.info(
+        "[DOCX Generate] Activating Multi-Agent Orchestrator (Recipe #RF-2026)..."
+    )
+
+    club_data = generation_params.copy()
+    club_data["synthesized_vision"] = synthesized.unified_vision
+    club_data["swot_aggregated"] = {
+        k: [item for item, _, _ in v[:5]]
+        for k, v in synthesized.swot_aggregated.items()
+    }
+    club_data["priority_ranking"] = []
+    for p in synthesized.priority_ranking[:5]:
+        if isinstance(p, (list, tuple)) and len(p) >= 1:
+            club_data["priority_ranking"].append(p[0])
+        else:
+            club_data["priority_ranking"].append(p)
+
+    result = orchestrator.generate_strategic_plan(
+        club_data=club_data,
+        research_data=research_data.get("club", {}),
+        parallel=True,
+    )
+
+    # 4b. Genera Piano Strutturato (Scientifico) v6.0
+    logger.info("[DOCX Generate] Extracting Scientific Data Points...")
     try:
-        # Create session for progress tracking
-        gen_session = session_manager.create_session(
-            club_name=club_name,
-            club_data={
-                "club_name": club_name,
-                "request_mode": request_mode,
-                "files_count": len(files_to_process),
-            },
-            sections_to_generate=[
-                "upload", "stakeholder_analysis", "web_research",
-                "agent_generation", "structured_data", "review_creation", "complete"
-            ],
-            owner_id=user_id,
+        structured_plan = structured_orchestrator.generate_plan(
+            club_data=club_data, research_data=research_data
         )
-
-        session_id = gen_session.session_id
-        logger.info(f"[DOCX Generate] Created session {session_id}, submitting background task")
-
-        # Submit background task
-        analysis_executor.submit(
-            _run_docx_generation_task,
-            session_id,
-            files_to_process,
-            club_name,
-            project_id,
-            hard_data,
-            request_mode,
-            user_id,
-        )
-
-        # Return immediately with session_id
-        return jsonify(
-            {
-                "success": True,
-                "session_id": session_id,
-                "message": "Generazione avviata in background.",
-            }
-        ), 202
-
     except Exception as e:
-        logger.exception(f"[DOCX Generate] Failed to create session or submit task: {e}")
-        return jsonify({"success": False, "error": f"Errore avvio generazione: {str(e)}"}), 500
+        logger.error(f"Structured generation failed: {e}")
+        structured_plan = None
+
+    plan = result["plan"]
+    sources = result["sources"]
+    metadata = result["metadata"]
+
+    # 4c. Merge structured sections into plan_data
+    if structured_plan:
+        from utils.structured_converter import structured_plan_to_markdown
+        structured_sections = structured_plan_to_markdown(structured_plan)
+        plan.update(structured_sections)  # Sovrascrivi/aggiungi sezioni strutturate
+        logger.info(f"[DOCX Generate] Merged {len(structured_sections)} structured sections into plan_data")
+
+    # Aggiungi info DOCX al metadata
+    metadata["source"] = "docx_upload"
+    metadata["files_processed"] = payload["files_processed"]
+    metadata["document_types"] = payload["document_types_detected"]
+    metadata["stakeholder_count"] = len(payload["stakeholders_inputs"])
+    metadata["stakeholder_alignment"] = synthesized.stakeholder_alignment_score
+    metadata["conflicts_count"] = len(synthesized.conflicts_detected)
+    metadata["project_id"] = payload.get("project_id")
+
+    # Conteggio questionari compilati
+    metadata["total_questionnaires"] = len(payload["files_processed"])
+    total_fields = sum(
+        len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
+    )
+    metadata["verified_data_count"] = max(
+        total_fields, len(payload["files_processed"]) * 15
+    )
+    metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
+
+    # 5. Ottieni colori club
+    club_identity = get_club_identity(
+        club_name=generation_params["club_name"],
+        custom_primary=hard_data.get("primary_color"),
+        custom_secondary=hard_data.get("secondary_color"),
+    )
+    metadata["primary_color"] = club_identity["primary"]
+    metadata["secondary_color"] = club_identity["secondary"]
+    metadata["category"] = generation_params.get("category", "")
+
+    # 6. Crea review
+    review = editor.create_review_from_plan(
+        plan_data=plan,
+        club_name=generation_params["club_name"],
+        sources=sources,
+        metadata=metadata,
+    )
+
+    # 7. Salva in knowledge store
+    plan_record = PlanRecord(
+        id=review.plan_id,
+        club_name=generation_params["club_name"],
+        category=generation_params.get("category", ""),
+        region=generation_params.get("region", ""),
+        created_at=datetime.now().isoformat(),
+        status="draft",
+        plan_data=plan,
+        sources_count=len(sources),
+        credibility_score=metadata.get("credibility_score", 0),
+    )
+    knowledge_manager.add_plan_to_knowledge(
+        plan_record, owner_id=int(current_user.id)
+    )
+
+    logger.info(f"[DOCX Generate] Plan successfully locked: {review.plan_id}")
+
+    # Structured logging (STAB-004)
+    log_plan_generation_completed(
+        plan_id=review.plan_id,
+        club_name=generation_params["club_name"],
+        duration_seconds=0,  # TODO: Add timing
+        agent_count=6,
+        sections_count=len(plan),
+        stakeholder_count=len(payload.get("stakeholders_inputs", [])),
+        source="docx_upload"
+    )
+
+    # 8. Genera report automaticamente
+    pdf_url = None
+    onepager_url = None
+    executive_url = None
+    scientific_url = None
+    export_paths = []
+
+    if request_mode == "production":  # Genera tutti i report
+        safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 8a. PDF (può fallire se Playwright non è installato)
+        try:
+            from export_pdf_server import PdfServerExporter
+            pdf_exporter = PdfServerExporter()
+            pdf_path = pdf_exporter.export(
+                plan_data=plan,
+                club_name=generation_params["club_name"],
+                sources=sources,
+                metadata=metadata,
+            )
+            pdf_url = f"/download/{pdf_path.name}"
+            export_paths.append(pdf_path.name)
+            logger.info(f"PDF generato: {pdf_path.name}")
+        except Exception as pdf_error:
+            logger.warning(f"[DOCX Generate] PDF generation failed (non-blocking): {pdf_error}")
+
+        # 8b. One-Pager (non richiede Playwright)
+        try:
+            from export_onepager import create_onepager
+            from stw_analyzer import STWAnalyzer
+            analyzer = STWAnalyzer()
+            full_stw_data = analyzer.analyze_plan_coverage(plan)
+            onepager_path = create_onepager(
+                plan_data=plan,
+                club_name=generation_params["club_name"],
+                metadata=metadata,
+                stw_progress=full_stw_data,
+            )
+            onepager_url = f"/download/{onepager_path.name}"
+            export_paths.append(onepager_path.name)
+            logger.info(f"One-Pager generato: {onepager_path.name}")
+        except Exception as op_error:
+            logger.warning(f"[DOCX Generate] One-Pager generation failed: {op_error}")
+
+        # 8c. Executive Report (non richiede Playwright)
+        try:
+            exec_html = plan_renderer.render_executive_html(
+                plan_data=plan,
+                club_name=generation_params["club_name"],
+                category=generation_params.get("category", "Eccellenza"),
+                metadata=metadata,
+            )
+            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
+            exec_path = OUTPUT_DIR / exec_filename
+            with open(exec_path, "w", encoding="utf-8") as f:
+                f.write(exec_html)
+            executive_url = f"/download/{exec_filename}"
+            export_paths.append(exec_filename)
+            logger.info(f"Executive Report generato: {exec_filename}")
+        except Exception as exec_error:
+            logger.warning(f"[DOCX Generate] Executive Report generation failed: {exec_error}")
+
+        # 8d. Scientific Report
+        try:
+            if structured_plan:
+                sci_path_str = plan_renderer.render_structured(structured_plan)
+                sci_path = Path(sci_path_str)
+                scientific_url = f"/download/{sci_path.name}"
+                export_paths.append(sci_path.name)
+                logger.info(f"Scientific Report generato: {sci_path.name}")
+        except Exception as sci_error:
+            logger.warning(f"[DOCX Generate] Scientific Report generation failed: {sci_error}")
+
+    # Salva export_paths anche se vuoto (in caso di errore)
+    if export_paths:
+        plan_record.export_paths = export_paths
+        knowledge_manager.store.save_plan(
+            plan_record, owner_id=int(current_user.id)
+        )
+
+    # Response
+    return jsonify(
+        {
+            "success": True,
+            "plan_id": review.plan_id,
+            "project_id": payload.get("project_id"),
+            "club_name": generation_params["club_name"],
+            "docx_processing": {
+                "files_processed": payload["files_processed"],
+                "document_types_detected": payload["document_types_detected"],
+                "stakeholders_extracted": len(payload["stakeholders_inputs"]),
+            },
+            "synthesis_report": {
+                "stakeholders_processed": len(payload["stakeholders_inputs"]),
+                "alignment_score": synthesized.stakeholder_alignment_score,
+                "unified_vision_preview": synthesized.unified_vision[:500] + "...",
+                "top_priorities": [
+                    p[0] if isinstance(p, (list, tuple)) else p
+                    for p in synthesized.priority_ranking[:3]
+                ],
+            },
+            "conflicts_detected": [
+                {
+                    "area": c.area,
+                    "description": c.description,
+                    "severity": c.severity,
+                    "resolution": c.resolution_applied,
+                }
+                for c in synthesized.conflicts_detected
+            ],
+            "sections_count": len(plan),
+            "sources_count": len(sources),
+            "pdf_url": pdf_url,
+            "onepager_url": onepager_url,
+            "executive_url": executive_url,
+            "scientific_url": scientific_url,
+            "edit_url": f"/success/{review.plan_id}",
+            "view_url": f"/view/{review.plan_id}",
+            "next_steps": {
+                "export_pdf": f"/api/export/{review.plan_id}/pdf",
+                "export_package": f"/api/export/{review.plan_id}/package",
+                "finalize": f"/api/plan/{review.plan_id}/finalize",
+            },
+        }
+    )
 
 
 # =============================================================================
@@ -5947,10 +5757,545 @@ def api_check_file(filename):
         return jsonify({"ready": False, "error": str(e)})
 
 
+# ============================================================
+# LAB — Network access helpers
+# ============================================================
+import socket as _socket
+
+_lab_access: Dict[str, str] = {
+    "lan": "", "tailscale": "", "tunnel": "", "tunnel_status": "inactive"
+}
+_WIN_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
-# ============================================================================
-# QUESTIONNAIRE ROUTES (injected)
+def _get_tailscale_ip() -> str:
+    """Restituisce l'IP Tailscale (100.x.x.x) se Tailscale è attivo."""
+    import subprocess as _sp
+    # Metodo 1: comando tailscale ip -4
+    try:
+        r = _sp.run(
+            ["tailscale", "ip", "-4"],
+            capture_output=True, text=True, timeout=5,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        ip = r.stdout.strip().splitlines()[0] if r.returncode == 0 else ""
+        if ip.startswith("100."):
+            return ip
+    except Exception:
+        pass
+    # Metodo 2: scansiona le interfacce di rete (100.64.0.0/10 = range Tailscale)
+    try:
+        for info in _socket.getaddrinfo(_socket.gethostname(), None):
+            ip = info[4][0]
+            try:
+                parts = list(map(int, ip.split(".")))
+                if parts[0] == 100 and 64 <= parts[1] <= 127:
+                    return ip
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return ""
+
+
+def _get_local_ip() -> str:
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+def _ensure_ssl_cert(local_ip: str, extra_ips: Optional[List[str]] = None):
+    """
+    Genera (o ricarica) un certificato autofirmato persistente che include
+    localhost, 127.0.0.1, l'IP LAN corrente e gli IP Tailscale come SAN.
+    Rigenera automaticamente se gli IP sono cambiati.
+    Ritorna (cert_path, key_path) oppure 'adhoc' come fallback.
+    """
+    ssl_dir   = Path(__file__).parent / "ssl"
+    cert_path = ssl_dir / "cert.pem"
+    key_path  = ssl_dir / "key.pem"
+    ip_stamp  = ssl_dir / "ip.txt"
+
+    all_ips = [local_ip] + (extra_ips or [])
+    stamp   = ",".join(sorted(filter(None, all_ips)))
+
+    if cert_path.exists() and key_path.exists() and ip_stamp.exists():
+        if ip_stamp.read_text().strip() == stamp:
+            return (str(cert_path), str(key_path))
+
+    ssl_dir.mkdir(exist_ok=True)
+
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        import datetime, ipaddress
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Rooting Future Lab")])
+        san_list: list = [
+            x509.DNSName("localhost"),
+            x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+        ]
+        for ip in all_ips:
+            try:
+                san_list.append(x509.IPAddress(ipaddress.IPv4Address(ip)))
+            except Exception:
+                pass
+
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name).issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))
+            .add_extension(x509.SubjectAlternativeName(san_list), critical=False)
+            .sign(key, hashes.SHA256())
+        )
+        cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+        key_path.write_bytes(key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ))
+        ip_stamp.write_text(stamp)
+        print(f"[SSL] Certificato generato per: {', '.join(filter(None, ['localhost']+all_ips))}")
+        return (str(cert_path), str(key_path))
+
+    except ImportError:
+        print("[SSL] 'cryptography' non installato — uso SSL adhoc")
+        return "adhoc"
+    except Exception as e:
+        print(f"[SSL] Errore: {e} — uso SSL adhoc")
+        return "adhoc"
+
+
+def _try_start_tunnel(port: int) -> None:
+    """
+    Tenta in ordine:
+      1. ngrok con dominio statico (NGROK_DOMAIN env var) - URL permanente
+      2. cloudflared named tunnel (CF_TUNNEL_NAME) - URL permanente
+      3. cloudflared quick tunnel - URL casuale, cambia al riavvio
+      4. ngrok senza dominio - URL casuale, cambia al riavvio
+    """
+    import subprocess, re, time as _t, json as _j, urllib.request as _ur
+    _lab_access["tunnel_status"] = "starting"
+
+    # 1. ngrok STATIC domain
+    ngrok_domain = os.environ.get("NGROK_DOMAIN", "").strip()
+    if ngrok_domain:
+        try:
+            subprocess.Popen(
+                ["ngrok", "http", f"--domain={ngrok_domain}", str(port)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=_WIN_NO_WINDOW,
+            )
+            _t.sleep(4)
+            url = f"https://{ngrok_domain}"
+            _lab_access["tunnel"] = url
+            _lab_access["tunnel_status"] = "active"
+            print(f"\n[LAB] ✓ ngrok static domain: {url}/lab\n")
+            return
+        except FileNotFoundError:
+            print("[LAB] NGROK_DOMAIN impostato ma ngrok non trovato.")
+        except Exception as e:
+            app.logger.debug(f"ngrok static: {e}")
+
+    # 2. cloudflared NAMED tunnel
+    cf_tunnel = os.environ.get("CF_TUNNEL_NAME", "").strip()
+    if cf_tunnel:
+        try:
+            subprocess.Popen(
+                ["cloudflared", "tunnel", "--no-autoupdate", "run", cf_tunnel],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=_WIN_NO_WINDOW,
+            )
+            _t.sleep(5)
+            cf_url = os.environ.get("CF_TUNNEL_URL", "").strip()
+            if cf_url:
+                _lab_access["tunnel"] = cf_url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ Cloudflare tunnel: {cf_url}/lab\n")
+                return
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            app.logger.debug(f"cloudflared named: {e}")
+
+    # 3. cloudflared QUICK tunnel (URL casuale)
+    try:
+        proc = subprocess.Popen(
+            ["cloudflared", "tunnel", "--url", f"https://localhost:{port}",
+             "--no-autoupdate"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        for _ in range(60):
+            line = proc.stdout.readline()
+            m = re.search(r'https://[a-z0-9-]+\.trycloudflare\.com', line)
+            if m:
+                url = m.group(0)
+                _lab_access["tunnel"] = url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ Cloudflare quick tunnel: {url}/lab")
+                print("[LAB]   (URL cambia al riavvio - imposta NGROK_DOMAIN per URL fisso)\n")
+                return
+            _t.sleep(0.5)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        app.logger.debug(f"cloudflared quick: {e}")
+
+    # 4. ngrok senza dominio (URL casuale)
+    try:
+        subprocess.Popen(
+            ["ngrok", "http", str(port)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=_WIN_NO_WINDOW,
+        )
+        _t.sleep(4)
+        data = _j.loads(_ur.urlopen("http://localhost:4040/api/tunnels", timeout=3).read())
+        for t in data.get("tunnels", []):
+            if t.get("proto") == "https":
+                url = t["public_url"]
+                _lab_access["tunnel"] = url
+                _lab_access["tunnel_status"] = "active"
+                print(f"\n[LAB] ✓ ngrok tunnel: {url}/lab")
+                print("[LAB]   (URL cambia al riavvio - configura NGROK_DOMAIN per URL fisso)\n")
+                return
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        app.logger.debug(f"ngrok: {e}")
+
+    _lab_access["tunnel_status"] = "unavailable"
+    print("[LAB] Nessun tunnel. Usa Tailscale per accesso permanente da qualsiasi rete.")
+
+
+@app.route("/api/lab/urls")
+def lab_urls():
+    return jsonify(_lab_access)
+
+
+@app.route("/api/lab/qr")
+def lab_qr():
+    """Return a QR code SVG for the given ?url= parameter."""
+    url = request.args.get("url", "").strip()
+    if not url:
+        return "", 400
+    try:
+        import qrcode, qrcode.image.svg, io
+        img = qrcode.make(url, image_factory=qrcode.image.svg.SvgImage, box_size=8)
+        buf = io.BytesIO()
+        img.save(buf)
+        return Response(buf.getvalue(), mimetype="image/svg+xml",
+                        headers={"Cache-Control": "max-age=3600"})
+    except ImportError:
+        # Minimal fallback SVG with text only
+        safe = url.replace("&", "&amp;").replace("<", "&lt;")
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">'
+               f'<rect width="200" height="60" fill="#f7fafc" rx="8"/>'
+               f'<text x="10" y="36" font-size="11" font-family="monospace" fill="#1a365d">{safe}</text>'
+               f'</svg>')
+        return Response(svg, mimetype="image/svg+xml")
+
+
+@app.route("/api/lab/cert")
+def lab_cert():
+    """Serve the self-signed root cert so Android can install it as trusted CA."""
+    cert_path = Path(__file__).parent / "ssl" / "cert.pem"
+    if not cert_path.exists():
+        return jsonify({"error": "Certificato non ancora generato"}), 404
+    return Response(
+        cert_path.read_bytes(),
+        mimetype="application/x-pem-file",
+        headers={
+            "Content-Disposition": 'attachment; filename="rf-lab-cert.pem"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
+
+# ============================================================
+# LAB — Model comparison UI
+# ============================================================
+
+_lab_runs: Dict[str, dict] = {}        # run_id -> run data
+_lab_club_data: Dict = {}               # in-memory Riccione cache
+_LAB_DATA_FILE = Path(__file__).parent / "lab_data" / "riccione.json"
+
+
+@app.route("/lab")
+def lab():
+    return render_template("lab.html")
+
+
+@app.route("/lab/setup")
+def lab_setup():
+    return render_template("lab_setup.html")
+
+
+@app.route("/api/lab/models", methods=["GET"])
+def lab_models():
+    """Discover: OpenRouter free models, Ollama local models, Gemini available."""
+    import requests as _req
+    result: Dict[str, list] = {"openrouter": [], "ollama": [], "gemini": []}
+
+    # OpenRouter free models (no auth needed for public list)
+    try:
+        r = _req.get("https://openrouter.ai/api/v1/models", timeout=8)
+        if r.ok:
+            for m in r.json().get("data", []):
+                p = m.get("pricing", {})
+                if str(p.get("prompt", "1")) == "0" and str(p.get("completion", "1")) == "0":
+                    result["openrouter"].append({
+                        "id": m["id"],
+                        "name": m.get("name", m["id"]),
+                        "context": m.get("context_length", 0),
+                    })
+    except Exception as e:
+        app.logger.warning(f"lab_models OpenRouter: {e}")
+
+    # Ollama local models
+    ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    if ollama_base.endswith("/v1"):
+        ollama_base = ollama_base[:-3]
+    try:
+        r = _req.get(f"{ollama_base}/api/tags", timeout=4)
+        if r.ok:
+            result["ollama"] = [m["name"] for m in r.json().get("models", [])]
+    except Exception:
+        pass
+
+    # Gemini — list available via API
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+    if gemini_key:
+        try:
+            import google.generativeai as _genai
+            from ai_providers.gemini_provider import _PREFERRED_MODELS
+            _genai.configure(api_key=gemini_key)
+            avail = {m.name for m in _genai.list_models()}
+            result["gemini"] = [m for m in _PREFERRED_MODELS if f"models/{m}" in avail]
+        except Exception:
+            from ai_providers.gemini_provider import detect_best_gemini_model
+            result["gemini"] = [detect_best_gemini_model(gemini_key)]
+
+    return jsonify(result)
+
+
+@app.route("/api/lab/club-data", methods=["GET"])
+def lab_club_data_info():
+    """Status of cached club data."""
+    global _lab_club_data
+    if not _lab_club_data and _LAB_DATA_FILE.exists():
+        try:
+            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
+                _lab_club_data = json.load(f).get("club_data", {})
+        except Exception:
+            pass
+    if _lab_club_data:
+        return jsonify({
+            "loaded": True,
+            "club_name": _lab_club_data.get("club_name", "N/A"),
+            "has_interviews": bool(_lab_club_data.get("interviste_board")),
+        })
+    return jsonify({"loaded": False})
+
+
+@app.route("/api/lab/save-interviews", methods=["POST"])
+def lab_save_interviews():
+    """Load .docx interviews from a folder path and persist to lab_data/riccione.json."""
+    global _lab_club_data
+    body = request.get_json(force=True)
+    path = body.get("path", "").strip()
+    if not path:
+        return jsonify({"error": "path mancante"}), 400
+    try:
+        import importlib.util
+        _ab_spec = importlib.util.spec_from_file_location(
+            "ab_test", Path(__file__).parent / "ab_test.py"
+        )
+        _ab = importlib.util.module_from_spec(_ab_spec)
+        _ab_spec.loader.exec_module(_ab)
+
+        interviews = _ab.load_interviews(path)
+        if not interviews:
+            return jsonify({"error": f"Nessun .docx trovato in: {path}"}), 404
+
+        club_data = _ab.build_club_data(interviews)
+        _LAB_DATA_FILE.parent.mkdir(exist_ok=True)
+        cache = {
+            "saved_at": datetime.now().isoformat(),
+            "path": path,
+            "file_count": len(interviews),
+            "total_chars": sum(len(v) for v in interviews.values()),
+            "club_data": club_data,
+        }
+        with open(_LAB_DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        _lab_club_data = club_data
+        return jsonify({
+            "ok": True,
+            "file_count": cache["file_count"],
+            "total_chars": cache["total_chars"],
+            "club_name": club_data.get("club_name", "N/A"),
+        })
+    except Exception as e:
+        app.logger.error(f"lab_save_interviews: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/lab/run", methods=["POST"])
+def lab_run():
+    """Generate a plan with one model; stream per-agent progress via SSE."""
+    global _lab_club_data
+
+    body = request.get_json(force=True)
+    provider_type = body.get("provider", "gemini")   # gemini | openrouter | ollama
+    model_id      = body.get("model", "")
+    api_key_ov    = body.get("api_key", "")
+    run_label     = body.get("label") or f"{provider_type} / {model_id or 'auto'}"
+
+    # Ensure club data
+    if not _lab_club_data and _LAB_DATA_FILE.exists():
+        try:
+            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
+                _lab_club_data = json.load(f).get("club_data", {})
+        except Exception:
+            pass
+    if not _lab_club_data:
+        return jsonify({"error": "Dati club non caricati. Usa 'Carica Interviste'."}), 400
+
+    import uuid
+    run_id = str(uuid.uuid4())[:8]
+    club_data_snapshot = dict(_lab_club_data)
+
+    def _stream():
+        q: queue.Queue = queue.Queue()
+
+        def _worker():
+            orig_env: Dict[str, str] = {}
+
+            def _setenv(k, v):
+                orig_env[k] = os.environ.get(k, "")
+                if v:
+                    os.environ[k] = v
+                elif k in os.environ:
+                    del os.environ[k]
+
+            try:
+                if provider_type == "openrouter":
+                    _setenv("OLLAMA_BASE_URL", "https://openrouter.ai/api/v1")
+                    _setenv("OLLAMA_MODEL", model_id)
+                    _setenv("OLLAMA_API_KEY",
+                            api_key_ov or os.environ.get("OPENROUTER_API_KEY", ""))
+                elif provider_type == "ollama":
+                    _setenv("OLLAMA_BASE_URL",
+                            os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"))
+                    _setenv("OLLAMA_MODEL", model_id)
+                elif provider_type == "gemini":
+                    _setenv("OLLAMA_BASE_URL", "")   # force Gemini path
+                    if api_key_ov:
+                        _setenv("GEMINI_API_KEY", api_key_ov)
+
+                q.put({"event": "start", "run_id": run_id, "label": run_label})
+
+                # Fresh orchestrator (reads env vars at init)
+                from agents import MultiAgentOrchestrator as _Orch
+
+                orch = _Orch()
+                agent_metrics: List[dict] = []
+
+                # Disable AI cache and patch generate() for timing
+                class _NoCache:
+                    def get(self, _): return None
+                    def set(self, _k, _v): pass
+
+                for role, ag in orch.agents.items():
+                    ag.cache = _NoCache()
+                    _rname = role.value if hasattr(role, "value") else str(role)
+                    _orig  = ag.generate
+
+                    def _patch(rn, orig):
+                        def _w(*a, **kw):
+                            q.put({"event": "agent_start", "agent": rn})
+                            t0 = time.time()
+                            res = orig(*a, **kw)
+                            dt = round(time.time() - t0, 1)
+                            ch = len((res or {}).get("content", ""))
+                            agent_metrics.append({"agent": rn, "seconds": dt, "chars": ch})
+                            q.put({"event": "agent_done", "agent": rn,
+                                   "seconds": dt, "chars": ch})
+                            return res
+                        return _w
+
+                    ag.generate = _patch(_rname, _orig)
+
+                t_start = time.time()
+                plan_result = orch.generate_strategic_plan(club_data=club_data_snapshot)
+                total = round(time.time() - t_start, 1)
+
+                _lab_runs[run_id] = {
+                    "run_id": run_id, "label": run_label,
+                    "provider": provider_type, "model": model_id,
+                    "agents": agent_metrics, "plan": plan_result.get("plan", {}),
+                    "total_seconds": total,
+                    "started_at": datetime.now().isoformat(),
+                }
+                q.put({"event": "complete", "run_id": run_id,
+                       "total_seconds": total, "agents": agent_metrics,
+                       "plan_keys": list(plan_result.get("plan", {}).keys())})
+
+            except Exception as exc:
+                app.logger.error(f"lab_run worker: {exc}", exc_info=True)
+                q.put({"event": "error", "message": str(exc)})
+            finally:
+                for k, v in orig_env.items():
+                    if v:
+                        os.environ[k] = v
+                    elif k in os.environ:
+                        del os.environ[k]
+                q.put(None)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+
+    return Response(
+        _stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/lab/runs", methods=["GET"])
+def lab_runs_list():
+    runs = [
+        {k: v for k, v in r.items() if k != "plan"}
+        for r in sorted(_lab_runs.values(), key=lambda x: x["started_at"], reverse=True)
+    ]
+    return jsonify(runs)
+
+
+@app.route("/api/lab/runs/<run_id>", methods=["GET"])
+def lab_run_detail(run_id):
+    run = _lab_runs.get(run_id)
+    if not run:
+        return jsonify({"error": "Run non trovata"}), 404
+    return jsonify(run)
+
+
 # ============================================================================
 # Questionari Digitali Board
 # ============================================================================
@@ -5958,6 +6303,86 @@ from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
 
 QUESTIONNAIRE_DATA_DIR = Path("data/questionnaires")
 QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+_WIKI_KB = Path("wiki/kb")
+
+
+def _wiki_append_plan(club_data: dict, plan_id: str) -> None:
+    """
+    Aggiorna il wiki dopo ogni piano generato (Karpathy: file-back).
+    Deterministico, zero LLM. Aggiunge dati noti al benchmark e al log.
+    """
+    try:
+        if not _WIKI_KB.exists():
+            return
+
+        club_name = club_data.get("club_name", "Club Sconosciuto")
+        category = club_data.get("category", "Eccellenza").lower().replace(" ", "-")
+        region = club_data.get("region", "").lower().replace(" ", "-") or "italia"
+        city = club_data.get("city", "")
+        board_members = club_data.get("board_members", [])
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # --- 1. Aggiorna/crea benchmark/<category>-<region>.md ---
+        benchmark_dir = _WIKI_KB / "benchmark"
+        benchmark_dir.mkdir(exist_ok=True)
+        bench_file = benchmark_dir / f"{category}-{region}.md"
+
+        new_entry = f"""
+## {club_name} — Piano generato {today} (plan_id: {plan_id})
+
+- **Categoria:** {club_data.get('category', 'N/A')}
+- **Città:** {city or 'N/A'}
+- **Regione:** {club_data.get('region', 'N/A')}
+- **Board consultati:** {len(board_members)} ({', '.join(board_members[:3])}{'...' if len(board_members) > 3 else ''})
+- **Fonte dati:** {club_data.get('data_source', 'manuale')}
+"""
+        if club_data.get("synthesized_vision"):
+            new_entry += f"- **Vision dichiarata:** {club_data['synthesized_vision'][:200]}\n"
+        if club_data.get("swot_aggregated", {}).get("forza"):
+            new_entry += f"- **Principali forze:** {club_data['swot_aggregated']['forza'][:150]}\n"
+
+        if bench_file.exists():
+            bench_file.write_text(
+                bench_file.read_text(encoding="utf-8") + new_entry,
+                encoding="utf-8"
+            )
+        else:
+            header = f"""---
+title: "Benchmark {club_data.get('category', 'Eccellenza')} - {club_data.get('region', region)}"
+tags: [{category}, {region}, benchmark]
+clubs: []
+date_created: {today}
+date_updated: {today}
+---
+
+# Benchmark {club_data.get('category', 'Eccellenza')} — {club_data.get('region', region).title()}
+
+> Dati accumulati dai piani generati. Aggiornato automaticamente dopo ogni generazione.
+
+"""
+            bench_file.write_text(header + new_entry, encoding="utf-8")
+
+        # --- 2. Append a log.md ---
+        log_file = _WIKI_KB / "log.md"
+        log_entry = f"""
+---
+## {today} -- Piano generato: {club_name}
+- Club: {club_name} ({club_data.get('category', 'N/A')}, {club_data.get('region', 'N/A')})
+- Plan ID: {plan_id}
+- Board consultati: {len(board_members)}
+- Benchmark aggiornato: benchmark/{category}-{region}.md
+"""
+        if log_file.exists():
+            log_file.write_text(
+                log_file.read_text(encoding="utf-8") + log_entry,
+                encoding="utf-8"
+            )
+
+        logger.info(f"Wiki updated after plan {plan_id} for {club_name}")
+
+    except Exception as e:
+        logger.warning(f"Wiki append failed (non-blocking): {e}")
 
 
 def _q_path(club_slug, member_slug, q_id):
@@ -5974,27 +6399,21 @@ def _q_statuses(club_slug, member_slug):
         p = _q_path(club_slug, member_slug, q_id)
         if p.exists():
             data = json.loads(p.read_text(encoding="utf-8"))
-            # Check if any field has content
+            # "completed" if the file exists and has any content — optional fields
+            # don't block progress (club presidents rarely fill every field)
             has_content = False
-            all_filled = True
             for section_data in data.get("data", {}).values():
                 if isinstance(section_data, list):
                     for item in section_data:
-                        for v in item.values():
-                            if v:
-                                has_content = True
-                            else:
-                                all_filled = False
-                elif isinstance(section_data, dict):
-                    for v in section_data.values():
-                        if v:
+                        if any(v for v in item.values()):
                             has_content = True
-                        else:
-                            all_filled = False
-            if has_content and all_filled:
-                statuses[q_id] = "completed"
-            elif has_content:
-                statuses[q_id] = "partial"
+                            break
+                elif isinstance(section_data, dict):
+                    if any(v for v in section_data.values()):
+                        has_content = True
+                if has_content:
+                    break
+            statuses[q_id] = "completed" if has_content else "partial"
         else:
             statuses[q_id] = "empty"
     return statuses
@@ -6433,6 +6852,18 @@ def api_generate_from_questionnaires():
                 update_project_status(p_id, "completed", 100, "Piano generato con successo")
                 # Salva risultato
                 plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
+                # Registra in editor per abilitare export immediato
+                plan_record = knowledge_manager.store.get_plan(plan_id)
+                if plan_record:
+                    review = editor.create_review_from_plan(
+                        plan_data=plan_record.plan_data,
+                        club_name=plan_record.club_name,
+                        metadata={"category": plan_record.category},
+                        owner_id=plan_record.owner_id,
+                    )
+                    review.plan_id = plan_id
+                    editor.reviews[plan_id] = review
+                _wiki_append_plan(c_data, plan_id)
                 update_project_status(p_id, "completed", 100, "Piano salvato", extra={"plan_id": plan_id})
             except Exception as e:
                 logger.error(f"Generation from questionnaires failed: {e}")
@@ -6453,6 +6884,276 @@ def api_generate_from_questionnaires():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/demo/generate", methods=["POST"])
+def api_demo_generate():
+    """Genera piano da dati demo Riccione — pubblico, nessun login richiesto."""
+    try:
+        club_slug = "riccione-calcio-1926"
+        members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+        if not members_dir.exists():
+            return jsonify({"error": "Demo data not found"}), 404
+
+        all_responses = {}
+        member_names = []
+        for member_dir in sorted(members_dir.iterdir()):
+            if not member_dir.is_dir():
+                continue
+            for q_file in member_dir.glob("*.json"):
+                q_id = q_file.stem
+                record = json.loads(q_file.read_text(encoding="utf-8"))
+                member_name = record.get("display_name", member_dir.name)
+                if member_name not in member_names:
+                    member_names.append(member_name)
+                if q_id not in all_responses:
+                    all_responses[q_id] = []
+                all_responses[q_id].append({
+                    "member": member_name,
+                    "role": record.get("role", "board"),
+                    "data": record.get("data", {}),
+                })
+
+        if not all_responses:
+            return jsonify({"error": "No questionnaire data found"}), 404
+
+        club_name = "Riccione Calcio 1926"
+        club_data = {
+            "club_name": club_name,
+            "city": "Riccione",
+            "region": "Emilia-Romagna",
+            "category": "Eccellenza",
+            "country": "Italy",
+            "board_members": member_names,
+            "data_source": "digital_questionnaires_demo",
+        }
+
+        # SWOT
+        if "swot" in all_responses:
+            swot_agg = {"forza": [], "debolezza": [], "opportunita": [], "minacce": []}
+            for resp in all_responses["swot"]:
+                grid = resp["data"].get("swot_grid", {})
+                for key in swot_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        swot_agg[key].append(val)
+            club_data["swot_aggregated"] = {k: "\n".join(v) for k, v in swot_agg.items()}
+            club_data["swot_aggregated_source"] = "questionnaire"
+
+        # Vision
+        if "vision" in all_responses:
+            visions = []
+            for resp in all_responses["vision"]:
+                vm = resp["data"].get("vision_main", {})
+                parts = [p for p in [vm.get("nel_2028"), vm.get("vision_frase")] if p]
+                if parts:
+                    visions.append(" | ".join(parts))
+            if visions:
+                club_data["synthesized_vision"] = "\n".join(visions)
+                club_data["synthesized_vision_source"] = "questionnaire"
+
+        # Mission
+        if "mission" in all_responses:
+            missions = []
+            for resp in all_responses["mission"]:
+                mm = resp["data"].get("mission_main", {})
+                if mm.get("mission_bozza"):
+                    missions.append(mm["mission_bozza"])
+            if missions:
+                club_data["synthesized_mission"] = "\n".join(missions)
+                club_data["synthesized_mission_source"] = "questionnaire"
+
+        # Valori e fondamenta
+        if "valori-fondamenta" in all_responses:
+            valori_all, fondamenta_all = [], []
+            for resp in all_responses["valori-fondamenta"]:
+                for v in resp["data"].get("valori", []):
+                    if v.get("valore"):
+                        valori_all.append(f"{v['valore']}: {v.get('descrizione', '')}")
+                for f in resp["data"].get("fondamenta", []):
+                    if f.get("pilastro"):
+                        fondamenta_all.append(f"{f['pilastro']}: {f.get('motivazione', '')}")
+            if valori_all:
+                club_data["club_values"] = "\n".join(valori_all)
+                club_data["club_values_source"] = "questionnaire"
+            if fondamenta_all:
+                club_data["club_foundations"] = "\n".join(fondamenta_all)
+                club_data["club_foundations_source"] = "questionnaire"
+
+        # Competitors
+        if "competitors" in all_responses:
+            comps = []
+            for resp in all_responses["competitors"]:
+                for c in resp["data"].get("competitors_list", []):
+                    if c.get("nome"):
+                        comps.append(f"{c['nome']} (forza: {c.get('punti_forza', 'n/a')}, debolezza: {c.get('debolezze', 'n/a')})")
+            if comps:
+                club_data["competitors"] = comps[:10]
+                club_data["competitors_source"] = "questionnaire"
+
+        # PEST
+        if "pest" in all_responses:
+            pest_agg = {"politica": [], "economica": [], "sociale": [], "tecnologica": []}
+            for resp in all_responses["pest"]:
+                grid = resp["data"].get("pest_grid", {})
+                for key in pest_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        pest_agg[key].append(val)
+            club_data["pest_analysis"] = {k: "\n".join(v) for k, v in pest_agg.items()}
+            club_data["pest_analysis_source"] = "questionnaire"
+
+        # Stakeholders
+        if "stakeholders" in all_responses:
+            stakeholders = []
+            for resp in all_responses["stakeholders"]:
+                for s in resp["data"].get("stakeholders_list", []):
+                    if s.get("gruppo"):
+                        stakeholders.append(f"{s['gruppo']} (importanza: {s.get('importanza', 'n/a')}, azioni: {s.get('azioni', 'n/a')})")
+            if stakeholders:
+                club_data["stakeholders_analysis"] = "\n".join(stakeholders)
+                club_data["stakeholders_analysis_source"] = "questionnaire"
+
+        # Risorse
+        if "risorse" in all_responses:
+            risorse = []
+            for resp in all_responses["risorse"]:
+                for r in resp["data"].get("risorse_list", []):
+                    if r.get("categoria"):
+                        risorse.append(f"{r['categoria']}: attuali={r.get('lista_attuali', 'n/a')}, manca={r.get('cosa_manca', 'n/a')}")
+            if risorse:
+                club_data["resources_analysis"] = "\n".join(risorse)
+                club_data["resources_analysis_source"] = "questionnaire"
+
+        project_id = f"demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        update_project_status(project_id, "processing", 10, "Avvio generazione demo...")
+
+        def run_demo_generation(p_id, c_data):
+            try:
+                update_project_status(p_id, "processing", 20, "6 agenti AI al lavoro...")
+                result = orchestrator.generate_strategic_plan(
+                    club_data=c_data,
+                    research_data=None,
+                    parallel=True,
+                    on_progress=lambda pct, msg: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
+                )
+                plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
+                plan_record = knowledge_manager.store.get_plan(plan_id)
+                if plan_record:
+                    review = editor.create_review_from_plan(
+                        plan_data=plan_record.plan_data,
+                        club_name=plan_record.club_name,
+                        metadata={"category": plan_record.category},
+                        owner_id=plan_record.owner_id,
+                    )
+                    review.plan_id = plan_id
+                    editor.reviews[plan_id] = review
+                _wiki_append_plan(c_data, plan_id)
+                update_project_status(p_id, "completed", 100, "Piano generato", extra={"plan_id": plan_id})
+            except Exception as e:
+                logger.error(f"Demo generation failed: {e}")
+                update_project_status(p_id, "error", 0, str(e))
+
+        analysis_executor.submit(run_demo_generation, project_id, club_data)
+        session["demo_mode"] = True
+
+        return jsonify({
+            "success": True,
+            "project_id": project_id,
+            "club_name": club_name,
+            "questionnaires_found": list(all_responses.keys()),
+        })
+
+    except Exception as e:
+        logger.error(f"Demo generate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wiki/anagrafica", methods=["POST"])
+def api_wiki_anagrafica():
+    """
+    Salva anagrafica club nel wiki. Pubblico — chiamato dalla splash page.
+    Crea wiki/kb/anagrafica/{slug}.md e aggiorna index.md e log.md.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        club_name = body.get("club_name", "").strip()
+        if not club_name:
+            return jsonify({"error": "club_name required"}), 400
+
+        from wiki_reader import slugify
+        slug = slugify(club_name)
+        category = body.get("category", "").strip()
+        city = body.get("city", "").strip()
+        region = body.get("region", "").strip()
+        board_size = int(body.get("board_size", 0))
+        email = body.get("email", "").strip()
+        notes = body.get("notes", "").strip()
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        anagrafica_dir = Path("wiki/kb/anagrafica")
+        anagrafica_dir.mkdir(parents=True, exist_ok=True)
+
+        page = f"""---
+title: "Anagrafica: {club_name}"
+tags: [anagrafica, {slug}, {category.lower().replace(' ', '-')}, {region.lower().replace(' ', '-')}]
+club_slug: {slug}
+category: {category}
+region: {region}
+date_created: {today}
+date_updated: {today}
+source: splash_form
+---
+
+# {club_name}
+
+## Dati Base
+
+- **Categoria:** {category or 'N/A'}
+- **Città:** {city or 'N/A'}
+- **Regione:** {region or 'N/A'}
+- **Componenti Board:** {board_size or 'N/A'}
+- **Email referente:** {email or 'N/A'}
+{"" if not notes else f"- **Note:** {notes}"}
+"""
+        page_path = anagrafica_dir / f"{slug}.md"
+        page_path.write_text(page, encoding="utf-8")
+
+        # Aggiorna index.md: sostituisce il placeholder o aggiunge voce
+        index_path = Path("wiki/kb/index.md")
+        if index_path.exists():
+            idx = index_path.read_text(encoding="utf-8")
+            entry = f"- **[{club_name}](anagrafica/{slug}.md)** -- {category}, {region}."
+            placeholder = "_Nessun club ancora registrato._"
+            if placeholder in idx:
+                idx = idx.replace(placeholder, entry)
+            elif f"anagrafica/{slug}.md" not in idx:
+                idx = idx.replace(
+                    "## Club",
+                    f"{entry}\n\n## Club"
+                ).replace("## Anagrafica\n\n> Profili base dei club raccolti dalla splash page. Disponibili agli agenti prima della generazione del piano.\n\n",
+                          f"## Anagrafica\n\n> Profili base dei club raccolti dalla splash page. Disponibili agli agenti prima della generazione del piano.\n\n")
+                # simpler: just insert entry before ## Club
+                idx = idx.replace("\n## Club", f"\n{entry}\n\n## Club", 1)
+            index_path.write_text(idx, encoding="utf-8")
+
+        # Append log
+        log_path = Path("wiki/kb/log.md")
+        if log_path.exists():
+            log_entry = f"\n---\n## {today} -- Anagrafica: {club_name}\n- Slug: {slug}\n- Categoria: {category}, {region}\n- Board: {board_size} membri\n- Fonte: splash_form\n"
+            log_path.write_text(log_path.read_text(encoding="utf-8") + log_entry, encoding="utf-8")
+
+        logger.info(f"Wiki anagrafica saved: {slug}")
+        return jsonify({"success": True, "slug": slug, "redirect": f"/demo/questionari?club_prefill={slug}&club_name={club_name}"})
+
+    except Exception as e:
+        logger.error(f"Wiki anagrafica error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/demo/risultati")
+def demo_risultati():
+    """Pagina pubblica risultati demo — polling + 3 download."""
+    project_id = request.args.get("project_id", "")
+    return render_template("demo_risultati.html", project_id=project_id)
 
 
 if __name__ == "__main__":
@@ -6468,31 +7169,51 @@ if __name__ == "__main__":
     OUTPUT_DIR.mkdir(exist_ok=True)
     KNOWLEDGE_DIR.mkdir(exist_ok=True)
 
+    # Detect local IP and Tailscale IP
+    _local_ip = _get_local_ip()
+    _ts_ip    = _get_tailscale_ip()
+
+    # SSL cert includes both LAN IP and Tailscale IP in SAN
+    _ssl_ctx  = _ensure_ssl_cert(_local_ip, extra_ips=[_ts_ip] if _ts_ip else [])
+    _scheme   = "https"
+
+    _lab_access["lan"] = f"{_scheme}://{_local_ip}:{PORT}"
+    if _ts_ip:
+        _lab_access["tailscale"] = f"{_scheme}://{_ts_ip}:{PORT}"
+
     print("[OK] SSE Log Streaming attivo (Global)")
-
+    _ts_line = (f"\n     Tailscale  :  {_scheme}://{_ts_ip}:{PORT}/lab"
+                f"  ← SEMPRE RAGGIUNGIBILE") if _ts_ip else (
+                "\n     Tailscale  :  non attivo (vedi /lab/setup per installarlo)")
     print(f"""
-    ===============================================================
-    |                                                             |
-    |     Rooting Future Strategy Engine v6.0                     |
-    |     Dashboard Hybrid - Live Console + Upload                |
-    |                                                             |
-    |     Server: http://127.0.0.1:{PORT}                          |
-    |                                                             |
-    ===============================================================
+    ═══════════════════════════════════════════════════════════════
+     Rooting Future Strategy Engine v6.0  [HTTPS]
+    ───────────────────────────────────────────────────────────────
+     PC locale  :  {_scheme}://127.0.0.1:{PORT}
+     Rete LAN   :  {_scheme}://{_local_ip}:{PORT}{_ts_line}
+     Setup PWA  :  {_scheme}://{_local_ip}:{PORT}/lab/setup
+    ═══════════════════════════════════════════════════════════════
     """)
+    print("[*] Prima apertura Android: Avanzate → Procedi (una volta sola)")
+    print("[*] Premi Ctrl+C per terminare")
 
-    print("[*] Avvio server Flask...")
-    print(f"[*] Aprire nel browser: http://127.0.0.1:{PORT}")
-    print("[*] Premi Ctrl+C per terminare\n")
+    if not _ts_ip:
+        print("[*] Tailscale non rilevato → avvio tunnel in background…\n")
+        threading.Thread(target=_try_start_tunnel, args=(PORT,), daemon=True).start()
+    else:
+        print("[*] Tailscale attivo → accesso garantito da qualsiasi rete.\n")
+        _lab_access["tunnel_status"] = "active_tailscale"
 
-    # AUTO-OPEN BROWSER (Desktop App Experience)
     import webbrowser
     from threading import Timer
 
     def open_browser():
-        webbrowser.open_new(f"http://127.0.0.1:{PORT}")
+        webbrowser.open_new(f"{_scheme}://127.0.0.1:{PORT}/lab")
 
     Timer(1.5, open_browser).start()
 
-    # Usa 127.0.0.1 per evitare problemi firewall Windows
-    app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True, use_reloader=False)
+    app.run(
+        host="0.0.0.0", port=PORT,
+        ssl_context=_ssl_ctx,
+        debug=False, threaded=True, use_reloader=False,
+    )

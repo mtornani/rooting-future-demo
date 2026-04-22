@@ -64,6 +64,20 @@
         .club-selector select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); font-size:1rem; }
 
         .footer { text-align:center; padding:24px 16px; color:var(--text-light); font-size:0.75rem; }
+
+        .genera-bar {
+            position:fixed; bottom:0; left:0; right:0; background:var(--white);
+            border-top:1px solid var(--border); padding:12px 16px;
+            display:flex; justify-content:center; z-index:20;
+        }
+        .btn-genera {
+            background:var(--success); color:white; border:none; border-radius:10px;
+            padding:14px 32px; font-size:1rem; font-weight:700; cursor:pointer;
+            width:100%; max-width:480px; display:flex; align-items:center; justify-content:center; gap:8px;
+            transition:opacity 0.2s;
+        }
+        .btn-genera:active { opacity:0.85; }
+        .btn-genera:disabled { background:#a0aec0; cursor:not-allowed; }
     </style>
 </head>
 <body>
@@ -123,6 +137,12 @@
         Rooting Future © {{ year }} — I dati vengono salvati automaticamente
     </div>
 
+    <div class="genera-bar" id="generaBar" style="display:none">
+        <button class="btn-genera" id="btnGenera" onclick="generaPiano()">
+            🚀 Genera Piano Strategico
+        </button>
+    </div>
+
     <script>
     // Pre-select club from URL param when data/clubs dir is empty server-side
     (function() {
@@ -164,6 +184,40 @@
             if (slug) {
                 window.location.href = `/questionnaires?club=${club}&member=${slug}`;
             }
+        }
+    }
+
+    // Mostra bottone genera se siamo in modalità demo
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const club = params.get('club') || document.getElementById('clubSelect').value;
+        const member = params.get('member') || '';
+        const isDemoClub = club === 'riccione-calcio-1926';
+        const isDemoMember = member === 'demo' || member === '';
+        if (isDemoClub || {{ 'true' if session.get('demo_mode') else 'false' }}) {
+            document.getElementById('generaBar').style.display = 'flex';
+            document.body.style.paddingBottom = '72px';
+        }
+    })();
+
+    async function generaPiano() {
+        const btn = document.getElementById('btnGenera');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Avvio generazione...';
+        try {
+            const res = await fetch('/api/demo/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+            const data = await res.json();
+            if (data.project_id) {
+                window.location.href = `/demo/risultati?project_id=${data.project_id}`;
+            } else {
+                alert('Errore: ' + (data.error || 'generazione fallita'));
+                btn.disabled = false;
+                btn.innerHTML = '🚀 Genera Piano Strategico';
+            }
+        } catch(e) {
+            alert('Errore di rete. Riprova.');
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Genera Piano Strategico';
         }
     }
     </script>

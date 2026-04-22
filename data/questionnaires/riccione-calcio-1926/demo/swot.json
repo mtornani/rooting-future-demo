@@ -1,0 +1,16 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "swot",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "swot_grid": {
+      "forza": "Settore giovanile con 180+ tesserati e 12 squadre attive\nSede storica nel centro di Riccione con riconoscibilità territoriale\nTradizione centenaria (dal 1926): brand consolidato\nRete di volontari e famiglie fedele e motivata\nPosizione geografica unica: polo turistico con visibilità estiva nazionale",
+      "debolezza": "Budget operativo limitato (<€350k/anno) con dipendenza da contributi soci\nAssenza di sponsor strutturati pluriennali\nInfrastrutture sportive parzialmente obsolete (spogliatoi, illuminazione)\nGestione ancora informale: mancanza di processi e ruoli definiti\nAssenza di un responsabile marketing/comunicazione dedicato",
+      "opportunita": "Riccione come polo turistico: visibilità e sponsor nel settore hospitality e turismo\nCrescita interesse per calcio femminile e giovanile: nuovi segmenti di mercato\nFondi PNRR e regionali per ammodernamento impianti sportivi\nPartenariati con hotel, ristoranti e operatori del turismo locale\nPossibile collaborazione con club di Serie B/C per prestiti e crescita tecnica",
+      "minacce": "Spopolamento giovanile dal territorio: calo potenziale tesserati\nConcorrenza di altri sport emergenti (padel, beach volley, atletica)\nInflazione sui costi operativi (utenze, trasferte, materiali)\nDifficoltà di reclutamento tecnici qualificati e figure gestionali\nInstabilità normativa federale per club dilettantistici"
+    }
+  },
+  "updated_at": "2026-04-18T10:15:00.000000"
+}

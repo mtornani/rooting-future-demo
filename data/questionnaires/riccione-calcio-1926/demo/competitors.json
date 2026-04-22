@@ -1,0 +1,36 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "competitors",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "Misano Adriatico Calcio",
+        "punti_forza": "Campo sintetico moderno, sponsor locali consolidati, gestione professionale",
+        "debolezze": "Settore giovanile meno strutturato, minore storia e riconoscibilità",
+        "azioni": "Puntare sulla storia centenaria come differenziatore; investire nell'impianto per colmare il gap strutturale"
+      },
+      {
+        "nome": "Cattolica SM Calcio",
+        "punti_forza": "Forte radicamento nella comunità, budget maggiore, strutture più moderne",
+        "debolezze": "Posizione geografica meno visibile rispetto a Riccione, identità meno distintiva",
+        "azioni": "Sfruttare la visibilità turistica di Riccione per sponsor non calcistici; rafforzare l'academy come punto di differenziazione"
+      },
+      {
+        "nome": "Padel Club Riccione (sport alternativo)",
+        "punti_forza": "Sport in forte crescita, costi di accesso bassi, trendy tra 20-40 anni",
+        "debolezze": "Nessun radicamento territoriale profondo, non ha settore giovanile strutturato",
+        "azioni": "Creare sinergie (convenzioni) anziché competere; proporre pacchetti famiglia che includano calcio + altri sport"
+      },
+      {
+        "nome": "Rimini FC (club di riferimento regionale)",
+        "punti_forza": "Struttura professionale, visibilità regionale e nazionale, impianto moderno",
+        "debolezze": "Lontano dalla comunità locale ricciones, costi elevati per le famiglie",
+        "azioni": "Posizionarsi come club di quartiere vs Rimini FC metropolitano; accordo di collaborazione per prestiti giovani talenti"
+      }
+    ]
+  },
+  "updated_at": "2026-04-18T10:20:00.000000"
+}

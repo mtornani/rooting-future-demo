@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piano Strategico — Riccione Calcio 1926</title>
+    <meta name="theme-color" content="#1a365d">
+    <style>
+        :root {
+            --primary: #1a365d;
+            --accent: #3182ce;
+            --success: #38a169;
+            --warning: #d69e2e;
+            --danger: #e53e3e;
+            --bg: #f7fafc;
+            --white: #fff;
+            --text: #2d3748;
+            --text-light: #718096;
+            --border: #e2e8f0;
+            --radius: 12px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+        .topbar {
+            background:var(--primary); color:white; padding:14px 16px;
+            display:flex; align-items:center; gap:12px;
+        }
+        .topbar a { color:white; text-decoration:none; font-size:1.3rem; }
+        .topbar h1 { font-size:1rem; flex:1; font-weight:600; }
+
+        .content { max-width:600px; margin:0 auto; padding:20px 16px; }
+
+        /* --- STEP INDICATOR --- */
+        .steps { display:flex; gap:0; margin-bottom:28px; }
+        .step {
+            flex:1; text-align:center; padding:10px 4px;
+            font-size:0.72rem; font-weight:600; color:var(--text-light);
+            border-bottom:3px solid var(--border); position:relative;
+        }
+        .step.active { color:var(--accent); border-bottom-color:var(--accent); }
+        .step.done { color:var(--success); border-bottom-color:var(--success); }
+        .step-num { display:block; font-size:1.1rem; margin-bottom:2px; }
+
+        /* --- PROCESSING CARD --- */
+        .card {
+            background:var(--white); border-radius:var(--radius); padding:24px;
+            box-shadow:0 1px 4px rgba(0,0,0,0.08); margin-bottom:16px;
+        }
+        .card h2 { font-size:1.1rem; margin-bottom:8px; }
+        .card p { font-size:0.88rem; color:var(--text-light); line-height:1.5; }
+
+        /* Progress bar */
+        .progress-wrap { margin:20px 0 8px; }
+        .progress-track { height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+        .progress-fill { height:100%; background:linear-gradient(90deg, var(--accent), var(--success)); border-radius:4px; transition:width 0.5s ease; }
+        .progress-label { font-size:0.8rem; color:var(--text-light); margin-top:6px; min-height:18px; }
+
+        /* Agent list */
+        .agents { list-style:none; margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+        .agents li {
+            display:flex; align-items:center; gap:10px; font-size:0.85rem;
+            padding:8px 12px; border-radius:8px; background:var(--bg);
+        }
+        .agents li .dot { width:8px; height:8px; border-radius:50%; background:var(--border); flex-shrink:0; transition:background 0.3s; }
+        .agents li.running .dot { background:var(--accent); animation:pulse 1s infinite; }
+        .agents li.done .dot { background:var(--success); }
+
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* --- SUCCESS STATE --- */
+        .success-icon { text-align:center; font-size:3.5rem; margin:8px 0 16px; }
+        .success-title { text-align:center; font-size:1.3rem; font-weight:700; margin-bottom:6px; }
+        .success-sub { text-align:center; font-size:0.88rem; color:var(--text-light); margin-bottom:24px; line-height:1.5; }
+
+        .download-grid { display:flex; flex-direction:column; gap:12px; }
+        .btn-download {
+            display:flex; align-items:center; gap:14px;
+            padding:16px; border-radius:var(--radius); text-decoration:none;
+            color:white; font-weight:600; transition:opacity 0.2s;
+        }
+        .btn-download:active { opacity:0.85; }
+        .btn-download.pdf  { background:#e53e3e; }
+        .btn-download.html { background:#3182ce; }
+        .btn-download.one  { background:#d69e2e; }
+        .btn-download .icon { font-size:1.8rem; flex-shrink:0; }
+        .btn-download .info { flex:1; }
+        .btn-download .info span { display:block; font-size:0.78rem; font-weight:400; opacity:0.85; margin-top:2px; }
+        .btn-download .arrow { font-size:1.2rem; opacity:0.7; }
+
+        .back-link { text-align:center; margin-top:20px; }
+        .back-link a { color:var(--accent); font-size:0.85rem; text-decoration:none; }
+
+        /* --- ERROR STATE --- */
+        .error-card { border-left:4px solid var(--danger); }
+        .error-card h2 { color:var(--danger); }
+
+        /* --- HIDDEN --- */
+        .hidden { display:none !important; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/demo/questionari">←</a>
+    <h1>🌱 Riccione Calcio 1926 — Piano Strategico</h1>
+</div>
+
+<div class="content">
+
+    <!-- Step indicator -->
+    <div class="steps">
+        <div class="step done" id="s1"><span class="step-num">✓</span>Questionari</div>
+        <div class="step active" id="s2"><span class="step-num">⚙️</span>Generazione</div>
+        <div class="step" id="s3"><span class="step-num">📄</span>Documenti</div>
+    </div>
+
+    <!-- Processing card -->
+    <div class="card" id="cardProcessing">
+        <h2>6 Agenti AI al lavoro...</h2>
+        <p>Il sistema sta elaborando i dati dei questionari e producendo il Piano Strategico Triennale.</p>
+        <div class="progress-wrap">
+            <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:10%"></div></div>
+            <div class="progress-label" id="progressLabel">Avvio generazione...</div>
+        </div>
+        <ul class="agents" id="agentList">
+            <li id="ag-sports"><span class="dot"></span>Agente Sportivo</li>
+            <li id="ag-struct"><span class="dot"></span>Agente Strutturale</li>
+            <li id="ag-mkt"><span class="dot"></span>Agente Marketing</li>
+            <li id="ag-social"><span class="dot"></span>Agente Social</li>
+            <li id="ag-fin"><span class="dot"></span>Agente Finanziario</li>
+            <li id="ag-wiki"><span class="dot"></span>Agente Wiki / Coerenza</li>
+        </ul>
+    </div>
+
+    <!-- Success card -->
+    <div class="card hidden" id="cardSuccess">
+        <div class="success-icon">🎉</div>
+        <div class="success-title">Piano Strategico Generato</div>
+        <div class="success-sub">Riccione Calcio 1926 — Piano Triennale 2026-2028<br>Scarica i 3 documenti qui sotto</div>
+        <div class="download-grid" id="downloadGrid">
+            <!-- populated by JS -->
+        </div>
+        <div class="back-link">
+            <a href="/demo/questionari">← Torna ai questionari</a>
+        </div>
+    </div>
+
+    <!-- Error card -->
+    <div class="card error-card hidden" id="cardError">
+        <h2>⚠️ Errore generazione</h2>
+        <p id="errorMsg" style="margin-top:8px; color:var(--text-light);"></p>
+        <div style="margin-top:16px">
+            <a href="/demo/questionari" style="color:var(--accent); font-size:0.85rem;">← Riprova</a>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const PROJECT_ID = "{{ project_id }}";
+let planId = null;
+let pollTimer = null;
+
+const AGENT_KEYWORDS = {
+    "ag-sports": ["sport", "tecnic", "squadra", "campion"],
+    "ag-struct": ["struttur", "organiz", "govern", "amminist"],
+    "ag-mkt":    ["market", "sponsor", "brand", "commerci"],
+    "ag-social": ["social", "comunic", "media", "digital"],
+    "ag-fin":    ["finanz", "budget", "econom", "ricav"],
+    "ag-wiki":   ["wiki", "coeren", "sintesi", "consolid"],
+};
+
+function setAgentState(msg) {
+    const msgL = (msg || "").toLowerCase();
+    Object.entries(AGENT_KEYWORDS).forEach(([id, kws]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.classList.contains("done")) return;
+        if (kws.some(k => msgL.includes(k))) {
+            el.classList.add("running");
+        }
+    });
+}
+
+function completeAllAgents() {
+    document.querySelectorAll("#agentList li").forEach(li => {
+        li.classList.remove("running");
+        li.classList.add("done");
+    });
+}
+
+function buildDownloads(pid) {
+    const items = [
+        { cls:"pdf",  icon:"📄", label:"Piano Strategico Completo", desc:"PDF • 30-50 pagine • completo di analisi e roadmap", url:`/api/export/${pid}/pdf` },
+        { cls:"html", icon:"🌐", label:"Versione Web Interattiva",   desc:"HTML • navigabile da browser e mobile",             url:`/api/export/${pid}/html` },
+        { cls:"one",  icon:"⚡", label:"One-Pager Infografica",      desc:"PDF • sintesi A4 per condivisione rapida",           url:`/api/export/${pid}/onepager` },
+    ];
+    const grid = document.getElementById("downloadGrid");
+    grid.innerHTML = items.map(i => `
+        <a href="${i.url}" target="_blank" class="btn-download ${i.cls}">
+            <span class="icon">${i.icon}</span>
+            <span class="info">${i.label}<span>${i.desc}</span></span>
+            <span class="arrow">↓</span>
+        </a>
+    `).join("");
+}
+
+function showSuccess(pid) {
+    completeAllAgents();
+    document.getElementById("s2").className = "step done";
+    document.getElementById("s3").className = "step done";
+    document.getElementById("cardProcessing").classList.add("hidden");
+    buildDownloads(pid);
+    document.getElementById("cardSuccess").classList.remove("hidden");
+}
+
+function showError(msg) {
+    clearInterval(pollTimer);
+    document.getElementById("cardProcessing").classList.add("hidden");
+    document.getElementById("errorMsg").textContent = msg || "Errore sconosciuto.";
+    document.getElementById("cardError").classList.remove("hidden");
+}
+
+async function poll() {
+    if (!PROJECT_ID) { showError("Nessun project_id fornito."); return; }
+    try {
+        const res = await fetch(`/api/generation-status/${PROJECT_ID}`);
+        const data = await res.json();
+        const pct = Math.max(10, Math.min(95, data.progress || 10));
+        document.getElementById("progressFill").style.width = pct + "%";
+        document.getElementById("progressLabel").textContent = data.message || "...";
+        setAgentState(data.message);
+
+        if (data.status === "completed") {
+            clearInterval(pollTimer);
+            planId = data.extra && data.extra.plan_id;
+            if (planId) {
+                showSuccess(planId);
+            } else {
+                showError("Piano generato ma plan_id mancante. Accedi come admin per visualizzarlo.");
+            }
+        } else if (data.status === "error") {
+            showError(data.message);
+        }
+    } catch(e) {
+        // rete momentaneamente non disponibile, riprova al prossimo tick
+    }
+}
+
+// Avvia polling
+if (PROJECT_ID) {
+    poll();
+    pollTimer = setInterval(poll, 2500);
+} else {
+    showError("Nessun project_id. Torna ai questionari e clicca 'Genera Piano'.");
+}
+</script>
+</body>
+</html>
