@@ -1,0 +1,30 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "risorse",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "risorse_list": [
+      {
+        "categoria": "Umane",
+        "lista_attuali": "1 presidente, 3 consiglieri, 18 allenatori (part-time/volontari), 1 segreteria part-time, 2 magazzinieri volontari, medico sociale convenzionato",
+        "cosa_manca": "Direttore sportivo dedicato, responsabile marketing/comunicazione, responsabile settore giovanile a tempo pieno, figure amministrative strutturate",
+        "interventi_5anni": "Assumere DS e responsabile comunicazione entro anno 1; creare organigramma formale con ruoli remunerati; avviare collaborazione con università per tirocini gestionali"
+      },
+      {
+        "categoria": "Strutturali",
+        "lista_attuali": "Campo in erba naturale 11v11 (uso condiviso con Comune), 2 campi allenamento in terra, spogliatoi datati (anni '90), sala riunioni 20 posti, magazzino attrezzature",
+        "cosa_manca": "Campo sintetico dedicato, spogliatoi moderni, sala video per analisi tattica, area reception/accoglienza famiglie, campo 5v5 per bambini piccoli",
+        "interventi_5anni": "Progetto campo sintetico con co-finanziamento PNRR (anno 2-3); ristrutturazione spogliatoi (anno 1-2); allestimento sala video (anno 1, basso costo)"
+      },
+      {
+        "categoria": "Patrimoniali",
+        "lista_attuali": "Attrezzatura tecnica (palloni, porte, coni), kit gara 8 squadre, pulmino club 9 posti, archivio storico (fotografie, trofei), marchio registrato Riccione Calcio 1926",
+        "cosa_manca": "Secondo mezzo di trasporto, attrezzatura video/analisi, sistema gestionale digitale, cassa di riserva strutturale (attualmente 0)",
+        "interventi_5anni": "Implementare gestionale club (anno 1); creare fondo di riserva 3 mensilità entro anno 2; registrare marchio per uso commerciale e merchandising"
+      }
+    ]
+  },
+  "updated_at": "2026-04-18T10:35:00.000000"
+}

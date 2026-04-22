@@ -6304,6 +6304,86 @@ from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
 QUESTIONNAIRE_DATA_DIR = Path("data/questionnaires")
 QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+_WIKI_KB = Path("wiki/kb")
+
+
+def _wiki_append_plan(club_data: dict, plan_id: str) -> None:
+    """
+    Aggiorna il wiki dopo ogni piano generato (Karpathy: file-back).
+    Deterministico, zero LLM. Aggiunge dati noti al benchmark e al log.
+    """
+    try:
+        if not _WIKI_KB.exists():
+            return
+
+        club_name = club_data.get("club_name", "Club Sconosciuto")
+        category = club_data.get("category", "Eccellenza").lower().replace(" ", "-")
+        region = club_data.get("region", "").lower().replace(" ", "-") or "italia"
+        city = club_data.get("city", "")
+        board_members = club_data.get("board_members", [])
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # --- 1. Aggiorna/crea benchmark/<category>-<region>.md ---
+        benchmark_dir = _WIKI_KB / "benchmark"
+        benchmark_dir.mkdir(exist_ok=True)
+        bench_file = benchmark_dir / f"{category}-{region}.md"
+
+        new_entry = f"""
+## {club_name} — Piano generato {today} (plan_id: {plan_id})
+
+- **Categoria:** {club_data.get('category', 'N/A')}
+- **Città:** {city or 'N/A'}
+- **Regione:** {club_data.get('region', 'N/A')}
+- **Board consultati:** {len(board_members)} ({', '.join(board_members[:3])}{'...' if len(board_members) > 3 else ''})
+- **Fonte dati:** {club_data.get('data_source', 'manuale')}
+"""
+        if club_data.get("synthesized_vision"):
+            new_entry += f"- **Vision dichiarata:** {club_data['synthesized_vision'][:200]}\n"
+        if club_data.get("swot_aggregated", {}).get("forza"):
+            new_entry += f"- **Principali forze:** {club_data['swot_aggregated']['forza'][:150]}\n"
+
+        if bench_file.exists():
+            bench_file.write_text(
+                bench_file.read_text(encoding="utf-8") + new_entry,
+                encoding="utf-8"
+            )
+        else:
+            header = f"""---
+title: "Benchmark {club_data.get('category', 'Eccellenza')} - {club_data.get('region', region)}"
+tags: [{category}, {region}, benchmark]
+clubs: []
+date_created: {today}
+date_updated: {today}
+---
+
+# Benchmark {club_data.get('category', 'Eccellenza')} — {club_data.get('region', region).title()}
+
+> Dati accumulati dai piani generati. Aggiornato automaticamente dopo ogni generazione.
+
+"""
+            bench_file.write_text(header + new_entry, encoding="utf-8")
+
+        # --- 2. Append a log.md ---
+        log_file = _WIKI_KB / "log.md"
+        log_entry = f"""
+---
+## {today} -- Piano generato: {club_name}
+- Club: {club_name} ({club_data.get('category', 'N/A')}, {club_data.get('region', 'N/A')})
+- Plan ID: {plan_id}
+- Board consultati: {len(board_members)}
+- Benchmark aggiornato: benchmark/{category}-{region}.md
+"""
+        if log_file.exists():
+            log_file.write_text(
+                log_file.read_text(encoding="utf-8") + log_entry,
+                encoding="utf-8"
+            )
+
+        logger.info(f"Wiki updated after plan {plan_id} for {club_name}")
+
+    except Exception as e:
+        logger.warning(f"Wiki append failed (non-blocking): {e}")
+
 
 def _q_path(club_slug, member_slug, q_id):
     """Path file JSON per singolo questionario compilato."""
@@ -6319,27 +6399,21 @@ def _q_statuses(club_slug, member_slug):
         p = _q_path(club_slug, member_slug, q_id)
         if p.exists():
             data = json.loads(p.read_text(encoding="utf-8"))
-            # Check if any field has content
+            # "completed" if the file exists and has any content — optional fields
+            # don't block progress (club presidents rarely fill every field)
             has_content = False
-            all_filled = True
             for section_data in data.get("data", {}).values():
                 if isinstance(section_data, list):
                     for item in section_data:
-                        for v in item.values():
-                            if v:
-                                has_content = True
-                            else:
-                                all_filled = False
-                elif isinstance(section_data, dict):
-                    for v in section_data.values():
-                        if v:
+                        if any(v for v in item.values()):
                             has_content = True
-                        else:
-                            all_filled = False
-            if has_content and all_filled:
-                statuses[q_id] = "completed"
-            elif has_content:
-                statuses[q_id] = "partial"
+                            break
+                elif isinstance(section_data, dict):
+                    if any(v for v in section_data.values()):
+                        has_content = True
+                if has_content:
+                    break
+            statuses[q_id] = "completed" if has_content else "partial"
         else:
             statuses[q_id] = "empty"
     return statuses
@@ -6778,6 +6852,18 @@ def api_generate_from_questionnaires():
                 update_project_status(p_id, "completed", 100, "Piano generato con successo")
                 # Salva risultato
                 plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
+                # Registra in editor per abilitare export immediato
+                plan_record = knowledge_manager.store.get_plan(plan_id)
+                if plan_record:
+                    review = editor.create_review_from_plan(
+                        plan_data=plan_record.plan_data,
+                        club_name=plan_record.club_name,
+                        metadata={"category": plan_record.category},
+                        owner_id=plan_record.owner_id,
+                    )
+                    review.plan_id = plan_id
+                    editor.reviews[plan_id] = review
+                _wiki_append_plan(c_data, plan_id)
                 update_project_status(p_id, "completed", 100, "Piano salvato", extra={"plan_id": plan_id})
             except Exception as e:
                 logger.error(f"Generation from questionnaires failed: {e}")
@@ -6796,6 +6882,278 @@ def api_generate_from_questionnaires():
     except Exception as e:
         logger.error(f"generate-from-questionnaires error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/demo/generate", methods=["POST"])
+def api_demo_generate():
+    """Genera piano da dati demo Riccione — pubblico, nessun login richiesto."""
+    try:
+        club_slug = "riccione-calcio-1926"
+        members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+        if not members_dir.exists():
+            return jsonify({"error": "Demo data not found"}), 404
+
+        all_responses = {}
+        member_names = []
+        for member_dir in sorted(members_dir.iterdir()):
+            if not member_dir.is_dir():
+                continue
+            for q_file in member_dir.glob("*.json"):
+                q_id = q_file.stem
+                record = json.loads(q_file.read_text(encoding="utf-8"))
+                member_name = record.get("display_name", member_dir.name)
+                if member_name not in member_names:
+                    member_names.append(member_name)
+                if q_id not in all_responses:
+                    all_responses[q_id] = []
+                all_responses[q_id].append({
+                    "member": member_name,
+                    "role": record.get("role", "board"),
+                    "data": record.get("data", {}),
+                })
+
+        if not all_responses:
+            return jsonify({"error": "No questionnaire data found"}), 404
+
+        club_name = "Riccione Calcio 1926"
+        club_data = {
+            "club_name": club_name,
+            "city": "Riccione",
+            "region": "Emilia-Romagna",
+            "category": "Eccellenza",
+            "country": "Italy",
+            "board_members": member_names,
+            "data_source": "digital_questionnaires_demo",
+        }
+
+        # SWOT
+        if "swot" in all_responses:
+            swot_agg = {"forza": [], "debolezza": [], "opportunita": [], "minacce": []}
+            for resp in all_responses["swot"]:
+                grid = resp["data"].get("swot_grid", {})
+                for key in swot_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        swot_agg[key].append(val)
+            club_data["swot_aggregated"] = {k: "\n".join(v) for k, v in swot_agg.items()}
+            club_data["swot_aggregated_source"] = "questionnaire"
+
+        # Vision
+        if "vision" in all_responses:
+            visions = []
+            for resp in all_responses["vision"]:
+                vm = resp["data"].get("vision_main", {})
+                parts = [p for p in [vm.get("nel_2028"), vm.get("vision_frase")] if p]
+                if parts:
+                    visions.append(" | ".join(parts))
+            if visions:
+                club_data["synthesized_vision"] = "\n".join(visions)
+                club_data["synthesized_vision_source"] = "questionnaire"
+
+        # Mission
+        if "mission" in all_responses:
+            missions = []
+            for resp in all_responses["mission"]:
+                mm = resp["data"].get("mission_main", {})
+                if mm.get("mission_bozza"):
+                    missions.append(mm["mission_bozza"])
+            if missions:
+                club_data["synthesized_mission"] = "\n".join(missions)
+                club_data["synthesized_mission_source"] = "questionnaire"
+
+        # Valori e fondamenta
+        if "valori-fondamenta" in all_responses:
+            valori_all, fondamenta_all = [], []
+            for resp in all_responses["valori-fondamenta"]:
+                for v in resp["data"].get("valori", []):
+                    if v.get("valore"):
+                        valori_all.append(f"{v['valore']}: {v.get('descrizione', '')}")
+                for f in resp["data"].get("fondamenta", []):
+                    if f.get("pilastro"):
+                        fondamenta_all.append(f"{f['pilastro']}: {f.get('motivazione', '')}")
+            if valori_all:
+                club_data["club_values"] = "\n".join(valori_all)
+                club_data["club_values_source"] = "questionnaire"
+            if fondamenta_all:
+                club_data["club_foundations"] = "\n".join(fondamenta_all)
+                club_data["club_foundations_source"] = "questionnaire"
+
+        # Competitors
+        if "competitors" in all_responses:
+            comps = []
+            for resp in all_responses["competitors"]:
+                for c in resp["data"].get("competitors_list", []):
+                    if c.get("nome"):
+                        comps.append(f"{c['nome']} (forza: {c.get('punti_forza', 'n/a')}, debolezza: {c.get('debolezze', 'n/a')})")
+            if comps:
+                club_data["competitors"] = comps[:10]
+                club_data["competitors_source"] = "questionnaire"
+
+        # PEST
+        if "pest" in all_responses:
+            pest_agg = {"politica": [], "economica": [], "sociale": [], "tecnologica": []}
+            for resp in all_responses["pest"]:
+                grid = resp["data"].get("pest_grid", {})
+                for key in pest_agg:
+                    val = grid.get(key, "").strip()
+                    if val:
+                        pest_agg[key].append(val)
+            club_data["pest_analysis"] = {k: "\n".join(v) for k, v in pest_agg.items()}
+            club_data["pest_analysis_source"] = "questionnaire"
+
+        # Stakeholders
+        if "stakeholders" in all_responses:
+            stakeholders = []
+            for resp in all_responses["stakeholders"]:
+                for s in resp["data"].get("stakeholders_list", []):
+                    if s.get("gruppo"):
+                        stakeholders.append(f"{s['gruppo']} (importanza: {s.get('importanza', 'n/a')}, azioni: {s.get('azioni', 'n/a')})")
+            if stakeholders:
+                club_data["stakeholders_analysis"] = "\n".join(stakeholders)
+                club_data["stakeholders_analysis_source"] = "questionnaire"
+
+        # Risorse
+        if "risorse" in all_responses:
+            risorse = []
+            for resp in all_responses["risorse"]:
+                for r in resp["data"].get("risorse_list", []):
+                    if r.get("categoria"):
+                        risorse.append(f"{r['categoria']}: attuali={r.get('lista_attuali', 'n/a')}, manca={r.get('cosa_manca', 'n/a')}")
+            if risorse:
+                club_data["resources_analysis"] = "\n".join(risorse)
+                club_data["resources_analysis_source"] = "questionnaire"
+
+        project_id = f"demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        update_project_status(project_id, "processing", 10, "Avvio generazione demo...")
+
+        def run_demo_generation(p_id, c_data):
+            try:
+                update_project_status(p_id, "processing", 20, "6 agenti AI al lavoro...")
+                result = orchestrator.generate_strategic_plan(
+                    club_data=c_data,
+                    research_data=None,
+                    parallel=True,
+                    on_progress=lambda pct, msg: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
+                )
+                plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
+                plan_record = knowledge_manager.store.get_plan(plan_id)
+                if plan_record:
+                    review = editor.create_review_from_plan(
+                        plan_data=plan_record.plan_data,
+                        club_name=plan_record.club_name,
+                        metadata={"category": plan_record.category},
+                        owner_id=plan_record.owner_id,
+                    )
+                    review.plan_id = plan_id
+                    editor.reviews[plan_id] = review
+                _wiki_append_plan(c_data, plan_id)
+                update_project_status(p_id, "completed", 100, "Piano generato", extra={"plan_id": plan_id})
+            except Exception as e:
+                logger.error(f"Demo generation failed: {e}")
+                update_project_status(p_id, "error", 0, str(e))
+
+        analysis_executor.submit(run_demo_generation, project_id, club_data)
+        session["demo_mode"] = True
+
+        return jsonify({
+            "success": True,
+            "project_id": project_id,
+            "club_name": club_name,
+            "questionnaires_found": list(all_responses.keys()),
+        })
+
+    except Exception as e:
+        logger.error(f"Demo generate error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wiki/anagrafica", methods=["POST"])
+def api_wiki_anagrafica():
+    """
+    Salva anagrafica club nel wiki. Pubblico — chiamato dalla splash page.
+    Crea wiki/kb/anagrafica/{slug}.md e aggiorna index.md e log.md.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        club_name = body.get("club_name", "").strip()
+        if not club_name:
+            return jsonify({"error": "club_name required"}), 400
+
+        from wiki_reader import slugify
+        slug = slugify(club_name)
+        category = body.get("category", "").strip()
+        city = body.get("city", "").strip()
+        region = body.get("region", "").strip()
+        board_size = int(body.get("board_size", 0))
+        email = body.get("email", "").strip()
+        notes = body.get("notes", "").strip()
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        anagrafica_dir = Path("wiki/kb/anagrafica")
+        anagrafica_dir.mkdir(parents=True, exist_ok=True)
+
+        page = f"""---
+title: "Anagrafica: {club_name}"
+tags: [anagrafica, {slug}, {category.lower().replace(' ', '-')}, {region.lower().replace(' ', '-')}]
+club_slug: {slug}
+category: {category}
+region: {region}
+date_created: {today}
+date_updated: {today}
+source: splash_form
+---
+
+# {club_name}
+
+## Dati Base
+
+- **Categoria:** {category or 'N/A'}
+- **Città:** {city or 'N/A'}
+- **Regione:** {region or 'N/A'}
+- **Componenti Board:** {board_size or 'N/A'}
+- **Email referente:** {email or 'N/A'}
+{"" if not notes else f"- **Note:** {notes}"}
+"""
+        page_path = anagrafica_dir / f"{slug}.md"
+        page_path.write_text(page, encoding="utf-8")
+
+        # Aggiorna index.md: sostituisce il placeholder o aggiunge voce
+        index_path = Path("wiki/kb/index.md")
+        if index_path.exists():
+            idx = index_path.read_text(encoding="utf-8")
+            entry = f"- **[{club_name}](anagrafica/{slug}.md)** -- {category}, {region}."
+            placeholder = "_Nessun club ancora registrato._"
+            if placeholder in idx:
+                idx = idx.replace(placeholder, entry)
+            elif f"anagrafica/{slug}.md" not in idx:
+                idx = idx.replace(
+                    "## Club",
+                    f"{entry}\n\n## Club"
+                ).replace("## Anagrafica\n\n> Profili base dei club raccolti dalla splash page. Disponibili agli agenti prima della generazione del piano.\n\n",
+                          f"## Anagrafica\n\n> Profili base dei club raccolti dalla splash page. Disponibili agli agenti prima della generazione del piano.\n\n")
+                # simpler: just insert entry before ## Club
+                idx = idx.replace("\n## Club", f"\n{entry}\n\n## Club", 1)
+            index_path.write_text(idx, encoding="utf-8")
+
+        # Append log
+        log_path = Path("wiki/kb/log.md")
+        if log_path.exists():
+            log_entry = f"\n---\n## {today} -- Anagrafica: {club_name}\n- Slug: {slug}\n- Categoria: {category}, {region}\n- Board: {board_size} membri\n- Fonte: splash_form\n"
+            log_path.write_text(log_path.read_text(encoding="utf-8") + log_entry, encoding="utf-8")
+
+        logger.info(f"Wiki anagrafica saved: {slug}")
+        return jsonify({"success": True, "slug": slug, "redirect": f"/demo/questionari?club_prefill={slug}&club_name={club_name}"})
+
+    except Exception as e:
+        logger.error(f"Wiki anagrafica error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/demo/risultati")
+def demo_risultati():
+    """Pagina pubblica risultati demo — polling + 3 download."""
+    project_id = request.args.get("project_id", "")
+    return render_template("demo_risultati.html", project_id=project_id)
 
 
 if __name__ == "__main__":

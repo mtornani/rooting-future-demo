@@ -1,0 +1,47 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "stakeholders",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "Famiglie settore giovanile",
+        "comunicazione": "WhatsApp di squadra, comunicazioni cartacee, riunioni di inizio stagione",
+        "relazione": "Buona ma migliorabile: le famiglie chiedono più trasparenza su metodo e progetto",
+        "importanza": "Fondamentale",
+        "azioni": "Newsletter mensile digitale; open day trimestrale; app club per comunicazioni dirette"
+      },
+      {
+        "gruppo": "Sponsor locali",
+        "comunicazione": "Contatti diretti del presidente, accordi informali annuali",
+        "relazione": "Fragile: dipendenza da relazioni personali, nessun contratto strutturato pluriennale",
+        "importanza": "Fondamentale",
+        "azioni": "Creare pacchetti sponsor con ROI misurabile; proposta triennale con visibilità digitale; report semestrale ai partner"
+      },
+      {
+        "gruppo": "Comune di Riccione",
+        "comunicazione": "Richieste formali per utilizzo impianti, riunioni sporadiche",
+        "relazione": "Collaborativa ma non proattiva: il club non è percepito come interlocutore strategico",
+        "importanza": "Molto importante",
+        "azioni": "Presentare piano strategico al Comune; proporre collaborazione per eventi sportivi estivi; richiedere co-finanziamento PNRR"
+      },
+      {
+        "gruppo": "Allenatori e staff tecnico",
+        "comunicazione": "Riunioni tecniche settimanali, messaggi informali",
+        "relazione": "Positiva ma con alta rotazione: mancanza di contratti formali e percorsi di crescita",
+        "importanza": "Fondamentale",
+        "azioni": "Contratti formali stagionali; rimborsi spese strutturati; piano formazione UEFA per allenatori chiave"
+      },
+      {
+        "gruppo": "Tifosi e comunità",
+        "comunicazione": "Pagina Facebook, comunicati sporadici, passaparola",
+        "relazione": "Affettiva ma passiva: i tifosi seguono ma non vengono coinvolti attivamente",
+        "importanza": "Importante",
+        "azioni": "Attivare Instagram e TikTok per under 30; creare tessera sostenitore con vantaggi; evento community annuale"
+      }
+    ]
+  },
+  "updated_at": "2026-04-18T10:30:00.000000"
+}

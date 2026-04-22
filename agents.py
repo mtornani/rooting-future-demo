@@ -33,6 +33,7 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
+from wiki_reader import WikiReader
 from config import (
     GEMINI_API_KEY,
     MODEL_CONFIG,
@@ -987,7 +988,8 @@ e soggette a revisione post-allineamento.
         research_data: Dict = None,
         context: Dict = None,
         stakeholder_meta: Dict = None,
-        rag_context: List[Any] = None
+        rag_context: List[Any] = None,
+        wiki_context: str = ""
     ) -> Dict[str, Any]:
         """
         Genera output per l'area di competenza, usando il File Search Tool.
@@ -1003,11 +1005,12 @@ e soggette a revisione post-allineamento.
             return self._generate_mock(club_data)
 
         prompt_content = self._build_simple_prompt(
-            club_data, 
-            research_data, 
-            context, 
+            club_data,
+            research_data,
+            context,
             stakeholder_meta,
-            rag_context
+            rag_context,
+            wiki_context
         )
 
         # === AI CACHE CHECK ===
@@ -1125,7 +1128,8 @@ e soggette a revisione post-allineamento.
         research_data: Dict = None,
         context: Dict = None,
         stakeholder_meta: Dict = None,
-        rag_context: List[Any] = None
+        rag_context: List[Any] = None,
+        wiki_context: str = ""
     ) -> str:
         """
         Costruisce un prompt semplificato con supporto per conflict-aware generation e RAG.
@@ -1150,6 +1154,11 @@ e soggette a revisione post-allineamento.
                 rag_info += f"**ESEMPIO {idx+1} (da {club}):**\n{preview}\n\n"
             
             rag_info += "---\n"
+
+        # === WIKI KNOWLEDGE BASE ===
+        wiki_info = ""
+        if wiki_context:
+            wiki_info = "\n---\n" + wiki_context + "\n---\n"
 
         # === STAKEHOLDER CONTEXT (Multi-Stakeholder Conflict Awareness) ===
         stakeholder_info = ""
@@ -1233,7 +1242,7 @@ e soggette a revisione post-allineamento.
             context_text = json.dumps(context, indent=2, ensure_ascii=False)
             context_info = f"\nOUTPUT ALTRI AGENTI (per sintesi):\n{context_text[:1500]}"
 
-        return f"{self.spec.system_prompt}\n\n{rag_info}{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
+        return f"{self.spec.system_prompt}\n\n{rag_info}{wiki_info}{stakeholder_info}{club_info}\n{synthesized_from_club}{benchmark_info}\n{research_info}\n{context_info}"
         
     def _get_relevant_benchmarks(self, category: str) -> str:
         """Recupera benchmark rilevanti per la categoria"""
@@ -1285,6 +1294,7 @@ class MultiAgentOrchestrator:
         self.knowledge_store = knowledge_store
         self.file_search_store_name = file_search_store_name
         self.async_client = AsyncGeminiClient(max_workers=6, rate_limit=60)  # OPT-002
+        self.wiki_reader = WikiReader()
         self._init_agents()
 
     def _init_agents(self):
@@ -1393,10 +1403,23 @@ class MultiAgentOrchestrator:
                     logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
             # ---------------------------
 
+            # --- WIKI CONTEXT ---
+            wiki_context = ""
+            if self.wiki_reader.available:
+                club_slug = club_data.get("club_slug", "")
+                if not club_slug:
+                    from wiki_reader import slugify
+                    club_slug = slugify(club_data.get("club_name", ""))
+                wiki_context = self.wiki_reader.get_context_for_agent(
+                    agent.spec.name, club_slug, club_data.get("category", "eccellenza").lower()
+                )
+            # --------------------
+
             output = agent.generate(
-                club_data, 
+                club_data,
                 research_data,
-                rag_context=rag_context
+                rag_context=rag_context,
+                wiki_context=wiki_context
             )
 
             agent_time = time.time() - agent_start
@@ -1505,10 +1528,23 @@ class MultiAgentOrchestrator:
                         logger.warning(f"RAG fetch failed for {agent.spec.name}: {e}")
                 # ---------------------------
 
+                # --- WIKI CONTEXT ---
+                wiki_context = ""
+                if self.wiki_reader.available:
+                    club_slug = club_data.get("club_slug", "")
+                    if not club_slug:
+                        from wiki_reader import slugify
+                        club_slug = slugify(club_data.get("club_name", ""))
+                    wiki_context = self.wiki_reader.get_context_for_agent(
+                        agent.spec.name, club_slug, club_data.get("category", "eccellenza").lower()
+                    )
+                # --------------------
+
                 output = agent.generate(
                     club_data,
                     research_data,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    wiki_context=wiki_context
                 )
 
                 agent_time = time.time() - agent_start

@@ -1,0 +1,16 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "pest",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "pest_grid": {
+      "politica": "Normative FIGC in evoluzione per club dilettantistici: obbligo figure tecniche qualificate. Incentivi regionali Emilia-Romagna per sport giovanile e impianti. Politiche comunali di Riccione favorevoli allo sport come leva turistica.",
+      "economica": "Economia locale fortemente turistica e stagionale: picco sponsor in estate. Inflazione 2024-2025 impatta costi operativi (+12% utenze, trasferte). Fondi PNRR disponibili per impianti sportivi pubblici. Sponsor sensibili alla visibilità estiva nazionale.",
+      "sociale": "Denatalità strutturale impatta il bacino di utenza giovanile (-8% under 14 in 5 anni). Forte identità territoriale e senso di appartenenza alla Riviera. Crescita interesse femminile nel calcio. Famiglie sempre più attente alla qualità formativa oltre che agonistica.",
+      "tecnologica": "Club in ritardo sulla digitalizzazione gestionale e comunicativa. Opportunità social media per engagement con tifosi e turisti. Software gestionali per club dilettantistici ora accessibili (<€2k/anno). Live streaming partite possibile a costi ridotti con smartphone."
+    }
+  },
+  "updated_at": "2026-04-18T10:25:00.000000"
+}

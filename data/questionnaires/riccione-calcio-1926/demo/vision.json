@@ -1,0 +1,16 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "demo",
+  "questionnaire": "vision",
+  "role": "board",
+  "display_name": "Board Riccione",
+  "data": {
+    "vision_main": {
+      "parole_chiave": "territorio, giovani, sostenibilità, eccellenza, identità, crescita, riconoscimento regionale",
+      "nel_2028": "Un club riconosciuto a livello regionale per l'eccellenza del settore giovanile e la sostenibilità del modello gestionale, con una presenza stabile in Serie D e un impianto sportivo moderno",
+      "entro_2028": "Iscrizione stabile in Serie D, settore giovanile con 250+ tesserati, accordo di partnership con almeno 6 sponsor locali strutturati, impianto sportivo rinnovato con campo sintetico, academy femminile avviata",
+      "vision_frase": "Riccione Calcio 1926: dove la tradizione di un secolo costruisce il futuro del calcio della Riviera"
+    }
+  },
+  "updated_at": "2026-04-18T10:05:00.000000"
+}

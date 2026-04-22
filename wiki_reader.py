@@ -27,11 +27,13 @@ RAW_DIR = WIKI_DIR / "raw"
 # Vedi WIKI_SCHEMA.md sezione 7 per il rationale
 AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
     "Strategic Coordinator": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "sintesi/overview.md",
         "benchmark/{category}*.md",
     ],
     "STW Sportivi": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "strategie/settore-giovanile*.md",
         "strategie/competitivo*.md",
@@ -40,6 +42,7 @@ AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
         "concetti/stw-overview.md",
     ],
     "STW Strutturali": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "strategie/ristrutturazione*.md",
         "strategie/hr*.md",
@@ -48,6 +51,7 @@ AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
         "concetti/stw-overview.md",
     ],
     "STW Marketing": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "strategie/marketing*.md",
         "strategie/diversificazione-ricavi*.md",
@@ -56,6 +60,7 @@ AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
         "concetti/stw-overview.md",
     ],
     "STW Sociali": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "strategie/impatto-sociale*.md",
         "strategie/sostenibilita*.md",
@@ -64,12 +69,14 @@ AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
         "concetti/stw-overview.md",
     ],
     "Financial Strategist": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "benchmark/{category}*.md",
         "concetti/sostenibilita-finanziaria.md",
         "concetti/stw-overview.md",
     ],
     "Research Validator": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "benchmark/{category}*.md",
         "strategie/pattern-{category}.md",
@@ -77,6 +84,7 @@ AGENT_WIKI_MAPPING: Dict[str, List[str]] = {
         "sintesi/lezioni-apprese.md",
     ],
     "Post-Production Editor": [
+        "anagrafica/{slug}.md",
         "clubs/{slug}.md",
         "sintesi/lezioni-apprese.md",
     ],
