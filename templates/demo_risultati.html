@@ -234,7 +234,7 @@ async function poll() {
 
         if (data.status === "completed") {
             clearInterval(pollTimer);
-            planId = data.extra && data.extra.plan_id;
+            planId = (data.data && data.data.plan_id) || (data.extra && data.extra.plan_id);
             if (planId) {
                 showSuccess(planId);
             } else {

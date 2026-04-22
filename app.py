@@ -6868,7 +6868,7 @@ def api_generate_from_questionnaires():
                     review.plan_id = plan_id
                     editor.reviews[plan_id] = review
                 _wiki_append_plan(c_data, plan_id)
-                update_project_status(p_id, "completed", 100, "Piano salvato", extra={"plan_id": plan_id})
+                update_project_status(p_id, "completed", 100, "Piano salvato", data={"plan_id": plan_id})
             except Exception as e:
                 logger.error(f"Generation from questionnaires failed: {e}")
                 update_project_status(p_id, "error", 0, str(e))
@@ -7039,19 +7039,31 @@ def api_demo_generate():
                     parallel=True,
                     on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
-                plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
-                plan_record = knowledge_manager.store.get_plan(plan_id)
-                if plan_record:
-                    review = editor.create_review_from_plan(
-                        plan_data=plan_record.plan_data,
-                        club_name=plan_record.club_name,
-                        metadata={"category": plan_record.category},
-                        owner_id=plan_record.owner_id,
-                    )
-                    review.plan_id = plan_id
-                    editor.reviews[plan_id] = review
+                import uuid
+                plan_id = str(uuid.uuid4())
+                plan_record = PlanRecord(
+                    id=plan_id,
+                    club_name=c_data["club_name"],
+                    category=c_data.get("category", ""),
+                    region=c_data.get("region", ""),
+                    created_at=datetime.now().isoformat(),
+                    status="draft",
+                    plan_data=result,
+                    sources_count=0,
+                    owner_id=None,
+                    metadata={},
+                )
+                knowledge_manager.store.save_plan(plan_record)
+                review = editor.create_review_from_plan(
+                    plan_data=result,
+                    club_name=c_data["club_name"],
+                    metadata={"category": c_data.get("category", "")},
+                    owner_id=None,
+                )
+                review.plan_id = plan_id
+                editor.reviews[plan_id] = review
                 _wiki_append_plan(c_data, plan_id)
-                update_project_status(p_id, "completed", 100, "Piano generato", extra={"plan_id": plan_id})
+                update_project_status(p_id, "completed", 100, "Piano generato", data={"plan_id": plan_id})
             except Exception as e:
                 logger.error(f"Demo generation failed: {e}")
                 update_project_status(p_id, "error", 0, str(e))
