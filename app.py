@@ -6851,7 +6851,7 @@ def api_generate_from_questionnaires():
                     club_data=c_data,
                     research_data=None,
                     parallel=True,
-                    on_progress=lambda pct, msg: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
+                    on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
                 update_project_status(p_id, "completed", 100, "Piano generato con successo")
                 # Salva risultato
@@ -7037,7 +7037,7 @@ def api_demo_generate():
                     club_data=c_data,
                     research_data=None,
                     parallel=True,
-                    on_progress=lambda pct, msg: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
+                    on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
                 plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
                 plan_record = knowledge_manager.store.get_plan(plan_id)
