@@ -326,7 +326,11 @@ def check_system_activation():
     Verifica l'attivazione della licenza prima di ogni richiesta.
     Controlla sia la validità della chiave che la scadenza temporale.
     Esclude rotte di login, static e la pagina di attivazione stessa.
+    Su HF Spaces (SPACE_ID presente) bypassa il controllo licenza.
     """
+    # HF Spaces deployment: no license required
+    if os.environ.get("SPACE_ID"):
+        return
     allowed_routes = ["activation", "static", "auth.login", "auth.logout"]
     if request.endpoint in allowed_routes or not request.endpoint:
         return
