@@ -129,6 +129,7 @@ class PlanRecord:
     notes: str = ""
     last_edited_by: str = ""
     owner_id: Optional[int] = None
+    metadata: Dict = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
         return asdict(self)

@@ -7051,7 +7051,6 @@ def api_demo_generate():
                     plan_data=result,
                     sources_count=0,
                     owner_id=None,
-                    metadata={},
                 )
                 knowledge_manager.store.save_plan(plan_record)
                 review = editor.create_review_from_plan(
