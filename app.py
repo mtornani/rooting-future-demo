@@ -3442,6 +3442,24 @@ def api_add_note(plan_id: str, section_id: str):
 # =============================================================================
 
 
+def _get_or_load_review(plan_id: str):
+    """Carica review da cache in-memory; se assente, ricostruisce da DB."""
+    review = editor.reviews.get(plan_id)
+    if not review:
+        plan_record = knowledge_manager.store.get_plan(plan_id)
+        if not plan_record:
+            raise PlanNotFoundError(details={"plan_id": plan_id})
+        review = editor.create_review_from_plan(
+            plan_data=plan_record.plan_data,
+            club_name=plan_record.club_name,
+            metadata={"category": plan_record.category},
+            owner_id=plan_record.owner_id,
+        )
+        review.plan_id = plan_id
+        editor.reviews[plan_id] = review
+    return review
+
+
 @app.route("/api/export/<plan_id>", methods=["POST"])
 def api_export_plan(plan_id: str):
     """
@@ -3782,9 +3800,7 @@ def api_export_pdf_server(plan_id: str):
     Esporta piano in formato PDF via Playwright/Chromium (lato server).
     Garantisce stabilità totale e layout professionale senza crash del browser.
     """
-    review = editor.reviews.get(plan_id)
-    if not review:
-        raise PlanNotFoundError(details={"plan_id": plan_id})
+    review = _get_or_load_review(plan_id)
 
     plan_data = editor.export_plan_for_final(plan_id)
     if not plan_data:
@@ -3847,9 +3863,7 @@ def api_export_html_only(plan_id: str):
     Esporta piano in formato HTML con Bento Grid infografico e Paged.js.
     Layout responsive: A4 paginato su desktop, scrollabile su mobile.
     """
-    review = editor.reviews.get(plan_id)
-    if not review:
-        raise PlanNotFoundError(details={"plan_id": plan_id})
+    review = _get_or_load_review(plan_id)
 
     plan_data = editor.export_plan_for_final(plan_id)
     if not plan_data:
@@ -4034,9 +4048,7 @@ def api_export_executive_report(plan_id: str):
     Esporta Executive Report A4 - sintesi ottimizzata per stampa.
     Formato compatto (3-4 pagine) con tutti i dati essenziali.
     """
-    review = editor.reviews.get(plan_id)
-    if not review:
-        raise PlanNotFoundError(details={"plan_id": plan_id})
+    review = _get_or_load_review(plan_id)
 
     plan_data = editor.export_plan_for_final(plan_id)
     if not plan_data:
@@ -4091,9 +4103,7 @@ def api_export_onepager(plan_id: str):
     Perfetto per WhatsApp, email, presentazioni veloci.
     Include: Dashboard KPI, Progress STW, Top 5 Priorita, Roadmap.
     """
-    review = editor.reviews.get(plan_id)
-    if not review:
-        raise PlanNotFoundError(details={"plan_id": plan_id})
+    review = _get_or_load_review(plan_id)
 
     plan_data = editor.export_plan_for_final(plan_id)
     if not plan_data:
