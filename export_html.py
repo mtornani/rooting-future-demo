@@ -344,11 +344,12 @@ class ChunkedHTMLExporter(BaseExporter):
         .section {{ background: white; border-radius: 16px; padding: 50px; margin-bottom: 40px; border: 1px solid var(--border); }}
         .section-header {{ border-bottom: 4px solid var(--accent); padding-bottom: 20px; margin-bottom: 40px; }}
         .section-header h2 {{ color: var(--accent); font-family: 'Montserrat', sans-serif; font-size: 2.2rem; }}
+        .section-body {{ min-width: 0; overflow-wrap: break-word; word-wrap: break-word; }}
 
         h3 {{ color: var(--accent); margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid var(--accent); padding-left: 15px; }}
-        p {{ margin-bottom: 1.2rem; text-align: justify; }}
+        p {{ margin-bottom: 1.2rem; text-align: justify; overflow-wrap: break-word; }}
 
-        .kpi-box {{ background: #f0f9ff; border-left: 4px solid var(--accent); padding: 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }}
+        .kpi-box {{ background: #f0f9ff; border-left: 4px solid var(--accent); padding: 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; overflow-wrap: break-word; }}
         .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; margin-right: 5px; }}
         .badge.questionnaire {{ background: #7B1FA2; color: white; }}
         .badge.research {{ background: #1565C0; color: white; }}

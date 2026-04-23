@@ -1,0 +1,12 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "swot_grid": {
+      "forza": "Forte radicamento nel territorio di Riccione. Struttura societaria stabile con board coeso. Campo di proprietà con possibilità di interventi. Settore giovanile attivo con 180 tesserati. Brand storico (fondato 1926). Buona reputazione nella comunità locale.",
+      "debolezza": "Budget limitato rispetto ai competitor diretti. Assenza di un direttore commerciale dedicato. Comunicazione social non strutturata. Dipendenza da pochi sponsor storici. Carenza di staff tecnico qualificato nel settore giovanile. Nessun sistema CRM per gestione tifosi e sponsor.",
+      "opportunita": "Riccione è meta turistica con 3 milioni di presenze annue: potenziale per sponsor nazionali. Crescente attenzione istituzionale allo sport come strumento sociale. Possibilità di accordi con scuole e palestre per progetti giovanili. Mercato sponsor ESG in crescita. Fondi FIGC per infrastrutture e formazione.",
+      "minacce": "Concorrenza di altri sport (beach volley, tennis, basket) per tesseramenti giovanili. Instabilità normativa FIGC per categorie dilettantistiche. Costo crescente degli ingaggi anche in Eccellenza. Difficoltà di trattenere calciatori formati nel settore giovanile."
+    }
+  }
+}

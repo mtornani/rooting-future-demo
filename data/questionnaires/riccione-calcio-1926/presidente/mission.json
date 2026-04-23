@@ -1,0 +1,14 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "mission_main": {
+      "parole_chiave": "formazione, territorio, inclusione, professionalità, sostenibilità",
+      "cosa_facciamo": "Organizziamo attività calcistica a livello agonistico e giovanile sul territorio di Riccione e dintorni, dalla Prima Squadra (Eccellenza) al Settore Giovanile (dai 6 ai 19 anni).",
+      "come_lo_facciamo": "Con uno staff tecnico qualificato, un board coeso e volontari appassionati. Investiamo nella formazione dei giovani allenatori e nel miglioramento progressivo delle infrastrutture.",
+      "per_chi": "Per i giovani del territorio che vogliono fare sport in modo sano e competitivo. Per i tifosi e la comunità locale che si identificano nel club storico. Per gli sponsor che cercano visibilità locale e un partner affidabile.",
+      "benefici": "Formazione sportiva e umana per centinaia di ragazzi. Presidio sociale del territorio attraverso lo sport. Orgoglio identitario per una città con 35.000 abitanti. Punto di aggregazione per famiglie e appassionati.",
+      "mission_bozza": "Formare campioni e persone attraverso il calcio, con il territorio di Riccione nel cuore e gli occhi puntati sulla Serie D."
+    }
+  }
+}

@@ -156,7 +156,7 @@ def _generate_stw_dashboard_html(stw_progress: Dict[str, int]) -> str:
     """Genera widget dashboard copertura STW per Executive Report"""
 
     # Calcola overall
-    overall = sum(stw_progress.values()) // len(stw_progress)
+    overall = sum(stw_progress.values()) // len(stw_progress) if stw_progress else 0
 
     # Progress bars per categoria
     bars_html = ''
@@ -190,7 +190,7 @@ def _generate_stw_dashboard_html(stw_progress: Dict[str, int]) -> str:
             <span class="stw-overall">{overall}%</span>
         </div>
         {bars_html}
-        <p class="stw-note">La copertura STW indica la percentuale di obiettivi MACRO e MICRO presenti nel piano.</p>
+        <p class="stw-note">Copertura proporzionale alla profondità dell'analisi per area. Per la lista completa di obiettivi MACRO/MICRO consultare il Piano Strategico Completo.</p>
     </div>
     '''
 
@@ -353,6 +353,50 @@ def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
     return result
 
 
+def _extract_timeline_from_plan(plan_data: Dict) -> list:
+    """
+    Estrae roadmap triennale dal piano AI.
+    Ritorna lista di (marker, titolo, descrizione) o [] se non trovato.
+    """
+    for key in ['roadmap', 'piano_triennale', 'strategic_roadmap', 'timeline']:
+        content = plan_data.get(key, '')
+        if content and len(content) > 100:
+            blocks = re.findall(
+                r'(?:Anno|Year)\s*(\d)[:\s\-–—]*([^\n]{5,80})(?:\n([^\n]{20,250}))?',
+                content, re.IGNORECASE
+            )
+            if len(blocks) >= 2:
+                return [(f'Y{b[0]}', b[1].strip(), (b[2] or '').strip()[:200]) for b in blocks[:3]]
+    # Fallback: cerca nell'executive summary
+    exec_s = plan_data.get('executive_summary', '') or plan_data.get('coordinator_summary', '')
+    if exec_s:
+        blocks = re.findall(
+            r'(?:Anno|Triennio|Year)\s*(\d)[:\s\-–—]*([^\n.]{10,80})',
+            exec_s, re.IGNORECASE
+        )
+        if len(blocks) >= 2:
+            return [(f'Y{b[0]}', b[1].strip(), '') for b in blocks[:3]]
+    return []
+
+
+def _stw_from_content_proxy(plan_data: Dict) -> Dict[str, int]:
+    """
+    Proxy copertura STW basata su lunghezza contenuto per categoria.
+    Usato perché calculate_stw_progress() richiede codici MACRO che l'AI non scrive.
+    """
+    mapping = {
+        'sportivi':    ['stw_sportivi', 'technical_sporting'],
+        'strutturali': ['stw_strutturali', 'infrastructure'],
+        'marketing':   ['stw_marketing', 'marketing_commercial'],
+        'sociali':     ['stw_sociali', 'social_sustainability'],
+    }
+    result = {}
+    for cat, keys in mapping.items():
+        chars = sum(len(plan_data.get(k, '')) for k in keys)
+        result[cat] = min(90, int(chars / 40)) if chars > 200 else 0
+    return result
+
+
 def generate_executive_report_html(
     plan_data: Dict[str, str],
     club_name: str,
@@ -384,7 +428,8 @@ def generate_executive_report_html(
     text_on_primary = _get_contrast_color(primary_color)
 
     # === CALCOLO COPERTURA STW ===
-    stw_progress = calculate_stw_progress(plan_data)
+    # Proxy basata su contenuto: calculate_stw_progress richiede codici MACRO che l'AI non produce
+    stw_progress = _stw_from_content_proxy(plan_data)
     stw_dashboard_html = _generate_stw_dashboard_html(stw_progress)
 
     # === STIME FINANZIARIE ===
@@ -515,31 +560,25 @@ def generate_executive_report_html(
     exec_html = "".join([f'<li>{p}</li>' for p in exec_points]) if exec_points else '<li>Executive summary non disponibile</li>'
 
     # === TIMELINE ===
-    timeline_html = f'''
-    <div class="timeline">
+    # Estrai roadmap dal piano reale
+    timeline_items = _extract_timeline_from_plan(plan_data)
+    is_plan_derived = bool(timeline_items)
+    if not timeline_items:
+        timeline_items = [
+            ('Y1', f'Anno 1 ({current_year})', 'Consolidamento strutturale, governance e audit processi'),
+            ('Y2', f'Anno 2 ({current_year + 1})', 'Crescita commerciale e sviluppo settore giovanile'),
+            ('Y3', f'Anno 3 ({current_year + 2})', 'Sostenibilità finanziaria e legacy territoriale'),
+        ]
+    timeline_note = '' if is_plan_derived else '<p style="font-size:8pt; color:#718096; font-style:italic; margin-top:10px;">⚠️ Schema indicativo triennale — le milestone specifiche sono nel Piano Strategico Completo.</p>'
+    timeline_items_html = ''.join(f'''
         <div class="timeline-item">
-            <div class="timeline-marker" style="background:{primary_color};">Y1</div>
+            <div class="timeline-marker" style="background:{primary_color};">{marker}</div>
             <div class="timeline-content">
-                <strong>Anno 1 - Fondamenta</strong>
-                <p>Consolidamento strutturale, audit processi, setup governance</p>
+                <strong>{title}</strong>
+                {f"<p>{desc}</p>" if desc else ""}
             </div>
-        </div>
-        <div class="timeline-item">
-            <div class="timeline-marker" style="background:{primary_color};">Y2</div>
-            <div class="timeline-content">
-                <strong>Anno 2 - Crescita</strong>
-                <p>Espansione commerciale, sviluppo settore giovanile, investimenti infrastrutturali</p>
-            </div>
-        </div>
-        <div class="timeline-item">
-            <div class="timeline-marker" style="background:{primary_color};">Y3</div>
-            <div class="timeline-content">
-                <strong>Anno 3 - Consolidamento</strong>
-                <p>Sostenibilità finanziaria, obiettivi sportivi, legacy territoriale</p>
-            </div>
-        </div>
-    </div>
-    '''
+        </div>''' for marker, title, desc in timeline_items)
+    timeline_html = f'<div class="timeline">{timeline_items_html}</div>{timeline_note}'
 
     # === METODOLOGIA COMPATTA ===
     # Genera campi stimati dalle stime effettive
@@ -561,15 +600,15 @@ def generate_executive_report_html(
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Executive Report - {club_name}</title>
+    <title>Report Esecutivo - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --primary: #6a0dad; /* Viola Rooting Future */
-            --primary-dark: #4b0082;
+            --primary: {primary_color};
+            --primary-dark: {primary_dark};
             --secondary: {secondary_color};
-            --accent: #9c27b0;
+            --accent: {primary_color};
             --text: #1a202c;
             --text-light: #718096;
             --white: #ffffff;
@@ -836,7 +875,7 @@ def generate_executive_report_html(
 <div class="cover page-break">
     <div style="font-size: 10pt; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.8;">Rooting Future</div>
     <h1>{club_name}</h1>
-    <div class="subtitle">Strategic Planning Framework</div>
+    <div class="subtitle">Report Esecutivo</div>
     <div class="period">PIANO TRIENNALE {current_year} - {current_year + 3}</div>
     <div style="font-family: 'Montserrat'; font-size: 12pt; text-transform: uppercase; letter-spacing: 2px;">Executive Report</div>
     {_format_timing_badge(metadata)}
@@ -924,6 +963,7 @@ def generate_executive_report_html(
     <div class="charts-grid" style="margin-top: 20px;">
         <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
             <h4 style="font-family: 'Montserrat'; color: var(--primary);">Composizione Ricavi</h4>
+            <p style="font-size:8pt; color:#718096; font-style:italic; margin-bottom:8px;">📊 Struttura media benchmark {category} — Fonte: FIGC Report Calcio 2024</p>
             {pie_img}
         </div>
         <div class="chart-box" style="border: none; background: #fdfbff; padding: 20px; border-radius: 12px;">
@@ -998,8 +1038,6 @@ function closeModal(modalId) {{
 </body>
 </html>
 '''
-
-    return html
 
     return html
 

@@ -225,7 +225,7 @@ class BaseExporter(ABC):
     def _get_section_titles(self) -> Dict[str, str]:
         """Returns a mapping of section keys to display titles."""
         return {
-            'executive_summary': '01. Executive Summary',
+            'executive_summary': '01. Sintesi Strategica',
             'stw_sportivi': '02. ⚽ Obiettivi Sportivi',
             'stw_strutturali': '03. 🏗️ Obiettivi Strutturali',
             'stw_marketing': '04. 📢 Obiettivi Marketing',
@@ -245,23 +245,33 @@ class BaseExporter(ABC):
         """Converts markdown text to HTML with custom badge handling."""
         if not text:
             return ""
-        
-        # Initial markdown conversion
-        html = markdown.markdown(text, extensions=['tables', 'nl2br'])
-        
+
+        # Initial markdown conversion — NO nl2br: converts every \n to <br>,
+        # breaking layout when AI wraps long lines at 80 chars.
+        html = markdown.markdown(text, extensions=['tables'])
+
         # Badge Uniformity
         html = html.replace('📋', '<span class="badge questionnaire">📋 Da Questionario</span>')
         html = html.replace('🔍', '<span class="badge research">🔍 Ricerca Web</span>')
         html = html.replace('📊', '<span class="badge estimate">📊 Stima AI</span>')
-        
-        # Special boxes (KPI, INSIGHT, ACTION)
-        html = re.sub(r'<p><strong>(KPI|TARGET|OBIETTIVO):</strong>', r'<div class="kpi-box"><strong>\1:</strong>', html)
-        html = re.sub(r'<p>💡 <strong>INSIGHT:</strong>', r'<div class="insight-box">💡 <strong>INSIGHT:</strong>', html)
-        html = re.sub(r'<p>🚀 <strong>(ACTION|AZIONE):</strong>', r'<div class="action-box">🚀 <strong>\1:</strong>', html)
-        
-        # Close boxes
-        html = html.replace(':</strong></p>', ':</strong></div>')
-        
+
+        # Special boxes — wrap entire <p> so div is always properly closed
+        html = re.sub(
+            r'<p><strong>(KPI|TARGET|OBIETTIVO):</strong>(.*?)</p>',
+            r'<div class="kpi-box"><strong>\1:</strong>\2</div>',
+            html, flags=re.DOTALL
+        )
+        html = re.sub(
+            r'<p>💡 <strong>INSIGHT:</strong>(.*?)</p>',
+            r'<div class="insight-box">💡 <strong>INSIGHT:</strong>\1</div>',
+            html, flags=re.DOTALL
+        )
+        html = re.sub(
+            r'<p>🚀 <strong>(ACTION|AZIONE):</strong>(.*?)</p>',
+            r'<div class="action-box">🚀 <strong>\1:</strong>\2</div>',
+            html, flags=re.DOTALL
+        )
+
         return html
 
     @abstractmethod

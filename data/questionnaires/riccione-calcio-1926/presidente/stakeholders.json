@@ -1,0 +1,38 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "Consiglio Direttivo (Board)",
+        "importanza": "Alta — decisioni strategiche e finanziarie",
+        "azioni": "Riunioni mensili strutturate. Dashboard KPI condivisa. Formazione su governance sportiva."
+      },
+      {
+        "gruppo": "Sponsor e Partner Commerciali",
+        "importanza": "Alta — coprono il 35% del budget",
+        "azioni": "Pacchetti sponsor rinnovati annualmente con ROI misurabile. Report semestrale di visibilità. Evento corporate annuale."
+      },
+      {
+        "gruppo": "Famiglie e Tesserati Settore Giovanile",
+        "importanza": "Alta — 180 famiglie, fonte primaria di ricavi diretti",
+        "azioni": "Comunicazione trasparente via WhatsApp e newsletter. Open day stagionale. Report progressi individuali calciatori."
+      },
+      {
+        "gruppo": "Staff Tecnico e Allenatori",
+        "importanza": "Alta — qualità dell'offerta formativa",
+        "azioni": "Contratti chiari, formazione continua, riunioni tecniche mensili. Incentivi per certificazioni UEFA."
+      },
+      {
+        "gruppo": "Comune di Riccione",
+        "importanza": "Media-Alta — gestione impianti e bandi pubblici",
+        "azioni": "Tavoli periodici con assessorato allo sport. Partecipazione a bandi per rinnovamento impianti. Progetti sociali condivisi."
+      },
+      {
+        "gruppo": "Tifosi e Comunità Locale",
+        "importanza": "Media — presidio identitario e passaparola",
+        "azioni": "Tessera Tifoso con vantaggi. Presenza attiva sui social. Coinvolgimento negli eventi pre-partita."
+      }
+    ]
+  }
+}

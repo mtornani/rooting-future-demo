@@ -4077,7 +4077,6 @@ def api_export_executive_report(plan_id: str):
         club_name=review.club_name,
         category=review.category,
         metadata=metadata,
-        sources=[],
     )
 
     safe_name = review.club_name.replace(" ", "_").replace("/", "_")
@@ -4194,10 +4193,9 @@ def view_onepager(plan_id: str):
             else 10,
         }
 
-        stw_progress = calculate_stw_progress(plan)
         from export_onepager import create_onepager
 
-        html_path = create_onepager(plan_data, review.club_name, metadata, stw_progress)
+        html_path = create_onepager(plan_data, review.club_name, metadata)
 
         with open(html_path, "r", encoding="utf-8") as f:
             return f.read()
@@ -7193,6 +7191,66 @@ def demo_risultati():
     """Pagina pubblica risultati demo — polling + 3 download."""
     project_id = request.args.get("project_id", "")
     return render_template("demo_risultati.html", project_id=project_id)
+
+
+@app.route("/demo/quicktest")
+def demo_quicktest():
+    """
+    Test end-to-end con un click — senza compilare questionari.
+    Legge le fixture in data/questionnaires/riccione-calcio-1926/,
+    avvia generazione via JS fetch, redirect automatico alla pagina risultati.
+
+    Uso: apri /demo/quicktest nel browser.
+    """
+    members_dir = QUESTIONNAIRE_DATA_DIR / "riccione-calcio-1926"
+    if not members_dir.exists() or not any(members_dir.iterdir()):
+        return (
+            "<h2 style='font-family:sans-serif'>Fixture mancanti</h2>"
+            "<p style='font-family:sans-serif'>Cartella <code>data/questionnaires/riccione-calcio-1926/</code>"
+            " non trovata. Esegui <code>git pull</code> e riavvia.</p>",
+            404,
+        )
+    return """<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8">
+<title>Quick Test — Rooting Future</title>
+<style>
+  body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;
+       align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f7fafc;}
+  .box{background:white;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,.1);text-align:center;max-width:400px;}
+  .spinner{width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#3182ce;
+           border-radius:50%;animation:spin 0.8s linear infinite;margin:20px auto;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  p{color:#718096;font-size:.9rem}
+  .err{color:#e53e3e;font-size:.85rem;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner"></div>
+  <h2 style="margin:0 0 8px;color:#1a365d">Avvio generazione demo...</h2>
+  <p id="msg">Caricamento dati Riccione Calcio 1926</p>
+  <div id="err" class="err"></div>
+</div>
+<script>
+fetch('/api/demo/generate', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: '{}'
+})
+.then(r => r.json())
+.then(d => {
+  if (d.success) {
+    document.getElementById('msg').textContent = 'Redirect alla pagina risultati...';
+    window.location.href = '/demo/risultati?project_id=' + d.project_id;
+  } else {
+    document.getElementById('err').textContent = 'Errore: ' + (d.error || JSON.stringify(d));
+  }
+})
+.catch(e => {
+  document.getElementById('err').textContent = 'Errore di rete: ' + e;
+});
+</script>
+</body></html>"""
 
 
 if __name__ == "__main__":

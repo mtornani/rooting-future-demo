@@ -1,0 +1,22 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "valori": [
+      {"valore": "Integrità", "descrizione": "Gestiamo il club con trasparenza verso soci, sponsor e famiglie. Ogni decisione è presa nell'interesse del club e della comunità."},
+      {"valore": "Passione", "descrizione": "Il calcio è la nostra passione. La trasmettiamo ai giovani e la coltiviamo in ogni partita, allenamento e evento."},
+      {"valore": "Territorio", "descrizione": "Siamo profondamente legati a Riccione. Collaboriamo con scuole, istituzioni e realtà locali per essere un punto di riferimento."},
+      {"valore": "Crescita", "descrizione": "Investiamo costantemente nella formazione: dei giovani calciatori, dello staff tecnico e della struttura societaria."},
+      {"valore": "Rispetto", "descrizione": "Rispettiamo avversari, arbitri, tifosi e colleghi. Il rispetto è la base del nostro modo di fare sport."}
+    ],
+    "fondamenta": [
+      {"pilastro": "Eccellenza Sportiva", "motivazione": "La performance della Prima Squadra è il biglietto da visita del club. Puntare all'eccellenza ci permette di attrarre talenti, sponsor e attenzione mediatica."},
+      {"pilastro": "Settore Giovanile", "motivazione": "Il vivaio è il futuro del club. Investire nei giovani significa garantire sostenibilità sportiva ed economica a lungo termine."},
+      {"pilastro": "Sostenibilità Finanziaria", "motivazione": "Un club sano economicamente può pianificare il futuro. Il pareggio di bilancio è un obiettivo irrinunciabile entro il 2027."},
+      {"pilastro": "Comunità e Territorio", "motivazione": "Il club esiste grazie alla comunità di Riccione. Dobbiamo restituire valore al territorio attraverso progetti sociali e collaborazioni istituzionali."}
+    ],
+    "note_fondamenta": {
+      "opinione": "Le fondamenta proposte rispecchiano la nostra identità. Vorremmo aggiungere maggiore enfasi sulla digitalizzazione e sulla comunicazione, che riteniamo urgenti nel breve periodo."
+    }
+  }
+}

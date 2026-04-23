@@ -1,0 +1,32 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "Cattolica Calcio (Eccellenza)",
+        "punti_forza": "Budget superiore, buona comunicazione social, strutture rinnovate di recente.",
+        "debolezze": "Scarso radicamento nel territorio, dipendenza da pochi investitori privati.",
+        "azioni": "Differenziarci sulla leva del territorio e della storia del club. Sviluppare settore giovanile più strutturato."
+      },
+      {
+        "nome": "Misano Adriatico Calcio",
+        "punti_forza": "Forte supporto comunale, impianto moderno, buona rete di sponsor locali.",
+        "debolezze": "Prima Squadra in categoria inferiore, settore giovanile piccolo.",
+        "azioni": "Mantenere vantaggio competitivo in Eccellenza. Collaborare per tesseramenti giovanili nelle zone comuni."
+      },
+      {
+        "nome": "Pallavolo Riccione (indiretto)",
+        "punti_forza": "Sport estivo ideale per Riccione, visibilità mediatica nazionale, sponsor attrattivi.",
+        "debolezze": "Stagionalità limitata, minore appeal per settore giovanile maschile under 14.",
+        "azioni": "Proporre pacchetti combinati con eventi calcio+pallavolo per sponsor. Presidio dell'inverno con eventi al coperto."
+      },
+      {
+        "nome": "Tennis Club Riccione (indiretto)",
+        "punti_forza": "Sport individuale molto praticato, quote associative elevate, clientela benestante.",
+        "debolezze": "Costo elevato per famiglie, sport meno inclusivo socialmente.",
+        "azioni": "Posizionarci come la scelta più accessibile e sociale per le famiglie con figli."
+      }
+    ]
+  }
+}

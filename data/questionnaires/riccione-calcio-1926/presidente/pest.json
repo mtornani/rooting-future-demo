@@ -1,0 +1,12 @@
+{
+  "display_name": "Presidente Demo",
+  "role": "Presidente",
+  "data": {
+    "pest_grid": {
+      "politica": "Riforma dei campionati dilettantistici FIGC in corso: possibili riduzioni di gironi e nuovi criteri di iscrizione. Comune di Riccione favorevole allo sport: bandi per impianti e progetti giovanili disponibili. Legge 91/81 sullo sport professionistico in evoluzione: impatti sul semiprofessionismo in Eccellenza.",
+      "economica": "PIL regionale Emilia-Romagna sopra media nazionale: contesto favorevole per sponsorizzazioni. Turismo a Riccione in crescita post-COVID: opportunità per sponsor legati all'hospitality. Inflazione sui costi energetici impatta la gestione degli impianti. Difficoltà di accesso al credito per ASD senza garanzie patrimoniali.",
+      "sociale": "Crescente sensibilità verso sport come strumento di inclusione sociale e benessere. Calo demografico delle fasce 6-14 anni nel comune: pressione sul settore giovanile. Famiglie sempre più selettive: cercano strutture sicure, professionali e con buona comunicazione. Aumento attenzione a protezione minori e safeguarding nello sport.",
+      "tecnologica": "Digitalizzazione della gestione sportiva (CRM, app, pagamenti online) ormai necessaria. Social media fondamentali per reclutamento giovanile e visibilità sponsor. Sostenibilità ambientale: LED e pannelli solari incentivati dal PNRR per impianti sportivi. Piattaforme streaming per partite locali: opportunità di visibilità a costo zero."
+    }
+  }
+}

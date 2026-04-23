@@ -190,7 +190,7 @@ class OnePagerExporter(BaseExporter):
     ) -> str:
         """Genera l'HTML completo del One-Pager con Montserrat/Inter"""
         metadata = metadata or {}
-        current_year = datetime.now().strftime("%Y")
+        current_year = datetime.now().year
         generation_date = datetime.now().strftime("%d/%m/%Y")
         
         # Calculate contrast for dynamic backgrounds
@@ -217,15 +217,7 @@ class OnePagerExporter(BaseExporter):
         priorities_html = ''
         priorities = highlights.get('top_priorities', [])
         if not priorities:
-            # Fallback mock con motivazioni
-            priorities = [
-                {"title": 'Completare organigramma tecnico', "reason": "Fondamentale per la stabilità operativa."},
-                {"title": 'Definire piano marketing annuale', "reason": "Necessario per la crescita dei ricavi."},
-                {"title": 'Attivare sistema CRM tifosi', "reason": "Ottimizzazione del database per campagne mirate."},
-                {"title": 'Sviluppare programma settore giovanile', "reason": "Asset strategico per il futuro tecnico."},
-                {"title": 'Implementare policy HR aziendali', "reason": "Miglioramento dell'efficienza interna."}
-            ]
-        
+            priorities_html = '<p style="font-size:8pt; color:#888; font-style:italic;">Priorità non estratte — consultare il Piano Strategico Completo.</p>'
         for i, p in enumerate(priorities[:5], 1):
             title = p.get('title', '') if isinstance(p, dict) else p
             reason = p.get('reason', '') if isinstance(p, dict) else ''
@@ -292,7 +284,7 @@ class OnePagerExporter(BaseExporter):
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Strategic Roadmap - {club_name}</title>
+    <title>Piano Strategico - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
     <style>
@@ -469,6 +461,7 @@ class OnePagerExporter(BaseExporter):
         <div class="stw-section">
             <h3 class="section-title">Copertura Strategica</h3>
             {stw_bars_html}
+            <p style="font-size:7pt; color:#999; font-style:italic; margin-top:2mm;">Indicatore proporzionale alla profondità dell'analisi per area.</p>
         </div>
 
         <div class="priorities-section">
