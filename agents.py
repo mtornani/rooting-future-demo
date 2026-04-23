@@ -1034,7 +1034,7 @@ e soggette a revisione post-allineamento.
                 except Exception as e:
                     wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
                     log_exception(wrapped, context=f"agent_{self.spec.name}")
-                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === OPENROUTER PATH ===
             elif self._provider == "openrouter" and self._openrouter_client:
@@ -1050,7 +1050,7 @@ e soggette a revisione post-allineamento.
                 except Exception as e:
                     wrapped = handle_exception(e, context=f"agent_{self.spec.name}_openrouter")
                     log_exception(wrapped, context=f"agent_{self.spec.name}")
-                    return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === GEMINI PATH (default) ===
             else:
@@ -1094,20 +1094,20 @@ e soggette a revisione post-allineamento.
                             details={"agent": self.spec.name, "fallback_error": str(fallback_e)}
                         )
                         log_exception(err, context=f"agent_{self.spec.name}")
-                        return {'content': err.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id}}
+                        return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id, 'error_msg': err.user_message}}
                 else:
                     err = AgentError(
                         message=f"Agent {self.spec.name} InvalidArgument: {e}",
                         details={"agent": self.spec.name, "error_type": "InvalidArgument"}
                     )
                     log_exception(err, context=f"agent_{self.spec.name}")
-                    return {'content': err.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id}}
+                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': err.error_id, 'error_msg': err.user_message}}
 
               except Exception as e:
                 # Map to appropriate error type
                 wrapped = handle_exception(e, context=f"agent_{self.spec.name}")
                 log_exception(wrapped, context=f"agent_{self.spec.name}")
-                return {'content': wrapped.user_message, 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id}}
+                return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
         cleaned = self._post_process(raw_content)
         content, sources, unverified = self.sourcer.process_content(cleaned, context=club_data.get('club_name', ''))

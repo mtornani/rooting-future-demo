@@ -127,9 +127,19 @@ class ChunkedHTMLExporter(BaseExporter):
 
     def _process_section_content(self, content: str) -> str:
         """Converte contenuto markdown-like in HTML usando BaseExporter logic"""
-        if content is None:
-            return "<p><em>Contenuto non disponibile</em></p>"
-        
+        if not content:
+            return "<p><em>Contenuto non disponibile per questa sezione.</em></p>"
+
+        # Guard: content troppo corto o messaggio d'errore → non renderizzare
+        _error_markers = ["errore di connessione", "verifica la connessione", "si è verificato un errore"]
+        if len(content.strip()) < 80 or any(m in content.lower() for m in _error_markers):
+            return (
+                '<div style="border-left:4px solid #F57C00; background:#FFF8E1; padding:14px 18px; '
+                'border-radius:0 6px 6px 0; color:#555; font-style:italic;">'
+                '⚠ Sezione non generata correttamente. Rigenera il piano per ottenere i contenuti completi.'
+                '</div>'
+            )
+
         normalized = self._normalize_markdown(content)
         return self._markdown_to_html(normalized)
 
@@ -326,7 +336,7 @@ class ChunkedHTMLExporter(BaseExporter):
             display: flex; flex-direction: column; z-index: 1000;
         }}
 
-        .sidebar-header {{ padding: 24px 20px; background: var(--primary); color: white; text-align: center; border-bottom: 3px solid var(--accent); }}
+        .sidebar-header {{ padding: 24px 20px; background: var(--accent); color: var(--text-on-primary); text-align: center; border-bottom: 3px solid var(--primary); }}
         .nav {{ flex: 1; overflow-y: auto; padding: 16px 10px; }}
         .nav-item {{ display: block; padding: 10px 14px; margin-bottom: 3px; color: #4a5568; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; border-left: 3px solid transparent; }}
         .nav-item:hover {{ background: var(--bg); color: var(--accent); border-left-color: var(--accent); }}
@@ -335,7 +345,7 @@ class ChunkedHTMLExporter(BaseExporter):
         .container {{ max-width: 900px; margin: 0 auto; padding: 60px 40px; }}
 
         .cover {{
-            height: 55vh; background: linear-gradient(150deg, var(--primary) 0%, var(--accent) 100%);
+            height: 55vh; background: linear-gradient(150deg, var(--accent) 0%, var(--primary) 100%);
             color: white; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center;
             position: relative; overflow: hidden;

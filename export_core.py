@@ -171,7 +171,8 @@ class BaseExporter(ABC):
         content = content.replace('\r\n', '\n')
 
         # TABLES: Separate markdown table rows that are on a single line
-        content = re.sub(r'|\s+|', '|\n|', content)
+        # NOTE: pipes must be escaped with \| — unescaped | in regex means OR
+        content = re.sub(r'\|\s+\|', '|\n|', content)
 
         # Pattern: ### 1. TITLE -> converts to header h3 (removes the number)
         content = re.sub(r'###\s+\d+[\.\)]\s*', '\n\n### ', content)
