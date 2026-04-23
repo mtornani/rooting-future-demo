@@ -97,7 +97,7 @@ def generate_rooting_future_methodology_html(
                 <span class="rf-logo">RF</span>
                 <div class="rf-tagline">
                     <h3>Rooting Future Methodology</h3>
-                    <p>Strategic Planning Framework per il Calcio Italiano</p>
+                    <p>Framework di Pianificazione Strategica per il Calcio Italiano</p>
                 </div>
             </div>
         </div>

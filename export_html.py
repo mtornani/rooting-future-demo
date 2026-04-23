@@ -326,30 +326,38 @@ class ChunkedHTMLExporter(BaseExporter):
             display: flex; flex-direction: column; z-index: 1000;
         }}
 
-        .sidebar-header {{ padding: 30px 20px; background: var(--accent); color: white; text-align: center; }}
-        .nav {{ flex: 1; overflow-y: auto; padding: 20px 10px; }}
-        .nav-item {{ display: block; padding: 12px 15px; margin-bottom: 5px; color: #1a202c; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; }}
-        .nav-item:hover {{ background: var(--bg); color: var(--accent); }}
+        .sidebar-header {{ padding: 24px 20px; background: var(--primary); color: white; text-align: center; border-bottom: 3px solid var(--accent); }}
+        .nav {{ flex: 1; overflow-y: auto; padding: 16px 10px; }}
+        .nav-item {{ display: block; padding: 10px 14px; margin-bottom: 3px; color: #4a5568; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.85rem; border-left: 3px solid transparent; }}
+        .nav-item:hover {{ background: var(--bg); color: var(--accent); border-left-color: var(--accent); }}
 
         .main-wrapper {{ margin-left: var(--sidebar-width); flex: 1; }}
         .container {{ max-width: 900px; margin: 0 auto; padding: 60px 40px; }}
 
         .cover {{
-            height: 60vh; background: linear-gradient(135deg, var(--accent) 0%, #1a202c 100%);
+            height: 55vh; background: linear-gradient(150deg, var(--primary) 0%, var(--accent) 100%);
             color: white; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center;
+            position: relative; overflow: hidden;
         }}
-        .cover h1 {{ font-family: 'Montserrat', sans-serif; font-size: 4rem; text-transform: uppercase; }}
+        .cover::after {{
+            content: "";
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }}
+        .cover h1 {{ font-family: 'Montserrat', sans-serif; font-size: 3.5rem; text-transform: uppercase; position: relative; z-index: 1; }}
+        .cover p {{ position: relative; z-index: 1; }}
 
-        .section {{ background: white; border-radius: 16px; padding: 50px; margin-bottom: 40px; border: 1px solid var(--border); }}
-        .section-header {{ border-bottom: 4px solid var(--accent); padding-bottom: 20px; margin-bottom: 40px; }}
-        .section-header h2 {{ color: var(--accent); font-family: 'Montserrat', sans-serif; font-size: 2.2rem; }}
+        .section {{ background: white; border-radius: 10px; padding: 36px 40px; margin-bottom: 28px; border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(0,0,0,0.05); }}
+        .section-header {{ border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }}
+        .section-header h2 {{ color: var(--accent); font-family: 'Montserrat', sans-serif; font-size: 1.9rem; }}
         .section-body {{ min-width: 0; overflow-wrap: break-word; word-wrap: break-word; }}
 
-        h3 {{ color: var(--accent); margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid var(--accent); padding-left: 15px; }}
-        p {{ margin-bottom: 1.2rem; text-align: justify; overflow-wrap: break-word; }}
+        h3 {{ color: var(--accent); margin-top: 1.8rem; margin-bottom: 0.8rem; border-left: 4px solid var(--accent); padding-left: 12px; }}
+        p {{ margin-bottom: 1rem; line-height: 1.7; overflow-wrap: break-word; }}
 
-        .kpi-box {{ background: #f0f9ff; border-left: 4px solid var(--accent); padding: 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; overflow-wrap: break-word; }}
+        .kpi-box {{ background: #f8f9fa; border-left: 4px solid var(--accent); padding: 1.2rem 1.5rem; margin: 1.2rem 0; border-radius: 0 6px 6px 0; overflow-wrap: break-word; }}
         .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; margin-right: 5px; }}
         .badge.questionnaire {{ background: #7B1FA2; color: white; }}
         .badge.research {{ background: #1565C0; color: white; }}

@@ -320,10 +320,14 @@ def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
     # 1. Cerca header ## numerati o non
     macro_matches = re.findall(r'##\s*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,80})', content)
     
-    # 2. Se pochi header, cerca bold line all'inizio di paragrafi che sembrano titoli
+    # 2. Se pochi header, cerca bold line all'inizio di paragrafi (case-insensitive)
     if len(macro_matches) < 2:
-        bold_matches = re.findall(r'\n\*\*(?:\d+\.)?\s*([A-ZÀ-Ÿ].{5,60})\*\*', content)
+        bold_matches = re.findall(r'\n\*\*(?:\d+\.)?\s*([A-Za-zÀ-ÿ].{5,60})\*\*', content)
         macro_matches.extend(bold_matches)
+    # 3. Fallback: bullet points come macro se ancora vuoto
+    if len(macro_matches) < 2:
+        bullet_macro = re.findall(r'[-*•]\s+([A-Za-zÀ-ÿ].{15,120})', content)
+        macro_matches.extend(bullet_macro)
 
     for m in macro_matches[:4]:
         clean = _clean_text(m).split(':')[0] # Prendi solo parte prima dei due punti
@@ -334,9 +338,9 @@ def _extract_objectives_summary(content: str) -> Dict[str, List[str]]:
     # 1. Cerca header ###
     micro_matches = re.findall(r'###\s*(?:\d+\.\d+)?\s*([A-ZÀ-Ÿ].{5,80})', content)
     
-    # 2. Se pochi header, cerca bullet points forti
+    # 2. Se pochi header, cerca bullet points forti (case-insensitive per AI output)
     if len(micro_matches) < 2:
-        bullet_matches = re.findall(r'[-*•]\s+([A-ZÀ-Ÿ].{10,100})', content)
+        bullet_matches = re.findall(r'[-*•]\s+([A-Za-zÀ-ÿ].{10,100})', content)
         micro_matches.extend(bullet_matches)
 
     for m in micro_matches[:4]:
@@ -664,8 +668,8 @@ def generate_executive_report_html(
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: url('https://www.transparenttextures.com/patterns/cubes.png');
-            opacity: 0.1;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px);
+            background-size: 28px 28px;
             z-index: 0;
         }}
 
@@ -707,15 +711,17 @@ def generate_executive_report_html(
         }}
 
         .page-title {{
-            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
-            color: white;
-            padding: 15px 25px;
-            font-size: 14pt;
+            background: white;
+            color: var(--primary);
+            padding: 10px 0 10px 18px;
+            font-size: 13pt;
             font-weight: 800;
             margin-bottom: 20px;
-            border-radius: 8px;
+            border-left: 5px solid var(--primary);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
+            gap: 8px;
         }}
 
         /* === KPI CARDS === */
@@ -804,31 +810,186 @@ def generate_executive_report_html(
         .area-box {{
             background: white;
             border: 1px solid var(--border);
-            border-top: 4px solid var(--primary);
-            border-radius: 8px;
-            padding: 20px;
+            border-left: 4px solid var(--primary);
+            border-radius: 6px;
+            padding: 16px 18px;
             page-break-inside: avoid;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }}
+
+        .clickable {{
+            cursor: pointer;
+            transition: box-shadow 0.2s, transform 0.15s;
+        }}
+        .clickable:hover {{
+            box-shadow: 0 6px 20px rgba(0,0,0,0.13);
+            transform: translateY(-2px);
+        }}
+
+        .area-header {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }}
+        .area-icon {{ font-size: 16pt; }}
+        .area-title {{
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10pt;
+            font-weight: 700;
+            flex: 1;
+            color: var(--text);
+        }}
+        .expand-hint {{ font-size: 10pt; opacity: 0.4; }}
+
+        .area-content {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }}
+
+        .obj-label {{
+            font-size: 6.5pt;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-bottom: 5px;
+        }}
+        .obj-label.macro {{ background: var(--primary); color: white; }}
+        .obj-label.micro {{ background: var(--secondary); color: white; }}
+
+        .obj-list {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 8.5pt;
+            line-height: 1.4;
+        }}
+        .obj-list li {{
+            padding: 2px 0 2px 10px;
+            position: relative;
+            color: var(--text);
+        }}
+        .obj-list li::before {{
+            content: "›";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }}
+
+        .click-hint {{
+            text-align: center;
+            font-size: 7pt;
+            color: var(--text-light);
+            margin-top: 10px;
+            font-style: italic;
+            letter-spacing: 0.3px;
+        }}
+
+        /* === MODALS === */
+        .modal {{
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .modal.active {{
+            display: flex;
+        }}
+        .modal-content {{
+            background: white;
+            border-radius: 10px;
+            max-width: 680px;
+            width: 100%;
+            max-height: 82vh;
+            overflow-y: auto;
+            padding: 28px;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        .modal-close {{
+            position: absolute;
+            top: 14px; right: 18px;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: var(--text-light);
+            line-height: 1;
+            width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }}
+        .modal-close:hover {{ background: var(--bg-light); color: var(--text); }}
+        .modal-header {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 2px solid var(--border);
+        }}
+        .modal-icon {{ font-size: 22pt; }}
+        .modal-header h2 {{
+            font-size: 14pt;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .modal-body {{ }}
+        .modal-section {{ margin-bottom: 18px; }}
+        .modal-section h3 {{ margin-bottom: 8px; font-size: 9.5pt; }}
+        .modal-list {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }}
+        .modal-list li {{
+            padding: 7px 0 7px 14px;
+            position: relative;
+            font-size: 10pt;
+            line-height: 1.5;
+            border-bottom: 1px solid var(--border);
+        }}
+        .modal-list li:last-child {{ border-bottom: none; }}
+        .modal-list li::before {{
+            content: "▶";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-size: 6pt;
+            top: 10px;
         }}
 
         /* === STW DASHBOARD === */
         .stw-dashboard {{
             background: #fdfbff;
             border: 1px solid #e9d8fd;
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 18px;
             margin-top: 25px;
         }}
 
         .stw-fill {{
-            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%) !important;
+            background: var(--primary) !important;
         }}
 
         /* === I TUOI DATI PAGE === */
         .data-source-page {{
             background: #fcfaff;
             border: 2px solid var(--primary);
-            border-radius: 16px;
-            padding: 30px;
+            border-radius: 10px;
+            padding: 28px;
             margin: 20px 0;
         }}
 
@@ -836,30 +997,31 @@ def generate_executive_report_html(
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
-            margin: 30px 0;
+            margin: 25px 0;
         }}
 
         .stat-item {{
             background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(106, 13, 173, 0.05);
+            padding: 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             text-align: center;
-            border: 1px solid #eee;
+            border: 1px solid var(--border);
         }}
 
         .stat-value {{
             font-family: 'Montserrat', sans-serif;
-            font-size: 28pt;
+            font-size: 26pt;
             font-weight: 800;
             color: var(--primary);
         }}
 
         .stat-label {{
-            font-size: 9pt;
+            font-size: 8.5pt;
             font-weight: 600;
             color: var(--text-light);
             text-transform: uppercase;
+            margin-top: 4px;
         }}
 
         @media print {{
@@ -877,7 +1039,7 @@ def generate_executive_report_html(
     <h1>{club_name}</h1>
     <div class="subtitle">Report Esecutivo</div>
     <div class="period">PIANO TRIENNALE {current_year} - {current_year + 3}</div>
-    <div style="font-family: 'Montserrat'; font-size: 12pt; text-transform: uppercase; letter-spacing: 2px;">Executive Report</div>
+    <div style="font-family: 'Montserrat'; font-size: 10pt; text-transform: uppercase; letter-spacing: 3px; opacity: 0.7;">Riservato al Board</div>
     {_format_timing_badge(metadata)}
 </div>
 

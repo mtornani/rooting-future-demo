@@ -352,13 +352,14 @@ class OnePagerExporter(BaseExporter):
             gap: 5mm;
         }}
 
-        .kpi-card {{ 
-            background: var(--bg-light);
-            border-radius: 12px;
+        .kpi-card {{
+            background: white;
+            border-radius: 8px;
             padding: 6mm;
             text-align: center;
-            border: 1px solid #e9d8fd;
+            border: 1px solid rgba(0,0,0,0.08);
             border-bottom: 4px solid var(--text-on-white);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }}
 
         .kpi-value {{ 
@@ -388,11 +389,12 @@ class OnePagerExporter(BaseExporter):
             padding-bottom: 2mm;
         }}
 
-        .stw-section, .priorities-section {{ 
+        .stw-section, .priorities-section {{
             background: white;
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 6mm;
-            border: 1px solid #eee;
+            border: 1px solid rgba(0,0,0,0.07);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }}
 
         .priority-item {{ display: flex; align-items: flex-start; gap: 4mm; margin-bottom: 3.5mm; }}
@@ -422,14 +424,16 @@ class OnePagerExporter(BaseExporter):
 
         .vision-quote {{ font-family: 'Inter', sans-serif; font-size: 13pt; font-style: italic; line-height: 1.5; position: relative; z-index: 1; }}
 
-        .footer {{ 
-            background: #1a1a1a;
-            color: white;
-            padding: 6mm 15mm;
+        .footer {{
+            background: var(--club-primary);
+            color: var(--contrast-color);
+            padding: 5mm 15mm;
             display: flex;
             justify-content: space-between;
+            align-items: center;
             font-size: 8pt;
-            border-top: 2mm solid var(--club-secondary);
+            border-top: 2px solid var(--club-secondary);
+            opacity: 0.92;
         }}
 
         .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
