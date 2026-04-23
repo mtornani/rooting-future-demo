@@ -507,7 +507,7 @@ def generate_executive_report_html(
         micro_full_html = "".join([f'<li>{m}</li>' for m in objectives['micro']]) or '<li>Da definire</li>'
 
         # Estrai anche punti chiave per il modal
-        key_points = _extract_key_points(content, 6)
+        key_points = _extract_key_points(content, 4)
         key_points_html = "".join([f'<li>{p}</li>' for p in key_points]) if key_points else ''
 
         modal_id = f"modal-{key}"
@@ -560,7 +560,7 @@ def generate_executive_report_html(
 
     # === EXECUTIVE SUMMARY ESTRATTO ===
     exec_summary = plan_data.get('executive_summary', '')
-    exec_points = _extract_key_points(exec_summary, 5)
+    exec_points = _extract_key_points(exec_summary, 3)
     exec_html = "".join([f'<li>{p}</li>' for p in exec_points]) if exec_points else '<li>Executive summary non disponibile</li>'
 
     # === TIMELINE ===
@@ -637,7 +637,7 @@ def generate_executive_report_html(
         }}
 
         body {{
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             font-size: 10pt;
             line-height: 1.5;
             color: var(--text);
@@ -645,7 +645,7 @@ def generate_executive_report_html(
         }}
 
         h2, h3, .page-title {{
-            font-family: 'Montserrat', sans-serif;
+            font-family: 'Montserrat', 'Trebuchet MS', sans-serif;
             text-transform: uppercase;
             letter-spacing: -0.3px;
         }}
@@ -937,6 +937,21 @@ def generate_executive_report_html(
             font-weight: bold;
         }}
 
+        .truncate-screen {{
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+
+        @media print {{
+            .truncate-screen {{
+                display: list-item;
+                overflow: visible;
+                -webkit-line-clamp: unset;
+            }}
+        }}
+
         .click-hint {{
             text-align: center;
             font-size: 7pt;
@@ -1078,14 +1093,63 @@ def generate_executive_report_html(
             margin-top: 4px;
         }}
 
+        /* === PRINT BUTTON (screen only) === */
+        .print-bar {{
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }}
+        .print-btn {{
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 11pt;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+            transition: transform 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.5px;
+        }}
+        .print-btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 22px rgba(0,0,0,0.28);
+        }}
+        .print-hint {{
+            font-size: 7.5pt;
+            color: #aaa;
+            text-align: right;
+            background: white;
+            padding: 3px 10px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }}
+
         @media print {{
-            .modal, .click-hint, button {{ display: none !important; }}
-            * {{ -webkit-print-color-adjust: exact !important; }}
-            .page-break {{ page-break-after: always; }}
+            .print-bar, .modal, .click-hint {{ display: none !important; }}
+            * {{ -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }}
+            body {{ background: white; }}
+            .page-break {{ page-break-after: always; break-after: page; }}
+            .area-box, .kpi-card, .stat-item {{ page-break-inside: avoid; break-inside: avoid; }}
+            .cover {{ height: 100vh; page-break-after: always; }}
+            a {{ text-decoration: none; color: inherit; }}
         }}
     </style>
 </head>
 <body>
+
+<!-- PRINT BUTTON -->
+<div class="print-bar">
+    <button class="print-btn" onclick="window.print()">📥 Salva come PDF</button>
+    <div class="print-hint">File → Stampa → Salva come PDF</div>
+</div>
 
 <!-- PAGINA 1: COVER -->
 <div class="cover page-break">

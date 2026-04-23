@@ -307,8 +307,8 @@ class OnePagerExporter(BaseExporter):
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         @page {{ size: A4; margin: 0; }}
 
-        body {{ 
-            font-family: 'Inter', sans-serif;
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #ffffff;
             color: var(--text);
             width: 210mm;
@@ -437,10 +437,58 @@ class OnePagerExporter(BaseExporter):
         }}
 
         .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
-        
+
+        /* === 1-PAGE CONSTRAINT === */
+        body {{ overflow: hidden; }}
+        .main {{ overflow: hidden; }}
+
+        /* === PRINT BUTTON (screen only) === */
+        .print-bar {{
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }}
+        .print-btn {{
+            background: var(--club-secondary);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 7px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 10pt;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+            transition: transform 0.15s;
+            letter-spacing: 0.5px;
+        }}
+        .print-btn:hover {{ transform: translateY(-2px); }}
+        .print-hint {{
+            font-size: 7pt;
+            color: #aaa;
+            background: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            border: 1px solid #eee;
+        }}
+
+        @media print {{
+            .print-bar {{ display: none !important; }}
+            * {{ -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }}
+            body {{ overflow: visible; height: 297mm; }}
+        }}
     </style>
 </head>
 <body>
+<div class="print-bar">
+    <button class="print-btn" onclick="window.print()">📥 Salva come PDF</button>
+    <div class="print-hint">File → Stampa → Salva come PDF</div>
+</div>
     <header class="header">
         <div>
             <div style="font-size: 8pt; letter-spacing: 2px; opacity: 0.8; text-transform: uppercase;">Rooting Future</div>

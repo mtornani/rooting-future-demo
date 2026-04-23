@@ -377,10 +377,23 @@ class ChunkedHTMLExporter(BaseExporter):
         th {{ background: var(--accent); color: white; padding: 12px; text-align: left; }}
         td {{ padding: 12px; border-bottom: 1px solid var(--border); }}
 
-        @media print {{ .sidebar {{ display: none; }} .main-wrapper {{ margin-left: 0; }} }}
+        .print-bar {{ position: fixed; bottom: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }}
+        .print-btn {{ background: var(--accent); color: var(--text-on-primary); border: none; padding: 11px 20px; border-radius: 7px; font-family: 'Montserrat', sans-serif; font-size: 10pt; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); transition: transform 0.15s; }}
+        .print-btn:hover {{ transform: translateY(-2px); }}
+        .print-hint {{ font-size: 7pt; color: #aaa; background: white; padding: 2px 8px; border-radius: 3px; border: 1px solid #eee; }}
+        @media print {{
+            .print-bar, .sidebar {{ display: none !important; }}
+            .main-wrapper {{ margin-left: 0; }}
+            * {{ -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }}
+            .section {{ box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }}
+        }}
     </style>
 </head>
 <body>
+<div class="print-bar">
+    <button class="print-btn" onclick="window.print()">📥 Stampa / PDF</button>
+    <div class="print-hint">File → Stampa → Salva come PDF</div>
+</div>
     <aside class="sidebar">
         <div class="sidebar-header"><h2>Rooting Future</h2></div>
         <nav class="nav">
