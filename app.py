@@ -7049,6 +7049,8 @@ def api_demo_generate():
                     parallel=True,
                     on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
+                plan = result["plan"]
+                sources = result.get("sources", [])
                 import uuid
                 plan_id = str(uuid.uuid4())
                 plan_record = PlanRecord(
@@ -7058,14 +7060,15 @@ def api_demo_generate():
                     region=c_data.get("region", ""),
                     created_at=datetime.now().isoformat(),
                     status="draft",
-                    plan_data=result,
-                    sources_count=0,
+                    plan_data=plan,
+                    sources_count=len(sources),
                     owner_id=None,
                 )
                 knowledge_manager.store.save_plan(plan_record)
                 review = editor.create_review_from_plan(
-                    plan_data=result,
+                    plan_data=plan,
                     club_name=c_data["club_name"],
+                    sources=sources,
                     metadata={"category": c_data.get("category", "")},
                     owner_id=None,
                 )
