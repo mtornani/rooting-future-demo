@@ -336,15 +336,6 @@ class OnePagerExporter(BaseExporter):
             position: relative;
         }}
         
-        .header::after {{ 
-            content: "TOP SECRET - RF METHODOLOGY";
-            position: absolute;
-            top: 5mm;
-            right: 15mm;
-            font-size: 6pt;
-            letter-spacing: 2px;
-            opacity: 0.5;
-        }}
 
         .header-club {{ 
             font-family: 'Montserrat', sans-serif;
@@ -436,17 +427,6 @@ class OnePagerExporter(BaseExporter):
             overflow: hidden;
         }}
         
-        .vision-section::before {{ 
-            content: "CONFIDENTIAL";
-            position: absolute;
-            font-size: 40pt;
-            font-weight: 900;
-            opacity: 0.05;
-            transform: rotate(-15deg);
-            top: 10%;
-            left: 10%;
-            white-space: nowrap;
-        }}
 
         .vision-quote {{ font-family: 'Inter', sans-serif; font-size: 13pt; font-style: italic; line-height: 1.5; position: relative; z-index: 1; }}
 
@@ -462,27 +442,17 @@ class OnePagerExporter(BaseExporter):
 
         .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
         
-        .secret-sauce {{ 
-            text-align: center;
-            grid-column: span 2;
-            margin-top: -4mm;
-            font-size: 7pt;
-            color: var(--text-muted);
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }}
     </style>
 </head>
 <body>
     <header class="header">
         <div>
-            <div style="font-size: 8pt; letter-spacing: 3px; opacity: 0.8; text-transform: uppercase;">Proprietary Strategic Engine</div>
+            <div style="font-size: 8pt; letter-spacing: 2px; opacity: 0.8; text-transform: uppercase;">Rooting Future</div>
             <div class="header-club">{club_name}</div>
         </div>
         <div style="text-align: right; color: var(--contrast-color-sec);">
-            <div style="font-family: 'Montserrat'; font-size: 11pt; font-weight: 700;">STRATEGIC ROADMAP</div>
-            <div class="credibility-badge">📋 Verified Input: {total_questionnaires} Docs • {credibility_score}% Confidence</div>
+            <div style="font-family: 'Montserrat'; font-size: 11pt; font-weight: 700;">Piano Strategico {current_year}–{current_year + 3}</div>
+            <div style="font-size: 8pt; opacity: 0.8; margin-top: 2mm;">Sintesi per la condivisione</div>
         </div>
     </header>
 
@@ -490,39 +460,32 @@ class OnePagerExporter(BaseExporter):
         <div class="kpi-dashboard">
             {kpi_html}
             <div style="grid-column: span 4; display: flex; justify-content: center; gap: 15mm; font-size: 7.5pt; margin-top: -2mm; color: var(--text-muted); font-weight: 500;">
-                <span>📋 <strong style="color:#7B1FA2">VERIFIED</strong></span>
-                <span>🔍 <strong style="color:#1565C0">DEDUCED</strong></span>
-                <span>📊 <strong style="color:#F57C00">ESTIMATED</strong></span>
+                <span>📋 <strong style="color:#7B1FA2">Verificato</strong></span>
+                <span>🔍 <strong style="color:#1565C0">Stimato</strong></span>
+                <span>📊 <strong style="color:#F57C00">Benchmark</strong></span>
             </div>
         </div>
         
-        <div class="secret-sauce">
-            Powered by Rooting Future Multi-Agent AI • Proprietary STW™ Framework v5.4.6
-        </div>
-
         <div class="stw-section">
-            <h3 class="section-title">Methodological Coverage</h3>
+            <h3 class="section-title">Copertura Strategica</h3>
             {stw_bars_html}
-            <p style="margin-top: 5mm; font-size: 8pt; color: var(--text-muted); line-height: 1.4; font-style: italic; border-left: 2px solid #e9d8fd; padding-left: 3mm;">
-                Adherence to the **Rooting Future Secret Formula** for sports management excellence.
-            </p>
         </div>
 
         <div class="priorities-section">
-            <h3 class="section-title">Strategic Priorities</h3>
+            <h3 class="section-title">Priorità Strategiche</h3>
             {priorities_html}
         </div>
 
         <div class="vision-section">
-            <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.7;">Unified Strategic Vision</div>
+            <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.8;">Visione Strategica</div>
             <div class="vision-quote">"{highlights.get('vision', 'Guidare il club verso una crescita sostenibile, unendo eccellenza tecnica e solidità finanziaria.')}"</div>
         </div>
     </main>
 
     <footer class="footer">
-        <div>&copy; {current_year} Rooting Future Strategic Framework</div>
-        <div>STW-ALIGNED • DATA-DRIVEN • PRIVATE & CONFIDENTIAL</div>
-        <div>Recipe #RF-2026-X</div>
+        <div>&copy; {current_year} Rooting Future</div>
+        <div>Piano Strategico · Analisi Dati · Uso Riservato</div>
+        <div>rooting-future.it</div>
     </footer>
 </body>
 </html>'''

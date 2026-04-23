@@ -192,9 +192,9 @@ function completeAllAgents() {
 
 function buildDownloads(pid) {
     const items = [
-        { cls:"pdf",  icon:"📄", label:"Piano Strategico Completo", desc:"PDF • 30-50 pagine • completo di analisi e roadmap", url:`/api/export/${pid}/pdf` },
-        { cls:"html", icon:"🌐", label:"Versione Web Interattiva",   desc:"HTML • navigabile da browser e mobile",             url:`/api/export/${pid}/html` },
-        { cls:"one",  icon:"⚡", label:"One-Pager Infografica",      desc:"PDF • sintesi A4 per condivisione rapida",           url:`/api/export/${pid}/onepager` },
+        { cls:"pdf",  icon:"📋", label:"Piano Strategico Formale",   desc:"PDF • documento completo per uso ufficiale",           url:`/api/export/${pid}/pdf` },
+        { cls:"html", icon:"📊", label:"Report per il Board",        desc:"HTML • sintesi esecutiva navigabile, ideale per riunioni", url:`/api/export/${pid}/html` },
+        { cls:"one",  icon:"⚡", label:"One-Pager da Condividere",   desc:"HTML • sintesi A4, pronto per WhatsApp e email",       url:`/api/export/${pid}/onepager` },
     ];
     const grid = document.getElementById("downloadGrid");
     grid.innerHTML = items.map(i => `

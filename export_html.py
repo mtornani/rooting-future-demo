@@ -115,6 +115,16 @@ class ChunkedHTMLExporter(BaseExporter):
 
         return filepath
 
+    def _get_accent_color(self, primary: str, secondary: str) -> str:
+        """Ritorna il primary se abbastanza scuro, altrimenti il secondary (evita bianco su bianco)."""
+        try:
+            h = primary.lstrip('#')
+            r, g, b = int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
+            luminance = 0.299 * r + 0.587 * g + 0.114 * b
+            return secondary if luminance > 0.6 else primary
+        except Exception:
+            return primary
+
     def _process_section_content(self, content: str) -> str:
         """Converte contenuto markdown-like in HTML usando BaseExporter logic"""
         if content is None:
@@ -261,7 +271,9 @@ class ChunkedHTMLExporter(BaseExporter):
 
         primary_color = meta['primary_color']
         text_on_primary = meta['contrast_color']
-        
+        # Se il primary è troppo chiaro (es. bianco), usa secondary come accent visibile
+        accent_color = self._get_accent_color(primary_color, meta.get('secondary_color', '#1a365d'))
+
         stw_matrix_html = generate_stw_matrix_html(primary_color)
         rf_methodology_html = generate_rooting_future_methodology_html(meta, primary_color)
         input_sources_html = self._generate_input_sources_html(meta)
@@ -298,6 +310,7 @@ class ChunkedHTMLExporter(BaseExporter):
         :root {{
             --primary: {primary_color};
             --text-on-primary: {text_on_primary};
+            --accent: {accent_color};
             --bg: #f8fafc;
             --white: #ffffff;
             --border: #e2e8f0;
@@ -313,36 +326,36 @@ class ChunkedHTMLExporter(BaseExporter):
             display: flex; flex-direction: column; z-index: 1000;
         }}
 
-        .sidebar-header {{ padding: 30px 20px; background: var(--primary); color: var(--text-on-primary); text-align: center; }}
+        .sidebar-header {{ padding: 30px 20px; background: var(--accent); color: white; text-align: center; }}
         .nav {{ flex: 1; overflow-y: auto; padding: 20px 10px; }}
         .nav-item {{ display: block; padding: 12px 15px; margin-bottom: 5px; color: #1a202c; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.9rem; }}
-        .nav-item:hover {{ background: var(--bg); color: var(--primary); }}
+        .nav-item:hover {{ background: var(--bg); color: var(--accent); }}
 
         .main-wrapper {{ margin-left: var(--sidebar-width); flex: 1; }}
         .container {{ max-width: 900px; margin: 0 auto; padding: 60px 40px; }}
 
         .cover {{
-            height: 60vh; background: linear-gradient(135deg, var(--primary) 0%, #1a202c 100%);
-            color: var(--text-on-primary); display: flex; flex-direction: column;
+            height: 60vh; background: linear-gradient(135deg, var(--accent) 0%, #1a202c 100%);
+            color: white; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center;
         }}
         .cover h1 {{ font-family: 'Montserrat', sans-serif; font-size: 4rem; text-transform: uppercase; }}
 
         .section {{ background: white; border-radius: 16px; padding: 50px; margin-bottom: 40px; border: 1px solid var(--border); }}
-        .section-header {{ border-bottom: 4px solid var(--primary); padding-bottom: 20px; margin-bottom: 40px; }}
-        .section-header h2 {{ color: var(--primary); font-family: 'Montserrat', sans-serif; font-size: 2.2rem; }}
+        .section-header {{ border-bottom: 4px solid var(--accent); padding-bottom: 20px; margin-bottom: 40px; }}
+        .section-header h2 {{ color: var(--accent); font-family: 'Montserrat', sans-serif; font-size: 2.2rem; }}
 
-        h3 {{ color: var(--primary); margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid var(--primary); padding-left: 15px; }}
+        h3 {{ color: var(--accent); margin-top: 2rem; margin-bottom: 1rem; border-left: 5px solid var(--accent); padding-left: 15px; }}
         p {{ margin-bottom: 1.2rem; text-align: justify; }}
-        
-        .kpi-box {{ background: #f0f9ff; border-left: 4px solid var(--primary); padding: 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }}
+
+        .kpi-box {{ background: #f0f9ff; border-left: 4px solid var(--accent); padding: 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }}
         .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; margin-right: 5px; }}
         .badge.questionnaire {{ background: #7B1FA2; color: white; }}
         .badge.research {{ background: #1565C0; color: white; }}
         .badge.estimate {{ background: #F57C00; color: white; }}
 
         table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        th {{ background: var(--primary); color: var(--text-on-primary); padding: 12px; text-align: left; }}
+        th {{ background: var(--accent); color: white; padding: 12px; text-align: left; }}
         td {{ padding: 12px; border-bottom: 1px solid var(--border); }}
 
         @media print {{ .sidebar {{ display: none; }} .main-wrapper {{ margin-left: 0; }} }}
