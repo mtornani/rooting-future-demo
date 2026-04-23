@@ -606,7 +606,7 @@ def generate_executive_report_html(
     <meta charset="UTF-8">
     <title>Report Esecutivo - {club_name}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
     <style>
         :root {{
             --primary: {primary_color};
@@ -644,61 +644,112 @@ def generate_executive_report_html(
             background: white;
         }}
 
-        h1, h2, h3, .page-title {{
+        h2, h3, .page-title {{
             font-family: 'Montserrat', sans-serif;
             text-transform: uppercase;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.3px;
         }}
 
-        /* === COVER PAGE === */
+        .pt-num {{
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 11pt;
+            font-weight: 400;
+            color: var(--primary);
+            opacity: 0.5;
+            margin-right: 10px;
+            text-transform: none;
+            letter-spacing: 0;
+        }}
+
+        /* === COVER PAGE — split layout === */
         .cover {{
             height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
-            color: white;
-            text-align: center;
-            position: relative;
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            background: white;
             overflow: hidden;
         }}
 
-        .cover::before {{
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px);
-            background-size: 28px 28px;
-            z-index: 0;
+        .cover-left {{
+            padding: 50mm 20mm 50mm 18mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }}
 
-        .cover > * {{
-            z-index: 1;
+        .cover-brand {{
+            font-family: 'Montserrat', sans-serif;
+            font-size: 7.5pt;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 28mm;
+            font-weight: 700;
+        }}
+
+        .cover-label {{
+            font-size: 8.5pt;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+            font-family: 'Montserrat', sans-serif;
         }}
 
         .cover h1 {{
-            font-size: 32pt;
-            margin-bottom: 10px;
-            letter-spacing: 2px;
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 38pt;
+            font-weight: 400;
+            color: var(--text);
+            line-height: 1.05;
+            margin-bottom: 18px;
+            text-transform: none;
+            letter-spacing: -0.5px;
         }}
 
-        .cover .subtitle {{
-            font-size: 16pt;
-            opacity: 0.9;
-            margin-bottom: 40px;
-            font-weight: 300;
+        .cover-period {{
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13pt;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 22px;
+            letter-spacing: 1px;
         }}
 
-        .cover .period {{
-            font-size: 18pt;
-            font-weight: 700;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(10px);
-            padding: 12px 40px;
-            border-radius: 50px;
-            border: 1px solid rgba(255,255,255,0.3);
-            margin-bottom: 40px;
+        .cover-tag {{
+            font-size: 8pt;
+            color: var(--text-light);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }}
+
+        .cover-right {{
+            background: var(--primary);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+
+        .cover-right::before {{
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.12) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }}
+
+        .cover-right-text {{
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 68pt;
+            font-weight: 400;
+            color: rgba(255,255,255,0.18);
+            position: relative;
+            z-index: 1;
+            line-height: 0.9;
+            text-align: center;
+            letter-spacing: -2px;
         }}
 
         /* === PAGE SECTIONS === */
@@ -733,27 +784,30 @@ def generate_executive_report_html(
         }}
 
         .kpi-card {{
-            background: var(--bg-light);
+            background: white;
             border: 1px solid var(--border);
-            padding: 20px 15px;
-            border-radius: 12px;
-            text-align: center;
-            transition: transform 0.2s;
-        }}
-
-        .kpi-card .value {{
-            font-family: 'Montserrat', sans-serif;
-            font-size: 20pt;
-            font-weight: 800;
-            color: var(--primary);
+            border-top: 3px solid var(--primary);
+            padding: 16px 14px;
+            border-radius: 6px;
+            text-align: left;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }}
 
         .kpi-card .label {{
-            font-size: 8pt;
-            font-weight: 600;
+            font-size: 7pt;
+            font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.8px;
             color: var(--text-light);
-            margin-top: 5px;
+            margin-bottom: 6px;
+        }}
+
+        .kpi-card .value {{
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 22pt;
+            font-weight: 400;
+            color: var(--primary);
+            line-height: 1;
         }}
 
         /* === COMPARISON TABLE === */
@@ -1035,17 +1089,22 @@ def generate_executive_report_html(
 
 <!-- PAGINA 1: COVER -->
 <div class="cover page-break">
-    <div style="font-size: 10pt; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.8;">Rooting Future</div>
-    <h1>{club_name}</h1>
-    <div class="subtitle">Report Esecutivo</div>
-    <div class="period">PIANO TRIENNALE {current_year} - {current_year + 3}</div>
-    <div style="font-family: 'Montserrat'; font-size: 10pt; text-transform: uppercase; letter-spacing: 3px; opacity: 0.7;">Riservato al Board</div>
-    {_format_timing_badge(metadata)}
+    <div class="cover-left">
+        <div class="cover-brand">Rooting Future</div>
+        <div class="cover-label">Report Esecutivo · Piano Triennale</div>
+        <h1>{club_name}</h1>
+        <div class="cover-period">{current_year} — {current_year + 3}</div>
+        <div class="cover-tag">Riservato al Board di Gestione</div>
+        {_format_timing_badge(metadata)}
+    </div>
+    <div class="cover-right">
+        <div class="cover-right-text">{current_year}<br>—<br>{current_year + 3}</div>
+    </div>
 </div>
 
 <!-- PAGINA 2: I TUOI DATI -->
 <div class="page page-break">
-    <div class="page-title"><span class="icon">📋</span> I Tuoi Dati: Trasparenza e Metodologia</div>
+    <div class="page-title"><span class="pt-num">01</span> I Tuoi Dati: Trasparenza e Metodologia</div>
     
     <div class="data-source-page">
         <h2 style="color: var(--primary); margin-bottom: 15px;">La Base del Tuo Piano</h2>
@@ -1079,7 +1138,7 @@ def generate_executive_report_html(
         </div>
     </div>
 
-    <div class="page-title" style="margin-top: 30px;"><span class="icon">📋</span> Sintesi Strategica</div>
+    <div class="page-title" style="margin-top: 30px;"><span class="pt-num">02</span> Sintesi Strategica</div>
     <div class="exec-box" style="background: #f9f7ff; border-left: 4px solid var(--primary); padding: 20px; border-radius: 0 12px 12px 0;">
         <ul style="list-style: none; padding: 0;">
             {exec_html}
@@ -1089,7 +1148,7 @@ def generate_executive_report_html(
 
 <!-- PAGINA 3: KPI + GRAFICI -->
 <div class="page page-break">
-    <div class="page-title"><span class="icon">💰</span> Quadro Finanziario e Benchmark</div>
+    <div class="page-title"><span class="pt-num">03</span> Quadro Finanziario e Benchmark</div>
     
     <div class="kpi-grid">
         <div class="kpi-card">
@@ -1139,18 +1198,18 @@ def generate_executive_report_html(
 
 <!-- PAGINA 4: AREE STRATEGICHE + ROADMAP -->
 <div class="page page-break">
-    <div class="page-title"><span class="icon">🎯</span> Aree Strategiche di Intervento</div>
+    <div class="page-title"><span class="pt-num">04</span> Aree Strategiche di Intervento</div>
     <div class="areas-grid">
         {areas_html}
     </div>
 
-    <div class="page-title" style="margin-top:30px;"><span class="icon">📅</span> Roadmap Triennale</div>
+    <div class="page-title" style="margin-top:30px;"><span class="pt-num">05</span> Roadmap Triennale</div>
     {timeline_html}
 </div>
 
 <!-- PAGINA 5: METODOLOGIA -->
 <div class="page">
-    <div class="page-title"><span class="icon">📊</span> Metodologia e Fonti</div>
+    <div class="page-title"><span class="pt-num">06</span> Metodologia e Fonti</div>
 
     <div class="method-grid">
         <div class="method-box">

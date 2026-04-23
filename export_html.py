@@ -305,7 +305,7 @@ class ChunkedHTMLExporter(BaseExporter):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Piano Strategico {club_name} {current_year}-{current_year + 3}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Montserrat:wght@700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
     <style>
         :root {{
             --primary: {primary_color};
@@ -351,7 +351,7 @@ class ChunkedHTMLExporter(BaseExporter):
 
         .section {{ background: white; border-radius: 10px; padding: 36px 40px; margin-bottom: 28px; border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(0,0,0,0.05); }}
         .section-header {{ border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }}
-        .section-header h2 {{ color: var(--accent); font-family: 'Montserrat', sans-serif; font-size: 1.9rem; }}
+        .section-header h2 {{ color: var(--accent); font-family: 'DM Serif Display', Georgia, serif; font-size: 1.9rem; font-weight: 400; text-transform: none; letter-spacing: -0.3px; }}
         .section-body {{ min-width: 0; overflow-wrap: break-word; word-wrap: break-word; }}
 
         h3 {{ color: var(--accent); margin-top: 1.8rem; margin-bottom: 0.8rem; border-left: 4px solid var(--accent); padding-left: 12px; }}
