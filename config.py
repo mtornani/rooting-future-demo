@@ -98,8 +98,14 @@ load_local_config() # Poi config.local.json (sovrascrive con impostazioni utente
 # =============================================================================
 
 BASE_DIR = Path(__file__).parent
-OUTPUT_DIR = BASE_DIR / "output"
-KNOWLEDGE_DIR = BASE_DIR / "knowledge_base"
+
+# On HF Spaces, /data is the persistent volume (survives restarts).
+# Fall back to BASE_DIR when not running in a Space.
+_HF_DATA = Path("/data")
+_PERSISTENT_ROOT = _HF_DATA if _HF_DATA.exists() else BASE_DIR
+
+OUTPUT_DIR = _PERSISTENT_ROOT / "output"
+KNOWLEDGE_DIR = _PERSISTENT_ROOT / "knowledge_base"
 ASSETS_DIR = BASE_DIR / "assets"
 TEMPLATES_DIR = BASE_DIR / "templates"
 

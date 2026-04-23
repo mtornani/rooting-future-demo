@@ -3865,12 +3865,7 @@ def api_export_html_only(plan_id: str):
     """
     review = _get_or_load_review(plan_id)
 
-    plan_data = editor.export_plan_for_final(plan_id)
-    if not plan_data:
-        raise ExportError(
-            message="No content to export",
-            user_message="Nessun contenuto disponibile per l'esportazione."
-        )
+    plan_data = editor.export_plan_for_final(plan_id) or {}
 
     # Ottieni colori del club
     club_identity = get_club_identity(review.club_name)
@@ -4049,12 +4044,7 @@ def api_export_executive_report(plan_id: str):
     """
     review = _get_or_load_review(plan_id)
 
-    plan_data = editor.export_plan_for_final(plan_id)
-    if not plan_data:
-        raise ExportError(
-            message="No content to export",
-            user_message="Nessun contenuto disponibile per l'esportazione Executive Report."
-        )
+    plan_data = editor.export_plan_for_final(plan_id) or {}
 
     # Prepara metadata con colori e stime
     metadata = {
@@ -4103,12 +4093,7 @@ def api_export_onepager(plan_id: str):
     """
     review = _get_or_load_review(plan_id)
 
-    plan_data = editor.export_plan_for_final(plan_id)
-    if not plan_data:
-        raise ExportError(
-            message="No content to export",
-            user_message="Nessun contenuto disponibile per l'esportazione One-Pager."
-        )
+    plan_data = editor.export_plan_for_final(plan_id) or {}
 
     club_identity = get_club_identity(review.club_name)
     credibility = (
