@@ -3887,11 +3887,10 @@ def api_export_html_only(plan_id: str):
         else 0,
     }
 
-    # Usa il nuovo PdfServerExporter per un export PDF stabile
-    from export_pdf_server import PdfServerExporter
+    from export_html import ChunkedHTMLExporter
 
-    pdf_exporter = PdfServerExporter()
-    pdf_path = pdf_exporter.export(
+    html_exporter = ChunkedHTMLExporter()
+    html_path = html_exporter.export(
         plan_data=plan_data,
         club_name=review.club_name,
         sources=[],
@@ -3899,10 +3898,10 @@ def api_export_html_only(plan_id: str):
     )
 
     return send_file(
-        pdf_path,
-        mimetype="application/pdf",
+        html_path,
+        mimetype="text/html",
         as_attachment=True,
-        download_name=pdf_path.name.replace(".pdf", "_Report.pdf"),
+        download_name=html_path.name,
     )
 
 
@@ -4130,11 +4129,23 @@ def api_export_onepager(plan_id: str):
         else 10,
     }
 
-    # Analisi copertura STW per infografica
-    from stw_analyzer import STWAnalyzer
+    # Calcola copertura STW da presenza/lunghezza sezioni (il keyword-matcher
+    # cerca codici MACRO 1.1 che l'AI non scrive — fallback su content-length)
+    def _stw_from_content(plan_data):
+        mapping = {
+            'sportivi':    ['stw_sportivi', 'technical_sporting'],
+            'strutturali': ['stw_strutturali', 'infrastructure'],
+            'marketing':   ['stw_marketing', 'marketing_commercial'],
+            'sociali':     ['stw_sociali', 'social_sustainability'],
+        }
+        result = {}
+        for cat, keys in mapping.items():
+            chars = sum(len(plan_data.get(k, '')) for k in keys)
+            # 3000+ chars → ~75%, 1500 → ~50%, 500 → ~25%, 0 → 0
+            result[cat] = min(90, int(chars / 40)) if chars > 200 else 0
+        return result
 
-    analyzer = STWAnalyzer()
-    stw_progress = analyzer.analyze_plan_coverage(plan_data)
+    stw_progress = _stw_from_content(plan_data)
 
     from export_onepager import create_onepager
 

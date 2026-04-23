@@ -117,13 +117,18 @@ class OnePagerExporter(BaseExporter):
             'FINANZIARI': 'Sostenibilità economica è condizione necessaria per ogni strategia di crescita.'
         }
 
-        # Estrai dall'executive summary
-        exec_summary = plan_data.get('executive_summary', '')
+        # Estrai dall'executive summary (anche coordinator_summary come alias)
+        exec_summary = plan_data.get('executive_summary', '') or plan_data.get('coordinator_summary', '')
         if exec_summary:
-            # Cerca visione
+            # Cerca visione — pattern specifico
             vision_match = re.search(r'(?:visione|vision)[:\s]*([^.]+\.)', exec_summary, re.IGNORECASE)
             if vision_match:
                 highlights['vision'] = vision_match.group(1).strip()[:200]
+            # Fallback: prima frase lunga del summary come vision statement
+            if not highlights['vision']:
+                sentences = re.findall(r'[A-ZÀ-Ÿ][^.!?]{40,200}[.!?]', exec_summary)
+                if sentences:
+                    highlights['vision'] = sentences[0].strip()[:200]
 
             # Cerca priorità (liste numerate o bold) con eventuale motivazione
             priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
