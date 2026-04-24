@@ -1654,7 +1654,12 @@ class MultiAgentOrchestrator:
 
         parallel_time = time.time() - parallel_start
         agent_timings['Parallel_Execution_Time'] = round(parallel_time, 2)
-        logger.info(f"🚀 TRUE parallel execution completed in {parallel_time:.2f}s (OPT-002)")
+        logger.info(f"Parallel execution completed in {parallel_time:.2f}s")
+
+        # Warn if all agents returned empty content (quota / timeout)
+        empty_agents = [k for k, v in agent_results.items() if not v.get('content', '').strip()]
+        if empty_agents:
+            logger.warning(f"Agents returned empty content: {empty_agents} — possible quota exhaustion or timeout")
 
         # Estrai contenuti e fonti
         plan = {}
@@ -1675,8 +1680,13 @@ class MultiAgentOrchestrator:
         logger.info(f"Coordinator completed in {coord_time:.2f}s")
 
         plan['executive_summary'] = coord_output['content']
-        plan['coordinator_summary'] = coord_output['content']  # Anche come sintesi strategica
+        plan['coordinator_summary'] = coord_output['content']
         all_sources.extend(coord_output.get('sources', []))
+
+        non_empty = [k for k, v in plan.items() if v and v.strip()]
+        logger.info(f"Plan assembled: {len(non_empty)}/{len(plan)} sections have content")
+        if len(non_empty) == 0:
+            logger.error("CRITICAL: All plan sections are empty. Check OpenRouter quota and model availability.")
 
         # Calcola stime finanziarie con sistema Tier 1/2/3
         category = club_data.get('category', 'Eccellenza')
