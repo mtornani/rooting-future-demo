@@ -15,6 +15,44 @@ from config import OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
+
+def _wrap_macro_blocks(html: str) -> str:
+    """
+    Wrap MACRO structured blocks in styled card divs.
+    Agents produce: ### MACRO N: Title → rendered as <h3>MACRO N: Title</h3>
+    We wrap each block's content in .macro-card until the next MACRO or end.
+    """
+    # Split on MACRO h3 headers (capturing group preserves the delimiter)
+    parts = re.split(r'(<h3>MACRO\s*\d+[:\s][^<]*</h3>)', html)
+    if len(parts) <= 1:
+        return html  # No MACRO blocks — return unchanged
+
+    result = [parts[0]]  # Content before first MACRO block
+    i = 1
+    while i < len(parts):
+        h3_tag = parts[i]
+        m = re.match(r'<h3>MACRO\s*(\d+)[:\s]\s*(.*?)</h3>', h3_tag)
+        if m:
+            num = m.group(1)
+            title = m.group(2).strip()
+            body = parts[i + 1] if i + 1 < len(parts) else ""
+            result.append(
+                f'<div class="macro-card">'
+                f'<div class="macro-header">'
+                f'<span class="macro-num">MACRO {num}</span>'
+                f'<span class="macro-title">{title}</span>'
+                f'</div>'
+                f'<div class="macro-body">{body}</div>'
+                f'</div>'
+            )
+            i += 2
+        else:
+            result.append(h3_tag)
+            i += 1
+
+    return ''.join(result)
+
+
 class BaseExporter(ABC):
     """
     Base abstract class for all strategic plan exporters.
@@ -272,6 +310,9 @@ class BaseExporter(ABC):
             r'<div class="action-box">🚀 <strong>\1:</strong>\2</div>',
             html, flags=re.DOTALL
         )
+
+        # Wrap MACRO blocks in styled cards (Phase 3)
+        html = _wrap_macro_blocks(html)
 
         return html
 

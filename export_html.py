@@ -17,6 +17,7 @@ import logging
 
 from config import EXPORT_CONFIG
 from export_core import BaseExporter
+from export_styles import RF_FONT_IMPORT, RF_RESET_CSS, RF_BADGE_CSS, RF_MACRO_CSS, RF_PRINT_CSS_FULL, RF_MOBILE_CSS
 from stw_analyzer import get_stw_coverage_summary
 from stw_matrix import get_category_color, get_category_icon, STWCategory, generate_stw_matrix_html
 from domain.rendering.renderer import PlanRenderer
@@ -315,7 +316,7 @@ class ChunkedHTMLExporter(BaseExporter):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Piano Strategico {club_name} {current_year}-{current_year + 3}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Montserrat:wght@700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    {RF_FONT_IMPORT}
     <style>
         :root {{
             --primary: {primary_color};
@@ -327,10 +328,10 @@ class ChunkedHTMLExporter(BaseExporter):
             --sidebar-width: 280px;
         }}
 
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        {RF_RESET_CSS}
         body {{ font-family: 'Inter', sans-serif; background: var(--bg); display: flex; }}
 
-        .sidebar {{ 
+        .sidebar {{
             width: var(--sidebar-width); height: 100vh; background: white;
             border-right: 1px solid var(--border); position: fixed; left: 0; top: 0;
             display: flex; flex-direction: column; z-index: 1000;
@@ -364,14 +365,11 @@ class ChunkedHTMLExporter(BaseExporter):
         .section-header h2 {{ color: var(--accent); font-family: 'DM Serif Display', Georgia, serif; font-size: 1.9rem; font-weight: 400; text-transform: none; letter-spacing: -0.3px; }}
         .section-body {{ min-width: 0; overflow-wrap: break-word; word-wrap: break-word; }}
 
+        /* Non-MACRO h3 fallback (headings outside MACRO cards) */
         h3 {{ color: var(--accent); margin-top: 1.8rem; margin-bottom: 0.8rem; border-left: 4px solid var(--accent); padding-left: 12px; }}
         p {{ margin-bottom: 1rem; line-height: 1.7; overflow-wrap: break-word; }}
 
         .kpi-box {{ background: #f8f9fa; border-left: 4px solid var(--accent); padding: 1.2rem 1.5rem; margin: 1.2rem 0; border-radius: 0 6px 6px 0; overflow-wrap: break-word; }}
-        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; margin-right: 5px; }}
-        .badge.questionnaire {{ background: #7B1FA2; color: white; }}
-        .badge.research {{ background: #1565C0; color: white; }}
-        .badge.estimate {{ background: #F57C00; color: white; }}
 
         table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
         th {{ background: var(--accent); color: white; padding: 12px; text-align: left; }}
@@ -381,12 +379,11 @@ class ChunkedHTMLExporter(BaseExporter):
         .print-btn {{ background: var(--accent); color: var(--text-on-primary); border: none; padding: 11px 20px; border-radius: 7px; font-family: 'Montserrat', sans-serif; font-size: 10pt; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); transition: transform 0.15s; }}
         .print-btn:hover {{ transform: translateY(-2px); }}
         .print-hint {{ font-size: 7pt; color: #aaa; background: white; padding: 2px 8px; border-radius: 3px; border: 1px solid #eee; }}
-        @media print {{
-            .print-bar, .sidebar {{ display: none !important; }}
-            .main-wrapper {{ margin-left: 0; }}
-            * {{ -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }}
-            .section {{ box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }}
-        }}
+
+        {RF_BADGE_CSS}
+        {RF_MACRO_CSS}
+        {RF_PRINT_CSS_FULL}
+        {RF_MOBILE_CSS}
     </style>
 </head>
 <body>

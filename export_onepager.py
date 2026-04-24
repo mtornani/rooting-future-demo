@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from export_core import BaseExporter
+from export_styles import RF_FONT_IMPORT, RF_BADGE_CSS
 from stw_matrix import STW_FRAMEWORK, STWCategory, get_category_color, get_category_icon
 from stw_analyzer import calculate_stw_progress
 from data_estimator import estimate_missing_financials, DataTier
@@ -285,8 +286,7 @@ class OnePagerExporter(BaseExporter):
 <head>
     <meta charset="UTF-8">
     <title>Piano Strategico - {club_name}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Montserrat:wght@700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    {RF_FONT_IMPORT}
     <style>
         :root {{
             --club-primary: {metadata.get('primary_color', primary_color)};
@@ -482,6 +482,8 @@ class OnePagerExporter(BaseExporter):
             * {{ -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }}
             body {{ overflow: visible; height: 297mm; }}
         }}
+
+        {RF_BADGE_CSS}
     </style>
 </head>
 <body>

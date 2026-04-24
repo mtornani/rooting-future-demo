@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import re
 
+from export_styles import RF_FONT_IMPORT, RF_BADGE_CSS, RF_RESET_CSS, RF_MACRO_CSS, RF_PRINT_CSS_A4
 from data_estimator import estimate_missing_financials, DataTier
 from chart_generator import (
     generate_revenue_pie_chart,
@@ -605,8 +606,7 @@ def generate_executive_report_html(
 <head>
     <meta charset="UTF-8">
     <title>Report Esecutivo - {club_name}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    {RF_FONT_IMPORT}
     <style>
         :root {{
             --primary: {primary_color};
@@ -1141,6 +1141,9 @@ def generate_executive_report_html(
             .cover {{ height: 100vh; page-break-after: always; }}
             a {{ text-decoration: none; color: inherit; }}
         }}
+
+        /* Shared badge styles (for common emoji badges in content) */
+        {RF_BADGE_CSS}
     </style>
 </head>
 <body>
