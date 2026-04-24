@@ -4261,6 +4261,84 @@ def _try_start_tunnel(port: int) -> None:
     _lab_access["tunnel_status"] = "unavailable"
     print("[LAB] Nessun tunnel. Usa Tailscale per accesso permanente da qualsiasi rete.")
 
+# =============================================================================
+# QUESTIONARI DIGITALI BOARD — helpers
+# =============================================================================
+
+from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
+
+_WIKI_KB = Path("wiki/kb")
+
+
+def _wiki_append_plan(club_data: dict, plan_id: str) -> None:
+    """Aggiorna wiki dopo ogni piano (Karpathy file-back). Zero LLM."""
+    try:
+        if not _WIKI_KB.exists():
+            return
+        club_name = club_data.get("club_name", "Club Sconosciuto")
+        category = club_data.get("category", "Eccellenza").lower().replace(" ", "-")
+        region = club_data.get("region", "").lower().replace(" ", "-") or "italia"
+        city = club_data.get("city", "")
+        board_members = club_data.get("board_members", [])
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        benchmark_dir = _WIKI_KB / "benchmark"
+        benchmark_dir.mkdir(exist_ok=True)
+        bench_file = benchmark_dir / f"{category}-{region}.md"
+
+        new_entry = f"\n## {club_name} — Piano {today} (plan_id: {plan_id})\n"
+        new_entry += f"- **Categoria:** {club_data.get('category', 'N/A')}\n"
+        new_entry += f"- **Città:** {city or 'N/A'}\n"
+        new_entry += f"- **Board consultati:** {len(board_members)}\n"
+
+        if bench_file.exists():
+            bench_file.write_text(bench_file.read_text(encoding="utf-8") + new_entry, encoding="utf-8")
+        else:
+            bench_file.write_text(f"# Benchmark {category} — {region}\n\n" + new_entry, encoding="utf-8")
+
+        log_file = _WIKI_KB / "log.md"
+        log_entry = f"\n---\n## {today} — {club_name}\n- Plan ID: {plan_id}\n"
+        if log_file.exists():
+            log_file.write_text(log_file.read_text(encoding="utf-8") + log_entry, encoding="utf-8")
+
+        logger.info(f"Wiki updated after plan {plan_id} for {club_name}")
+    except Exception as e:
+        logger.warning(f"Wiki append failed (non-blocking): {e}")
+
+
+def _q_path(club_slug, member_slug, q_id):
+    """Path file JSON per singolo questionario compilato."""
+    d = QUESTIONNAIRE_DATA_DIR / club_slug / member_slug
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{q_id}.json"
+
+
+def _q_statuses(club_slug, member_slug):
+    """Stato compilazione per ogni questionario."""
+    statuses = {}
+    for q_id in QUESTIONNAIRE_ORDER:
+        p = _q_path(club_slug, member_slug, q_id)
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            has_content = any(
+                any(v for v in item.values()) if isinstance(item, dict) else bool(item)
+                for section_data in data.get("data", {}).values()
+                for item in (section_data if isinstance(section_data, list) else [section_data])
+            )
+            statuses[q_id] = "completed" if has_content else "partial"
+        else:
+            statuses[q_id] = "empty"
+    return statuses
+
+
+def _get_clubs():
+    """Lista club disponibili da data/clubs/."""
+    clubs_dir = Path("data/clubs")
+    if not clubs_dir.exists():
+        return []
+    return [(d.name, d.name.replace("-", " ").title()) for d in sorted(clubs_dir.iterdir()) if d.is_dir()]
+
+
 @app.route("/demo/questionari")
 def demo_questionari():
     """Route pubblica demo pre-caricata con Riccione Calcio."""
