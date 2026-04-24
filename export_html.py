@@ -19,7 +19,7 @@ from config import EXPORT_CONFIG
 from export_core import BaseExporter
 from export_styles import RF_FONT_IMPORT, RF_RESET_CSS, RF_BADGE_CSS, RF_MACRO_CSS, RF_PRINT_CSS_FULL, RF_MOBILE_CSS
 from stw_analyzer import get_stw_coverage_summary
-from stw_matrix import get_category_color, get_category_icon, STWCategory, generate_stw_matrix_html
+from stw_matrix import get_category_color, get_category_icon, STWCategory, generate_stw_matrix_html, get_stw_matrix_css
 from domain.rendering.renderer import PlanRenderer
 def generate_rooting_future_methodology_html(metadata=None, primary_color='#1a365d'):
     return PlanRenderer().add_methodology("", metadata, primary_color)
@@ -284,9 +284,11 @@ class ChunkedHTMLExporter(BaseExporter):
         text_on_primary = meta['contrast_color']
         # Se il primary è troppo chiaro (es. bianco), usa secondary come accent visibile
         accent_color = self._get_accent_color(primary_color, meta.get('secondary_color', '#1a365d'))
+        # Cover gradient: always use accent (dark) so white text stays readable
+        cover_end = '#' + self._darken_color(accent_color, 0.28)
 
-        stw_matrix_html = generate_stw_matrix_html(primary_color)
-        rf_methodology_html = generate_rooting_future_methodology_html(meta, primary_color)
+        stw_matrix_html = generate_stw_matrix_html(accent_color)
+        rf_methodology_html = generate_rooting_future_methodology_html(meta, accent_color)
         input_sources_html = self._generate_input_sources_html(meta)
 
         # Navigation
@@ -295,9 +297,25 @@ class ChunkedHTMLExporter(BaseExporter):
             nav_items += f'<a href="#{s.id}" class="nav-item"><span class="nav-title">{s.title}</span></a>'
 
         # Sections HTML
-        sections_html = ''
-        for section in self.sections:
-            sections_html += f'''\
+        if not self.sections:
+            sections_html = '''\
+            <section class="section chapter" id="no-content">
+                <div class="section-header"><h2>⚠ Contenuto non disponibile</h2></div>
+                <div class="section-body" style="color:#555;">
+                    <p>Il piano strategico non contiene sezioni generate. Possibili cause:</p>
+                    <ul style="margin:12px 0 0 20px; line-height:2;">
+                        <li>Il modello AI (Gemma 3 27B) ha superato la quota giornaliera gratuita</li>
+                        <li>Timeout durante la generazione parallela degli agenti</li>
+                        <li>Sessione scaduta — rigenera il piano</li>
+                    </ul>
+                    <p style="margin-top:16px;"><strong>Soluzione:</strong> Rigenera il piano. Se il problema persiste,
+                    il sistema passerà automaticamente al modello Gemini Flash.</p>
+                </div>
+            </section>'''
+        else:
+            sections_html = ''
+            for section in self.sections:
+                sections_html += f'''\
             <section class="section chapter" id="{section.id}">
                 <div class="section-header">
                     <h2>{section.title}</h2>
@@ -346,7 +364,7 @@ class ChunkedHTMLExporter(BaseExporter):
         .container {{ max-width: 900px; margin: 0 auto; padding: 60px 40px; }}
 
         .cover {{
-            height: 55vh; background: linear-gradient(150deg, var(--accent) 0%, var(--primary) 100%);
+            height: 55vh; background: linear-gradient(150deg, {accent_color} 0%, {cover_end} 100%);
             color: white; display: flex; flex-direction: column;
             justify-content: center; align-items: center; text-align: center;
             position: relative; overflow: hidden;
@@ -384,6 +402,7 @@ class ChunkedHTMLExporter(BaseExporter):
         {RF_MACRO_CSS}
         {RF_PRINT_CSS_FULL}
         {RF_MOBILE_CSS}
+        {get_stw_matrix_css()}
     </style>
 </head>
 <body>

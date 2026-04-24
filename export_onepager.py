@@ -200,19 +200,27 @@ class OnePagerExporter(BaseExporter):
         
         # FIX: Text on white background should be readable even if primary is white/light
         text_on_white = primary_color
-        # Calcolo luminanza: se il colore è troppo chiaro, lo scuriamo in modo aggressivo per il testo su bianco
         r, g, b = tuple(int(primary_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
         lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        
-        if lum > 0.65: # Abbassata soglia per maggior sicurezza
-            # Se è quasi bianco, usa un grigio molto scuro o il colore originale molto scurito
+
+        if lum > 0.65:
             text_on_white = '#' + self._darken_color(primary_color, 0.7)
-        
-        # Ulteriore check: se dopo lo scurimento è ancora troppo chiaro (es. partendo da bianco puro)
         r2, g2, b2 = tuple(int(text_on_white.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
         lum2 = (0.299 * r2 + 0.587 * g2 + 0.114 * b2) / 255
         if lum2 > 0.7:
-            text_on_white = "#333333" # Fallback a grigio scuro leggibile
+            text_on_white = "#333333"
+
+        # When primary is too light (e.g. white), gradient/header/footer must use secondary
+        if lum > 0.65:
+            safe_gradient = f"linear-gradient(135deg, {secondary_color} 0%, {'#' + self._darken_color(secondary_color, 0.2)} 100%)"
+            header_text = self._get_contrast_color(secondary_color)
+            footer_bg = secondary_color
+            footer_text = self._get_contrast_color(secondary_color)
+        else:
+            safe_gradient = f"linear-gradient(135deg, {primary_color} 0%, {secondary_color} 100%)"
+            header_text = contrast_color
+            footer_bg = primary_color
+            footer_text = contrast_color
 
         # Top priorities HTML
         priorities_html = ''
@@ -291,11 +299,11 @@ class OnePagerExporter(BaseExporter):
         :root {{
             --club-primary: {metadata.get('primary_color', primary_color)};
             --club-secondary: {metadata.get('secondary_color', secondary_color)};
-            --primary: var(--club-primary);
-            --primary-dark: var(--club-primary);
-            --brand-gradient: linear-gradient(135deg, var(--club-primary) 0%, var(--club-secondary) 100%);
-            --secondary: var(--club-secondary);
-            --contrast-color: {contrast_color};
+            --brand-gradient: {safe_gradient};
+            --header-text: {header_text};
+            --footer-bg: {footer_bg};
+            --footer-text: {footer_text};
+            --contrast-color: {header_text};
             --contrast-color-sec: {contrast_color_secondary};
             --text-on-white: {text_on_white};
             --text: #1a1a1a;
@@ -318,9 +326,9 @@ class OnePagerExporter(BaseExporter):
             flex-direction: column;
         }}
 
-        .header {{ 
+        .header {{
             background: var(--brand-gradient);
-            color: var(--contrast-color);
+            color: var(--header-text);
             padding: 10mm 15mm;
             display: flex;
             justify-content: space-between;
@@ -425,15 +433,15 @@ class OnePagerExporter(BaseExporter):
         .vision-quote {{ font-family: 'DM Serif Display', Georgia, serif; font-size: 13pt; font-style: italic; line-height: 1.5; position: relative; z-index: 1; }}
 
         .footer {{
-            background: var(--club-primary);
-            color: var(--contrast-color);
+            background: var(--footer-bg);
+            color: var(--footer-text);
             padding: 5mm 15mm;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-size: 8pt;
             border-top: 2px solid var(--club-secondary);
-            opacity: 0.92;
+            opacity: 0.95;
         }}
 
         .credibility-badge {{ background: var(--badge-q); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 700; }}
