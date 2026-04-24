@@ -294,6 +294,10 @@ def broadcast_log(level: str, message: str, source: str = "system"):
 # SSE handler rimosso perché instabile su alcuni sistemi
 log_stream_handler = None
 
+# Questionnaire data directory
+QUESTIONNAIRE_DATA_DIR = Path(__file__).parent / "data" / "questionnaires"
+QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 # =============================================================================
 # COMPONENTI (inizializzazione con gestione errori)
 # =============================================================================
