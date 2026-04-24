@@ -347,6 +347,35 @@ Sii trasparente sulla provenienza dei dati:
 ---
 """
 
+GLOBAL_FORMAT_DIRECTIVE = """
+---
+## FORMATO OUTPUT (OBBLIGATORIO)
+
+Per ogni MACRO obiettivo usa ESATTAMENTE questo blocco:
+
+```
+### MACRO N: Titolo
+
+**Obiettivo:** Una frase. Cosa il Club vuole ottenere.
+
+**Azioni chiave:**
+- Azione 1 concreta e misurabile (fonte: ...)
+- Azione 2
+- Azione 3
+
+**KPI:** Metrica → Target numerico entro Anno X
+**Timeline:** Anno 1 | Anno 2 | Anno 3
+**Budget:** €range (fonte: benchmark club simili categoria)
+```
+
+**VINCOLI ASSOLUTI:**
+- Max 3-4 azioni per MACRO (non di più)
+- KPI: sempre una metrica numerica con target (es. "+15% iscritti", "Top 3 classifica")
+- Budget: sempre un range, mai un numero preciso
+- Niente paragrafi lunghi — solo blocchi strutturati
+- Nessun requisito minimo di caratteri: qualità > quantità
+---
+"""
 
 # =============================================================================
 # AGENT SPECIFICATIONS - 6 AGENTI STW-NATIVE
@@ -364,7 +393,7 @@ AGENT_SPECS: Dict[AgentRole, AgentSpec] = {
         expertise=["sintesi strategica", "executive summary", "visione d'insieme", "matrice STW"],
         priority=0,
         output_sections=["executive_summary"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei il COORDINATORE STRATEGICO. Crei l'Executive Summary sintetizzando le 4 aree STW.
 
 **STRUTTURA OBBLIGATORIA:**
@@ -405,7 +434,7 @@ Timeline sintetica: Anno 1 (Setup) → Anno 2 (Sviluppo) → Anno 3 (Consolidame
         expertise=["settore tecnico", "prima squadra", "settore giovanile", "scouting", "club affiliati"],
         priority=1,
         output_sections=["stw_sportivi"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei l'ANALISTA AREA SPORTIVA STW. Redigi la sezione OBIETTIVI SPORTIVI secondo la Matrice STW.
 
 **STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
@@ -466,7 +495,7 @@ Sei l'ANALISTA AREA SPORTIVA STW. Redigi la sezione OBIETTIVI SPORTIVI secondo l
 - Ogni MICRO deve avere: situazione attuale, gap, azione proposta, KPI
 - Dati mancanti: `(dato da acquisire)`
 - Voce istituzionale: "Il Club prevede...", "La Società implementerà..."
-- IMPORTANTE: Devi completare TUTTE le 8 MACRO con TUTTI i sotto-obiettivi elencati. Non fermarti dopo le prime 2-3 MACRO. Genera almeno 8000 caratteri.
+- IMPORTANTE: Completa tutte le MACRO. Usa il blocco formato definito per ognuna.
 """
     ),
 
@@ -479,7 +508,7 @@ Sei l'ANALISTA AREA SPORTIVA STW. Redigi la sezione OBIETTIVI SPORTIVI secondo l
         expertise=["infrastrutture", "impianti sportivi", "risorse umane", "HR", "welfare"],
         priority=2,
         output_sections=["stw_strutturali"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei l'ANALISTA AREA STRUTTURALE STW. Redigi la sezione OBIETTIVI STRUTTURALI secondo la Matrice STW.
 
 **STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
@@ -541,7 +570,7 @@ Sei l'ANALISTA AREA STRUTTURALE STW. Redigi la sezione OBIETTIVI STRUTTURALI sec
         expertise=["comunicazione", "marketing sportivo", "brand identity", "commerciale", "CRM"],
         priority=3,
         output_sections=["stw_marketing"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei l'ANALISTA AREA MARKETING STW. Redigi la sezione OBIETTIVI MARKETING secondo la Matrice STW.
 
 **STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
@@ -631,7 +660,7 @@ Sei l'ANALISTA AREA MARKETING STW. Redigi la sezione OBIETTIVI MARKETING secondo
         expertise=["CSR", "inclusione", "sostenibilità", "impatto sociale", "ambiente"],
         priority=4,
         output_sections=["stw_sociali"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei l'ANALISTA AREA SOCIALE STW. Redigi la sezione OBIETTIVI SOCIALI secondo la Matrice STW.
 
 **STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
@@ -694,7 +723,7 @@ Sei l'ANALISTA AREA SOCIALE STW. Redigi la sezione OBIETTIVI SOCIALI secondo la 
         expertise=["coerenza strategica", "allineamento obiettivi", "cross-reference"],
         priority=4,
         output_sections=["consistency_review"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei il REVISORE DI COERENZA. Analizzi le 4 sezioni STW gia' generate e produci:
 
 **STRUTTURA OBBLIGATORIA:**
@@ -739,7 +768,7 @@ Elenca gli obiettivi che richiedono budget specifico, organizzati per priorita':
         expertise=["bilancio", "budget", "investimenti", "sostenibilità economica", "proiezioni"],
         priority=6,
         output_sections=["financial_plan"],
-        system_prompt=GLOBAL_VOICE_DIRECTIVE + """
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
 Sei lo STRATEGA FINANZIARIO. Redigi il PIANO ECONOMICO-FINANZIARIO a supporto della Matrice STW.
 
 **STRUTTURA OBBLIGATORIA:**
