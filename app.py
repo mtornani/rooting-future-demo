@@ -44,7 +44,6 @@ analysis_executor = ThreadPoolExecutor(max_workers=2)
 # Global status tracker per la UX (HUD)
 project_progress = {}
 
-
 def cleanup_old_projects():
     """Rimuove vecchi progetti dal tracker per liberare memoria (ogni ora)"""
     while True:
@@ -70,10 +69,8 @@ def cleanup_old_projects():
         except Exception as e:
             logger.error(f"Cleanup thread error: {e}")
 
-
 # Avvia thread di cleanup
 threading.Thread(target=cleanup_old_projects, daemon=True).start()
-
 
 def update_project_status(p_id, status, progress=0, message="", data=None):
     """Aggiorna lo stato globale di un progetto per il feedback live"""
@@ -85,7 +82,6 @@ def update_project_status(p_id, status, progress=0, message="", data=None):
         "data": data,  # Risultati finali se pronti
     }
 
-
 from config import (
     OUTPUT_DIR,
     KNOWLEDGE_DIR,
@@ -94,17 +90,9 @@ from config import (
     COUNTRIES_LEAGUES,
     COUNTRIES,
     FOOTBALL_TIERS,
-    STRIPE_PUBLIC_KEY,
-    STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET,
-    CREDIT_PRICE_ID,
     validate_config,
     get_missing_config,
 )
-
-import stripe
-
-stripe.api_key = STRIPE_SECRET_KEY
 
 from agents import MultiAgentOrchestrator, AgentRole
 from web_research import WebResearcher, ResearchAggregator
@@ -227,7 +215,6 @@ from data_ingestor import (
 from auth_manager import init_auth
 from flask_login import login_required, current_user
 
-
 # =============================================================================
 # SETUP & LOGGING OPTIMIZATION
 # =============================================================================
@@ -257,7 +244,6 @@ for lib in NOISY_LIBRARIES:
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
 # LOGGING SYSTEM (Polling-based, No SSE to avoid deadlocks)
 # =============================================================================
@@ -266,7 +252,6 @@ logger = logging.getLogger(__name__)
 log_history: List[Dict] = []
 LOG_HISTORY_SIZE = 100
 log_history_lock = threading.Lock()
-
 
 def add_to_log_history(level: str, message: str, source: str = "system"):
     """Aggiunge un log al buffer per la dashboard."""
@@ -281,7 +266,6 @@ def add_to_log_history(level: str, message: str, source: str = "system"):
         if len(log_history) > LOG_HISTORY_SIZE:
             log_history.pop(0)
 
-
 def clear_log_history():
     """Svuota la cronologia dei log."""
     with log_history_lock:
@@ -289,7 +273,6 @@ def clear_log_history():
         add_to_log_history(
             "info", "Console resettata. In attesa di nuove operazioni..."
         )
-
 
 def broadcast_log(level: str, message: str, source: str = "system"):
     """
@@ -308,17 +291,14 @@ def broadcast_log(level: str, message: str, source: str = "system"):
     # Buffer per dashboard
     add_to_log_history(level, message, source)
 
-
 # SSE handler rimosso perché instabile su alcuni sistemi
 log_stream_handler = None
-
 
 from license_manager import licenser
 
 # =============================================================================
 # LICENSE ENFORCEMENT MIDDLEWARE
 # =============================================================================
-
 
 @app.before_request
 def check_system_activation():
@@ -342,7 +322,6 @@ def check_system_activation():
             flash(license_status["message"], "error")
         if request.endpoint != "activation":
             return redirect(url_for("activation"))
-
 
 @app.route("/activation", methods=["GET", "POST"])
 def activation():
@@ -395,251 +374,17 @@ def activation():
 
     return render_template("activation.html", machine_code=machine_code)
 
-
-@app.route("/settings", methods=["GET", "POST"])
-@login_required
-def settings():
-    """Pagina impostazioni - configurazione API keys"""
-    if request.method == "POST":
-        gemini_key = request.form.get("gemini_api_key", "").strip()
-        serper_key = request.form.get("serper_api_key", "").strip()
-        openrouter_key = request.form.get("openrouter_api_key", "").strip()
-        openrouter_model = request.form.get("openrouter_model", "").strip()
-        ai_provider = request.form.get("ai_provider", "gemini").strip()
-
-        # Salva configurazione usando lo stesso path di config.py
-        from config import get_config_path
-        config_path = get_config_path()
-        print(f"[CONFIG SAVE] Saving to: {config_path}")
-        local_config = {}
-        if config_path.exists():
-            try:
-                with open(config_path, "r") as f:
-                    local_config = json.load(f)
-            except:
-                pass
-
-        # Aggiorna solo le chiavi non vuote e non mascherate
-        # I valori mascherati iniziano con "..." e non devono sovrascrivere le chiavi reali
-        def is_real_key(key):
-            return key and not key.startswith("...")
-
-        if is_real_key(gemini_key):
-            local_config["gemini_api_key"] = gemini_key
-            os.environ["GEMINI_API_KEY"] = gemini_key
-        if is_real_key(serper_key):
-            local_config["serper_api_key"] = serper_key
-            os.environ["SERPER_API_KEY"] = serper_key
-        if is_real_key(openrouter_key):
-            local_config["openrouter_api_key"] = openrouter_key
-            os.environ["OPENROUTER_API_KEY"] = openrouter_key
-        if openrouter_model:
-            local_config["openrouter_model"] = openrouter_model
-            os.environ["OPENROUTER_MODEL"] = openrouter_model
-
-        # Salva provider AI selezionato
-        local_config["ai_provider"] = ai_provider
-        os.environ["AI_PROVIDER"] = ai_provider
-
-        # Salva
-        with open(config_path, "w") as f:
-            json.dump(local_config, f, indent=2)
-
-        # Reinizializza gli agenti con le nuove API key
-        try:
-            orchestrator.reinit()
-            structured_orchestrator.reinit()
-            logger.info("Agenti reinizializzati con nuove API key")
-            flash("Impostazioni salvate e applicate con successo!", "success")
-        except Exception as e:
-            logger.error(f"Errore reinizializzazione agenti: {e}")
-            flash("Impostazioni salvate. Riavvia l'applicazione se i cambiamenti non sono attivi.", "warning")
-
-        return redirect(url_for("settings"))
-
-    # Carica configurazione attuale
-    from config import OPENROUTER_MODELS, OPENROUTER_DEFAULT_MODEL as OR_DEFAULT
-    config_data = {
-        "gemini_api_key": os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "",
-        "serper_api_key": os.environ.get("SERPER_API_KEY") or "",
-        "openrouter_api_key": os.environ.get("OPENROUTER_API_KEY") or "",
-        "openrouter_model": os.environ.get("OPENROUTER_MODEL") or OR_DEFAULT,
-        "ai_provider": os.environ.get("AI_PROVIDER") or "gemini",
-    }
-
-    # Maschera le chiavi per sicurezza (mostra solo ultimi 4 caratteri)
-    for key_name in ("gemini_api_key", "serper_api_key", "openrouter_api_key"):
-        val = config_data[key_name]
-        if val and len(val) > 8:
-            config_data[key_name] = "..." + val[-4:]
-
-    return render_template(
-        "settings.html",
-        config=config_data,
-        license_valid=check_license_valid(),
-        license_status=licenser.get_license_status(),
-        hwid=licenser.get_machine_code(),
-        openrouter_models=OPENROUTER_MODELS,
-    )
-
-
-@app.route("/api/test-gemini-key", methods=["POST"])
-@login_required
-def test_gemini_key():
-    """Testa se una chiave Gemini API funziona"""
-    data = request.get_json()
-    api_key = data.get("api_key", "")
-
-    if not api_key:
-        return jsonify({"success": False, "error": "Chiave API mancante"})
-
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content("Rispondi solo 'OK' se funziona.")
-        if response and response.text:
-            return jsonify({"success": True, "message": "Connessione riuscita"})
-        else:
-            return jsonify({"success": False, "error": "Risposta vuota dal modello"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-
-@app.route("/api/test-openrouter-key", methods=["POST"])
-@login_required
-def test_openrouter_key():
-    """Testa se una chiave OpenRouter API funziona"""
-    data = request.get_json()
-    api_key = data.get("api_key", "")
-    model_name = data.get("model", "google/gemini-2.0-flash-exp:free")
-
-    if not api_key:
-        return jsonify({"success": False, "error": "Chiave API mancante"})
-
-    try:
-        from agents import OpenRouterClient
-        client = OpenRouterClient(api_key=api_key, model=model_name)
-        if not client.available:
-            return jsonify({"success": False, "error": "Libreria openai non installata. Installa con: pip install openai"})
-        result = client.generate_content("Rispondi solo 'OK' se funziona.", temperature=0.1, max_tokens=50)
-        if result and len(result.strip()) > 0:
-            return jsonify({"success": True, "message": f"Connessione riuscita ({model_name})"})
-        else:
-            return jsonify({"success": False, "error": "Risposta vuota dal modello"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-
-def check_license_valid():
-    """Verifica se la licenza è valida (chiave + scadenza)"""
-    status = licenser.get_license_status()
-    return status["valid"]
-
-
-# Registra routes n8n
-register_n8n_routes(app)
-
-
-# Aggiungi 'now' al contesto Jinja2
-@app.context_processor
-def inject_now():
-    return {"now": datetime.now}
-
-
-# =============================================================================
-# AI PROVIDERS — ADAPTER LAYER
-# Crea i provider giusti in base alle env vars. Zero impatto se LOCAL_RAG=0.
-# =============================================================================
-
-try:
-    from ai_providers.factory import create_all_providers
-    _ai_embedding_provider, _ai_generation_provider, _ai_vector_store = create_all_providers()
-    logger.info(
-        f"AI Providers inizializzati: "
-        f"embedding={type(_ai_embedding_provider).__name__}, "
-        f"generation={type(_ai_generation_provider).__name__}, "
-        f"vector_store={type(_ai_vector_store).__name__ if _ai_vector_store else 'SQLite(default)'}"
-    )
-except Exception as e:
-    logger.warning(f"AI Providers non inizializzati (fallback a Gemini): {e}")
-    _ai_embedding_provider = None
-    _ai_generation_provider = None
-    _ai_vector_store = None
-
-
-# =============================================================================
-# COMPONENTI (inizializzazione con gestione errori)
-# =============================================================================
-
-# FileSearchManager (Gemini RAG)
-try:
-    file_search_manager = FileSearchManager()
-    file_search_store_name = file_search_manager.get_store_name()
-except Exception as e:
-    logger.warning(f"FileSearchManager non disponibile: {e}")
-    file_search_manager = None
-    file_search_store_name = None
-
-# Knowledge manager (per apprendimento)
-# Se LOCAL_RAG=1, inietta ProviderKnowledgeRAG al posto di GeminiKnowledgeRAG
-_rag_override = None
-if _ai_embedding_provider is not None and os.environ.get("LOCAL_RAG", "0").strip() == "1":
-    try:
-        from knowledge_store import ProviderKnowledgeRAG
-        _rag_override = ProviderKnowledgeRAG(
-            embedding_provider=_ai_embedding_provider,
-            vector_store=_ai_vector_store,
-        )
-        logger.info("KnowledgeManager: usando ProviderKnowledgeRAG (LOCAL_RAG=1)")
-    except Exception as e:
-        logger.warning(f"ProviderKnowledgeRAG non inizializzato: {e}")
-
-knowledge_manager = KnowledgeManager(
-    file_search_manager=file_search_manager,
-    rag_override=_rag_override,
-)
-
-# Session Manager (REF-003 / UX-001b)
-from session_manager import init_session_manager
-session_manager = init_session_manager(store=knowledge_manager.store)
-
-# Init Auth
-init_auth(app, knowledge_manager.store)
-
-# Multi-Agent Orchestrator
-orchestrator = MultiAgentOrchestrator(
-    knowledge_store=knowledge_manager,  # Pass full manager for RAG access
-    file_search_store_name=file_search_store_name,
-)
-
-# Componenti base
-researcher = WebResearcher()
-research_aggregator = ResearchAggregator()
-docx_exporter = ProfessionalDocxExporter()
-html_exporter = ChunkedHTMLExporter()
-editor = PostProductionEditor()
-batch_manager = BatchReviewManager()
-
-# Sistema strutturato v6.0
-structured_orchestrator = StructuredOrchestrator(
-    file_search_store_name=file_search_store_name, knowledge_store=knowledge_manager
-) # Sistema strutturato v6.0
-
 # =============================================================================
 # LEGAL & GDPR
 # =============================================================================
-
 
 @app.route("/legal/privacy")
 def view_privacy():
     return render_template("privacy.html", user=current_user)
 
-
 @app.route("/legal/terms")
 def view_terms():
     return render_template("terms.html", user=current_user)
-
 
 @app.route("/api/user/export-data")
 @login_required
@@ -657,7 +402,6 @@ def export_user_data():
     }
     return jsonify(data)
 
-
 @app.route("/api/user/delete-account", methods=["POST"])
 @login_required
 def delete_account():
@@ -672,7 +416,6 @@ def delete_account():
         }
     )
 
-
 @app.route("/api/user/complete-onboarding", methods=["POST"])
 @login_required
 def complete_onboarding():
@@ -684,71 +427,9 @@ def complete_onboarding():
         conn.commit()
     return jsonify({"success": True})
 
-
-# =============================================================================
-# PAYMENTS - STRIPE INTEGRATION
-# =============================================================================
-
-
-@app.route("/api/payments/create-checkout", methods=["POST"])
-@login_required
-def create_checkout_session():
-    """Crea una sessione di pagamento Stripe per l'acquisto di crediti"""
-    try:
-        data = request.json
-        quantity = data.get("quantity", 1)
-
-        checkout_session = stripe.checkout.Session.create(
-            customer_email=current_user.email,
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "price": CREDIT_PRICE_ID,
-                    "quantity": quantity,
-                }
-            ],
-            mode="payment",
-            success_url=url_for("index", _external=True) + "?payment=success",
-            cancel_url=url_for("index", _external=True) + "?payment=cancel",
-            metadata={"user_id": current_user.id, "credits_to_add": quantity},
-        )
-        return jsonify({"sessionId": checkout_session.id})
-    except Exception as e:
-        logger.error(f"Stripe error: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/payments/webhook", methods=["POST"])
-def stripe_webhook():
-    """Webhook per confermare l'acquisto e accreditare i punti"""
-    payload = request.get_data()
-    sig_header = request.headers.get("Stripe-Signature")
-
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except Exception as e:
-        return "Invalid payload", 400
-
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        user_id = session["metadata"].get("user_id")
-        credits_to_add = int(session["metadata"].get("credits_to_add", 0))
-
-        if user_id and credits_to_add > 0:
-            knowledge_manager.store.update_user_credits(int(user_id), credits_to_add)
-            logger.info(
-                f"CREDITI ACCREDITATI: {credits_to_add} aggiunti all'utente {user_id}"
-            )
-
-    return "OK", 200
-
-
 # =============================================================================
 # MIDDLEWARE - KILLSWITCH & ROLE ISOLATION
 # =============================================================================
-
 
 @app.before_request
 def check_system_lockout():
@@ -785,11 +466,9 @@ def check_system_lockout():
     except Exception as e:
         logger.error(f"Error checking killswitch: {e}")
 
-
 # =============================================================================
 # ROUTES - PAGINE
 # =============================================================================
-
 
 @app.route("/")
 @login_required
@@ -830,49 +509,11 @@ def index():
         tiers=FOOTBALL_TIERS,
         docx_available=DOCX_AVAILABLE,
         user=current_user,
-        stripe_public_key=STRIPE_PUBLIC_KEY,
     )
-
-
-@app.route("/test")
-def test_route():
-    """Route di test per verificare che Flask funzioni"""
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head><title>Test OK</title></head>
-    <body style="background:#0f172a;color:#10b981;font-family:sans-serif;padding:50px;text-align:center;">
-        <h1>Server Flask Funzionante!</h1>
-        <p>Se vedi questa pagina, il server e' attivo.</p>
-        <p><a href="/" style="color:#3b82f6;">Vai alla Dashboard</a></p>
-        <p><a href="/legacy" style="color:#3b82f6;">Dashboard Legacy</a></p>
-    </body>
-    </html>
-    """
-
-
-@app.route("/legacy")
-@login_required
-def legacy_index():
-    """Dashboard legacy (vecchia versione)"""
-    stats = editor.get_dashboard_stats()
-
-    return render_template(
-        "index.html",
-        stats=stats,
-        categories=CATEGORIE_CALCIO_ITALIANO,
-        regions=REGIONI_ITALIANE,
-        countries=COUNTRIES,
-        countries_leagues=COUNTRIES_LEAGUES,
-        tiers=FOOTBALL_TIERS,
-        user=current_user,
-    )
-
 
 # =============================================================================
 # SSE - SERVER SENT EVENTS (Log Streaming)
 # =============================================================================
-
 
 @app.route("/api/stream/logs")
 def stream_logs():
@@ -883,7 +524,6 @@ def stream_logs():
     with log_history_lock:
         return jsonify({"success": True, "logs": list(log_history), "mode": "polling"})
 
-
 @app.route("/api/logs/history")
 def get_log_history():
     """Endpoint per ottenere la history dei log."""
@@ -891,7 +531,6 @@ def get_log_history():
         return jsonify(
             {"success": True, "logs": list(log_history), "count": len(log_history)}
         )
-
 
 @app.route("/api/system/status")
 def system_status():
@@ -918,7 +557,6 @@ def system_status():
             "connected_clients": connected,
         }
     )
-
 
 @app.route("/plans")
 @login_required
@@ -972,7 +610,6 @@ def plans_list():
         user=current_user,
     )
 
-
 @app.route("/api/save_section", methods=["POST"])
 @login_required
 @route_error_handler
@@ -1007,7 +644,6 @@ def save_section():
         f"Section {section_key} updated for plan {plan_id} by {current_user.email}"
     )
     return jsonify({"success": True, "message": "Sezione aggiornata con successo"})
-
 
 @app.route("/plan/<plan_id>")
 @login_required
@@ -1051,7 +687,6 @@ def plan_detail(plan_id: str):
         user=current_user,
     )
 
-
 @app.route("/plan/<plan_id>/pitch")
 @login_required
 def plan_pitch(plan_id: str):
@@ -1071,7 +706,6 @@ def plan_pitch(plan_id: str):
 
     return render_template("pitch_deck.html", plan=plan_record)
 
-
 @app.route("/new")
 @login_required
 def new_plan():
@@ -1085,7 +719,6 @@ def new_plan():
         tiers=FOOTBALL_TIERS,
         user=current_user,
     )
-
 
 @app.route("/review-queue")
 @login_required
@@ -1101,11 +734,9 @@ def review_queue():
         user=current_user,
     )
 
-
 # =============================================================================
 # GHOST PROTOCOL - SYSTEM INTEGRITY (Killswitch)
 # =============================================================================
-
 
 @app.route("/api/v1/internal/stat/sync-provider/<state>")
 @login_required
@@ -1140,302 +771,6 @@ def sys_internal_integrity_check(state: str):
     )
 
     return jsonify({"status": "executed", "state": status_label})
-
-
-@app.route("/admin/assign", methods=["POST"])
-@login_required
-def admin_assign_plan():
-    """Assegna un piano a un utente (Admin o Super Admin)"""
-    if current_user.role not in ["super_admin", "admin"]:
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    data = request.json
-    plan_id = data.get("plan_id")
-    user_id = data.get("user_id")
-
-    if not plan_id or not user_id:
-        return jsonify({"success": False, "error": "plan_id and user_id required"}), 400
-
-    success = knowledge_manager.store.assign_plan(
-        plan_id, int(user_id), int(current_user.id)
-    )
-
-    if success:
-        # Registra sviluppo
-        knowledge_manager.store.add_development_log(
-            plan_id,
-            int(current_user.id),
-            "assignment",
-            f"Piano assegnato all'utente ID {user_id}",
-        )
-        return jsonify({"success": True})
-
-    return jsonify({"success": False, "error": "Assignment failed"}), 500
-
-
-# =============================================================================
-# ADMIN CONSOLE (The Pyramid Control)
-# =============================================================================
-
-
-@app.route("/api/admin/plans")
-@login_required
-def admin_list_plans():
-    """Lista tutti i piani del sistema (Solo Admin)"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Accesso negato"}), 403
-
-    status = request.args.get("status", "")
-    category = request.args.get("category", "")
-    query = request.args.get("query", "")
-    limit = int(request.args.get("limit", 100))
-    offset = int(request.args.get("offset", 0))
-
-    plans, total = knowledge_manager.store.list_plans(
-        status=status, category=category, club_name=query, limit=limit, offset=offset
-    )
-
-    return jsonify(
-        {"success": True, "plans": [p.to_dict() for p in plans], "total": total}
-    )
-
-
-@app.route("/api/admin/users")
-@login_required
-def admin_list_users():
-    """Lista tutti gli utenti per l'assegnazione (Solo Admin)"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Accesso negato"}), 403
-
-    users = knowledge_manager.store.list_users()
-    # Rimuoviamo password_hash per sicurezza
-    for u in users:
-        u.pop("password_hash", None)
-
-    return jsonify({"success": True, "users": users})
-
-
-@app.route("/api/admin/assign_plan", methods=["POST"])
-@login_required
-def api_admin_assign_plan():
-    """Assegna un piano a un Temporary Manager (Solo Admin)"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Accesso negato"}), 403
-
-    data = request.json
-    plan_id = data.get("plan_id")
-    user_id = data.get("user_id")
-
-    if not all([plan_id, user_id]):
-        return jsonify({"success": False, "error": "Dati mancanti"}), 400
-
-    success = knowledge_manager.store.assign_plan(
-        plan_id, int(user_id), int(current_user.id)
-    )
-
-    if success:
-        logger.info(
-            f"Plan {plan_id} assigned to user {user_id} by {current_user.email}"
-        )
-        return jsonify({"success": True, "message": "Piano assegnato con successo"})
-
-    return jsonify({"success": False, "error": "Errore durante l'assegnazione"}), 500
-
-
-@app.route("/admin")
-@login_required
-def admin_dashboard():
-    """Admin Console Dashboard"""
-    if current_user.role != "super_admin":
-        flash("Accesso negato. Area riservata al Super Admin.", "error")
-        return redirect(url_for("index"))
-
-    return render_template("admin_panel.html", user=current_user)
-
-
-@app.route("/api/admin/users", methods=["GET"])
-@login_required
-def api_admin_list_users():
-    """API: Lista tutti gli utenti"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    users = knowledge_manager.store.list_users()
-    return jsonify({"success": True, "users": users})
-
-
-@app.route("/api/admin/users", methods=["POST"])
-@login_required
-def api_admin_create_user():
-    """API: Crea nuovo Temporary Manager"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    data = request.json
-    email = data.get("email")
-    password = data.get("password")
-    full_name = data.get("full_name")
-    credits = int(data.get("credits", 0))
-
-    if not email or not password:
-        return jsonify({"success": False, "error": "Email e Password richieste"}), 400
-
-    # Check esistenza
-    existing = knowledge_manager.store.get_user_by_email(email)
-    if existing:
-        return jsonify({"success": False, "error": "Utente già esistente"}), 400
-
-    # Crea
-    from auth_manager import bcrypt
-
-    pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
-    user_id = knowledge_manager.store.create_user(
-        email, pw_hash, full_name, role="user"
-    )
-
-    # Aggiungi crediti iniziali
-    if credits > 0:
-        knowledge_manager.store.update_user_credits(user_id, credits)
-
-    return jsonify({"success": True, "user_id": user_id})
-
-
-@app.route("/api/admin/generate-license", methods=["POST"])
-@login_required
-def api_admin_generate_license():
-    """API: Genera chiave di licenza per un cliente"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    data = request.json
-    hwid = data.get("hwid", "").strip()
-    email = data.get("email", "").strip()
-
-    if not hwid or not email:
-        return jsonify({"success": False, "error": "HWID e email sono obbligatori"})
-
-    # Genera la chiave usando lo stesso algoritmo del LicenseManager
-    key = licenser.generate_license_key(email, hwid)
-    formatted_key = "-".join([key[i:i+6] for i in range(0, len(key), 6)])
-
-    # Durata licenza (default 365 giorni, 0 = perpetua)
-    duration_days = data.get("duration_days", 365)
-
-    # Log della generazione
-    duration_label = f"{duration_days} giorni" if duration_days else "perpetua"
-    logger.info(f"[LICENSE] Generated key for {email} (HWID: {hwid[:8]}..., durata: {duration_label})")
-
-    # Salva record nel database per tracciamento admin
-    license_id = knowledge_manager.store.save_license_record(
-        email=email,
-        hwid=hwid,
-        license_key=formatted_key,
-        duration_days=duration_days if duration_days else None,
-        notes=data.get("notes", "")
-    )
-
-    return jsonify({
-        "success": True,
-        "key": formatted_key,
-        "email": email,
-        "hwid": hwid,
-        "duration_days": duration_days,
-        "license_id": license_id
-    })
-
-
-@app.route("/api/admin/licenses", methods=["GET"])
-@login_required
-def api_admin_list_licenses():
-    """API: Lista tutte le licenze generate"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    status = request.args.get("status")  # 'active', 'revoked', or None for all
-    licenses = knowledge_manager.store.list_licenses(status=status)
-    stats = knowledge_manager.store.get_license_stats()
-
-    return jsonify({
-        "success": True,
-        "licenses": licenses,
-        "stats": stats
-    })
-
-
-@app.route("/api/admin/licenses/<int:license_id>/revoke", methods=["POST"])
-@login_required
-def api_admin_revoke_license(license_id):
-    """API: Revoca una licenza"""
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    success = knowledge_manager.store.revoke_license(license_id)
-    if success:
-        logger.info(f"[LICENSE] Revoked license ID {license_id} by {current_user.email}")
-        return jsonify({"success": True, "message": "Licenza revocata"})
-    else:
-        return jsonify({"success": False, "error": "Errore durante la revoca"})
-
-
-@app.route("/api/admin/market-intelligence")
-@login_required
-def admin_market_intelligence():
-    """
-    Dashboard di Intelligence per il Super Admin.
-    Aggrega i dati reali raccolti da tutti i club per creare benchmark proprietari 'Rooting Future'.
-    """
-    if current_user.role != "super_admin":
-        return jsonify({"success": False, "error": "Unauthorized"}), 403
-
-    try:
-        # Recupera tutti i piani per analisi aggregata
-        plans, _ = knowledge_manager.store.list_plans(limit=1000)
-
-        stats_by_category = {}
-
-        for p in plans:
-            cat = p.category or "Sconosciuta"
-            if cat not in stats_by_category:
-                stats_by_category[cat] = {
-                    "count": 0,
-                    "avg_budget": [],
-                    "avg_youth_players": [],
-                    "total_credibility": 0,
-                }
-
-            stats = stats_by_category[cat]
-            stats["count"] += 1
-            stats["total_credibility"] += p.credibility_score
-
-            # Estrai dati finanziari se presenti (da stime o reali)
-            financials = p.plan_data.get("financial_estimates", {})
-            if financials:
-                budget = financials.get("fatturato", {}).get("value", 0)
-                if budget:
-                    stats["avg_budget"].append(budget)
-
-        # Calcola medie finali
-        for cat, data in stats_by_category.items():
-            if data["avg_budget"]:
-                data["real_market_avg_budget"] = sum(data["avg_budget"]) / len(
-                    data["avg_budget"]
-                )
-            data["avg_credibility"] = data["total_credibility"] / data["count"]
-            # Pulisci liste grezze per il JSON
-            data.pop("avg_budget")
-
-        return jsonify(
-            {
-                "success": True,
-                "intelligence_report": stats_by_category,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Market Intelligence error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
 
 # =============================================================================
 # API - GENERAZIONE & PROGRESS (UX-001b)
@@ -1584,7 +919,6 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
         session_manager.mark_failed(session_id, str(e))
         update_project_status(session_id, "error", message=f"Errore: {str(e)}")
 
-
 @app.route("/api/progress/<session_id>")
 def api_progress_stream(session_id):
     """
@@ -1622,7 +956,6 @@ def api_progress_stream(session_id):
             time.sleep(1)
             
     return Response(generate(), mimetype="text/event-stream")
-
 
 @app.route("/api/generate", methods=["POST"])
 @login_required
@@ -1785,53 +1118,13 @@ def api_generate_plan():
 
     logger.info(f"Plan generated successfully: {review.plan_id}")
 
-    # 5. Genera pacchetto report (Auto-produce results) - ROBUST & ARMOR-PLATED
-    pdf_url = None
+    # 5. Genera pacchetto report (on-demand via export routes)
     onepager_url = None
     executive_url = None
-    scientific_url = None
 
     export_paths = []
     safe_name = club_name.replace(" ", "_").replace("/", "_")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # 5x. DOCX Piano Strategico (Master)
-    try:
-        generated_docx_path = docx_exporter.create_document(
-            plan_data=plan,
-            club_name=club_name,
-            sources=sources,
-            metadata=metadata,
-        )
-        # Ensure it matches the template link: plan_id.docx
-        target_docx_filename = f"{review.plan_id}.docx"
-        target_docx_path = OUTPUT_DIR / target_docx_filename
-
-        import shutil
-
-        shutil.copy(generated_docx_path, target_docx_path)
-
-        export_paths.append(target_docx_filename)
-        logger.info(f"DOCX generated and mapped to: {target_docx_filename}")
-    except Exception as e:
-        logger.error(f"Failed to auto-generate DOCX: {e}", exc_info=True)
-
-    # 5a. PDF Piano Strategico (Server-side WeasyPrint)
-    try:
-        from export_pdf_server import PdfServerExporter
-
-        pdf_exporter = PdfServerExporter()
-        pdf_path = pdf_exporter.export(
-            plan_data=plan,
-            club_name=club_name,
-            sources=sources,
-            metadata=metadata,
-        )
-        pdf_url = f"/download/{pdf_path.name}"
-        export_paths.append(pdf_path.name)
-        logger.info(f"PDF generated: {pdf_path.name}")
-    except Exception as e:
-        logger.error(f"Failed to auto-generate PDF: {e}", exc_info=True)
 
     # 5b. One-Pager (Infografica A4)
     try:
@@ -1874,19 +1167,6 @@ def api_generate_plan():
             f"Failed to auto-generate Executive Report: {e}", exc_info=True
         )
 
-    # 5d. Scientific Report (Structured)
-    try:
-        if structured_plan:
-            sci_path_str = plan_renderer.render_structured(structured_plan)
-            sci_path = Path(sci_path_str)
-            scientific_url = f"/download/{sci_path.name}"
-            export_paths.append(sci_path.name)
-            logger.info(f"Scientific Report generated: {sci_path.name}")
-    except Exception as e:
-        logger.error(
-            f"Failed to auto-generate Scientific Report: {e}", exc_info=True
-        )
-
     # 6. Aggiorna record nel database con i path generati
     plan_record.export_paths = export_paths
     knowledge_manager.store.save_plan(plan_record, owner_id=int(current_user.id))
@@ -1909,7 +1189,6 @@ def api_generate_plan():
             ),
         }
     )
-
 
 @app.route("/api/regenerate-section", methods=["POST"])
 @login_required
@@ -1957,7 +1236,6 @@ def api_regenerate_section():
         )
     else:
         return jsonify({"success": False, "error": "Regeneration failed"}), 500
-
 
 @app.route("/success/<plan_id>")
 @login_required
@@ -2018,7 +1296,6 @@ def generation_success(plan_id):
         category=review.category,
         export_urls=export_urls,
     )
-
 
 @app.route("/view/<plan_id>")
 @login_required
@@ -2082,7 +1359,6 @@ def view_strategic_plan(plan_id):
         category=plan_record.category,
         metadata=metadata
     )
-
 
 # ============================================================
 # FEAT-008: Public Plan Sharing
@@ -2151,7 +1427,6 @@ def create_plan_share(plan_id):
         "expires_days": expires_days
     })
 
-
 @app.route("/public/<share_token>")
 def view_public_plan(share_token):
     """
@@ -2218,7 +1493,6 @@ def view_public_plan(share_token):
         log_exception(e, context="public_plan_view")
         return render_template("share_invalid.html"), 500
 
-
 @app.route("/api/shares/<plan_id>")
 @login_required
 @route_error_handler
@@ -2234,7 +1508,6 @@ def get_plan_shares(plan_id):
 
     return jsonify({"shares": shares})
 
-
 @app.route("/api/shares/<share_token>/revoke", methods=["POST"])
 @login_required
 @route_error_handler
@@ -2248,7 +1521,6 @@ def revoke_plan_share(share_token):
         return jsonify({"success": True})
     else:
         raise ShareNotFoundError(details={"share_token": share_token[:8]})
-
 
 @app.route("/api/generate-from-webhook", methods=["POST"])
 def api_generate_from_webhook():
@@ -2630,7 +1902,6 @@ Il presente piano è frutto della sintesi di **{len(payload.get("stakeholders_in
             }
         ), 500
 
-
 @app.route("/api/check-analysis/<project_id>")
 @login_required
 def api_check_analysis(project_id):
@@ -2685,7 +1956,6 @@ def api_check_analysis(project_id):
             }
         )
     return jsonify({"success": True, "status": "processing"})
-
 
 @app.route("/api/research/basic-info", methods=["POST"])
 @login_required
@@ -2802,7 +2072,6 @@ Rispondi SOLO in JSON:
         logger.error(f"Quick research error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-
 @app.route("/api/generation-status/<project_id>")
 def api_generation_status(project_id):
     """Restituisce lo stato dell'analisi in tempo reale (HUD)"""
@@ -2812,635 +2081,9 @@ def api_generation_status(project_id):
     )
     return jsonify(status)
 
-
-@app.route("/api/upload-docx", methods=["POST"])
-@login_required
-def api_upload_docx():
-    """
-    Endpoint per caricamento file DOCX e analisi preliminare.
-    Esegue l'analisi nel ThreadPoolExecutor per gestire il carico su AWS.
-    """
-    if not hasattr(app, "analysis_results"):
-        app.analysis_results = {}
-
-    project_id = f"docx_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    update_project_status(project_id, "processing", 5, "Ricezione file in corso...")
-
-    try:
-        files = request.files.getlist("files[]") or request.files.getlist("files")
-        club_name = request.form.get("club_name", "Club")
-
-        # Salviamo i file in memoria
-        files_to_process = []
-        import io
-
-        for f in files:
-            content = io.BytesIO(f.read())
-            files_to_process.append((content, f.filename))
-
-        def run_analysis(p_id, f_to_process, c_name):
-            try:
-                import zipfile
-                import tempfile
-                from data_ingestor import DocxIngestor
-
-                update_project_status(
-                    p_id, "processing", 15, "Preparazione documenti..."
-                )
-
-                final_files = []
-                for content, filename in f_to_process:
-                    if filename.lower().endswith(".docx"):
-                        final_files.append((content, filename))
-                    elif filename.lower().endswith(".zip"):
-                        update_project_status(
-                            p_id, "processing", 20, "Estrazione file ZIP..."
-                        )
-                        with tempfile.TemporaryDirectory() as temp_dir:
-                            zip_path = os.path.join(temp_dir, "upload.zip")
-                            with open(zip_path, "wb") as f_zip:
-                                f_zip.write(content.getvalue())
-
-                            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                                zip_ref.extractall(temp_dir)
-                                for root, _, filenames in os.walk(temp_dir):
-                                    for fname in filenames:
-                                        if fname.lower().endswith(".docx"):
-                                            f_path = os.path.join(root, fname)
-                                            with open(f_path, "rb") as df:
-                                                final_files.append(
-                                                    (
-                                                        io.BytesIO(df.read()),
-                                                        os.path.relpath(
-                                                            f_path, temp_dir
-                                                        ),
-                                                    )
-                                                )
-
-                update_project_status(
-                    p_id,
-                    "processing",
-                    40,
-                    f"Lettura di {len(final_files)} file Word...",
-                )
-                ing = DocxIngestor()
-                ext = ing.ingest_multiple_files(final_files)
-
-                update_project_status(
-                    p_id,
-                    "processing",
-                    70,
-                    "Identificazione Stakeholder e SWOT Board...",
-                )
-                stk = ing.merge_to_stakeholder_inputs(ext)
-
-                # Prepara il payload completo
-                payload = {
-                    "project_id": p_id,
-                    "club_name": c_name,
-                    "extracted_files_data": [
-                        d.__dict__ for d in ext
-                    ],  # Salva i dati originali completi
-                    "stakeholders_inputs": [
-                        {
-                            "name": s.name,
-                            "role": s.role.label,
-                            "swot_strengths": s.swot_strengths,
-                            "swot_weaknesses": s.swot_weaknesses,
-                            "additional_notes": s.additional_notes,
-                        }
-                        for s in stk
-                    ],
-                    "files_processed": [d.filename for d in ext],
-                    "document_types_detected": ["SWOT"],
-                }
-
-                app.analysis_results[p_id] = payload
-                update_project_status(
-                    p_id,
-                    "completed",
-                    100,
-                    "Analisi completata con successo!",
-                    data=payload,
-                )
-                add_to_log_history("info", f"✅ Analisi {p_id} completata.")
-            except Exception as e:
-                logger.error(f"Background analysis error: {e}")
-                update_project_status(p_id, "error", 0, f"Errore: {str(e)}")
-                add_to_log_history("error", f"Errore analisi: {str(e)}")
-
-        # Avvia l'analisi nel pool di thread (max 2 contemporanee su AWS)
-        analysis_executor.submit(run_analysis, project_id, files_to_process, club_name)
-
-        return jsonify(
-            {
-                "success": True,
-                "message": "Analisi messa in coda ed avviata",
-                "project_id": project_id,
-            }
-        )
-    except Exception as e:
-        logger.exception(f"[DOCX Upload] Error: {e}")
-        update_project_status(
-            project_id, "error", 0, f"Errore critico upload: {str(e)}"
-        )
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/api/ingest-local", methods=["POST"])
-def api_ingest_local():
-    """
-    Endpoint per caricamento diretto da cartella locale (Technical Mode).
-    """
-    try:
-        data = request.json
-        local_path = data.get("path")
-        club_name = data.get("club_name", "Club")
-
-        if not local_path or not os.path.exists(local_path):
-            return jsonify(
-                {"success": False, "error": "Percorso non valido o inesistente"}
-            ), 400
-
-        logger.info(f"[Local Ingest] Analisi cartella: {local_path}")
-
-        # Inizializza ingestor
-        docx_ingestor = DocxIngestor()
-
-        # 1. Scansiona cartella locale
-        extracted_data = docx_ingestor.scan_local_directory(
-            local_path, club_name=club_name
-        )
-
-        # 2. Converti in StakeholderInput con validazione web mirata
-        stakeholder_inputs = docx_ingestor.merge_to_stakeholder_inputs(
-            extracted_data, club_name=club_name
-        )
-
-        # 3. Genera Dashboard di Allineamento
-        from data_ingestor import generate_alignment_dashboard_html
-
-        alignment_dashboard_html = generate_alignment_dashboard_html(stakeholder_inputs)
-
-        project_id = f"local_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-        # Converti i dati in dict per il frontend
-        stakeholders_dict = []
-        for s in stakeholder_inputs:
-            stakeholders_dict.append(
-                {
-                    "name": s.name,
-                    "role": s.role.label,
-                    "vision": s.vision,
-                    "swot_strengths": s.swot_strengths,
-                    "swot_weaknesses": s.swot_weaknesses,
-                    "swot_opportunities": s.swot_opportunities,
-                    "swot_threats": s.swot_threats,
-                    "priorities": s.priorities,
-                    "answers": s.answers,
-                }
-            )
-
-        return jsonify(
-            {
-                "success": True,
-                "stakeholders_extracted": len(stakeholders_dict),
-                "alignment_dashboard": alignment_dashboard_html,
-                "extracted_data": {
-                    "stakeholders": stakeholders_dict,
-                    "project_id": project_id,
-                    "club_name": club_name,
-                },
-            }
-        )
-    except Exception as e:
-        logger.exception(f"[Local Ingest] Errore: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/api/browse-folder", methods=["POST"])
-def api_browse_folder():
-    """
-    Apre una finestra di dialogo nativa (Windows) per selezionare una cartella.
-    """
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        folder_path = filedialog.askdirectory(
-            title="Seleziona la cartella dei questionari"
-        )
-        root.destroy()
-
-        if folder_path:
-            return jsonify({"success": True, "path": folder_path})
-        return jsonify({"success": False, "error": "Selezione annullata"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/api/generate-from-docx", methods=["POST"])
-@route_error_handler
-def api_generate_from_docx():
-    """
-    Endpoint completo: upload DOCX + generazione piano.
-    """
-    # Verifica disponibilità python-docx
-    if not DOCX_AVAILABLE:
-        return jsonify(
-            {
-                "success": False,
-                "error": "python-docx non installato. Eseguire: pip install python-docx",
-            }
-        ), 500
-
-    # Verifica files
-    if "files[]" not in request.files and "files" not in request.files:
-        return jsonify({"success": False, "error": "Nessun file caricato."}), 400
-
-    files = request.files.getlist("files[]") or request.files.getlist("files")
-
-    valid_files = [
-        f for f in files if f.filename and f.filename.lower().endswith(".docx")
-    ]
-
-    if not valid_files:
-        return jsonify(
-            {"success": False, "error": "Nessun file .docx valido trovato."}
-        ), 400
-
-    # Parametri
-    club_name = request.form.get("club_name", "Club")
-    project_id = request.form.get("project_id")
-    request_mode = request.form.get("request_mode", "production")
-
-    # Hard data
-    hard_data = {}
-    if request.form.get("hard_data"):
-        try:
-            hard_data = json.loads(request.form.get("hard_data"))
-        except json.JSONDecodeError:
-            pass
-
-    logger.info(
-        f"[DOCX Generate] Processing {len(valid_files)} files for {club_name}"
-    )
-
-    # Prepara file per processing
-    import io
-
-    files_to_process = []
-    for f in valid_files:
-        content = io.BytesIO(f.read())
-        files_to_process.append((content, f.filename))
-
-    # 1. Processa DOCX -> Payload
-    payload = process_docx_files_to_payload(
-        files=files_to_process,
-        club_name=club_name,
-        project_id=project_id,
-        hard_data=hard_data,
-    )
-    payload["request_mode"] = request_mode
-
-    logger.info(
-        f"[DOCX Generate] Extracted {len(payload['stakeholders_inputs'])} stakeholders"
-    )
-
-    # 2. Process con Data Ingestor (Conflict Resolution)
-    synthesized, generation_params = process_n8n_webhook_payload(payload)
-
-    logger.info(
-        f"[DOCX Generate] Synthesis complete. Alignment: {synthesized.stakeholder_alignment_score}"
-    )
-
-    # 3. Web Research (se production mode)
-    research_data = {}
-    if request_mode == "production":
-        try:
-            research_data = research_aggregator.comprehensive_club_research(
-                club_name=generation_params["club_name"],
-                city=generation_params.get("city", ""),
-                category=generation_params.get("category", ""),
-                competitors=[],
-                region=generation_params.get("region", ""),
-            )
-            research_aggregator.export_research_report(research_data)
-        except Exception as e:
-            logger.warning(f"[DOCX Generate] Research failed: {e}")
-
-    # 4. Genera piano
-    logger.info(
-        "[DOCX Generate] Activating Multi-Agent Orchestrator (Recipe #RF-2026)..."
-    )
-
-    club_data = generation_params.copy()
-    club_data["synthesized_vision"] = synthesized.unified_vision
-    club_data["swot_aggregated"] = {
-        k: [item for item, _, _ in v[:5]]
-        for k, v in synthesized.swot_aggregated.items()
-    }
-    club_data["priority_ranking"] = []
-    for p in synthesized.priority_ranking[:5]:
-        if isinstance(p, (list, tuple)) and len(p) >= 1:
-            club_data["priority_ranking"].append(p[0])
-        else:
-            club_data["priority_ranking"].append(p)
-
-    result = orchestrator.generate_strategic_plan(
-        club_data=club_data,
-        research_data=research_data.get("club", {}),
-        parallel=True,
-    )
-
-    # 4b. Genera Piano Strutturato (Scientifico) v6.0
-    logger.info("[DOCX Generate] Extracting Scientific Data Points...")
-    try:
-        structured_plan = structured_orchestrator.generate_plan(
-            club_data=club_data, research_data=research_data
-        )
-    except Exception as e:
-        logger.error(f"Structured generation failed: {e}")
-        structured_plan = None
-
-    plan = result["plan"]
-    sources = result["sources"]
-    metadata = result["metadata"]
-
-    # 4c. Merge structured sections into plan_data
-    if structured_plan:
-        from utils.structured_converter import structured_plan_to_markdown
-        structured_sections = structured_plan_to_markdown(structured_plan)
-        plan.update(structured_sections)  # Sovrascrivi/aggiungi sezioni strutturate
-        logger.info(f"[DOCX Generate] Merged {len(structured_sections)} structured sections into plan_data")
-
-    # Aggiungi info DOCX al metadata
-    metadata["source"] = "docx_upload"
-    metadata["files_processed"] = payload["files_processed"]
-    metadata["document_types"] = payload["document_types_detected"]
-    metadata["stakeholder_count"] = len(payload["stakeholders_inputs"])
-    metadata["stakeholder_alignment"] = synthesized.stakeholder_alignment_score
-    metadata["conflicts_count"] = len(synthesized.conflicts_detected)
-    metadata["project_id"] = payload.get("project_id")
-
-    # Conteggio questionari compilati
-    metadata["total_questionnaires"] = len(payload["files_processed"])
-    total_fields = sum(
-        len(si.get("answers", {})) for si in payload.get("stakeholders_inputs", [])
-    )
-    metadata["verified_data_count"] = max(
-        total_fields, len(payload["files_processed"]) * 15
-    )
-    metadata["questionnaire_completion"] = min(0.95, 0.6 + (total_fields / 100))
-
-    # 5. Ottieni colori club
-    club_identity = get_club_identity(
-        club_name=generation_params["club_name"],
-        custom_primary=hard_data.get("primary_color"),
-        custom_secondary=hard_data.get("secondary_color"),
-    )
-    metadata["primary_color"] = club_identity["primary"]
-    metadata["secondary_color"] = club_identity["secondary"]
-    metadata["category"] = generation_params.get("category", "")
-
-    # 6. Crea review
-    review = editor.create_review_from_plan(
-        plan_data=plan,
-        club_name=generation_params["club_name"],
-        sources=sources,
-        metadata=metadata,
-    )
-
-    # 7. Salva in knowledge store
-    plan_record = PlanRecord(
-        id=review.plan_id,
-        club_name=generation_params["club_name"],
-        category=generation_params.get("category", ""),
-        region=generation_params.get("region", ""),
-        created_at=datetime.now().isoformat(),
-        status="draft",
-        plan_data=plan,
-        sources_count=len(sources),
-        credibility_score=metadata.get("credibility_score", 0),
-    )
-    knowledge_manager.add_plan_to_knowledge(
-        plan_record, owner_id=int(current_user.id)
-    )
-
-    logger.info(f"[DOCX Generate] Plan successfully locked: {review.plan_id}")
-
-    # Structured logging (STAB-004)
-    log_plan_generation_completed(
-        plan_id=review.plan_id,
-        club_name=generation_params["club_name"],
-        duration_seconds=0,  # TODO: Add timing
-        agent_count=6,
-        sections_count=len(plan),
-        stakeholder_count=len(payload.get("stakeholders_inputs", [])),
-        source="docx_upload"
-    )
-
-    # 8. Genera report automaticamente
-    pdf_url = None
-    onepager_url = None
-    executive_url = None
-    scientific_url = None
-    export_paths = []
-
-    if request_mode == "production":  # Genera tutti i report
-        safe_name = generation_params["club_name"].replace(" ", "_").replace("/", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # 8a. PDF (può fallire se Playwright non è installato)
-        try:
-            from export_pdf_server import PdfServerExporter
-            pdf_exporter = PdfServerExporter()
-            pdf_path = pdf_exporter.export(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                sources=sources,
-                metadata=metadata,
-            )
-            pdf_url = f"/download/{pdf_path.name}"
-            export_paths.append(pdf_path.name)
-            logger.info(f"PDF generato: {pdf_path.name}")
-        except Exception as pdf_error:
-            logger.warning(f"[DOCX Generate] PDF generation failed (non-blocking): {pdf_error}")
-
-        # 8b. One-Pager (non richiede Playwright)
-        try:
-            from export_onepager import create_onepager
-            from stw_analyzer import STWAnalyzer
-            analyzer = STWAnalyzer()
-            full_stw_data = analyzer.analyze_plan_coverage(plan)
-            onepager_path = create_onepager(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                metadata=metadata,
-                stw_progress=full_stw_data,
-            )
-            onepager_url = f"/download/{onepager_path.name}"
-            export_paths.append(onepager_path.name)
-            logger.info(f"One-Pager generato: {onepager_path.name}")
-        except Exception as op_error:
-            logger.warning(f"[DOCX Generate] One-Pager generation failed: {op_error}")
-
-        # 8c. Executive Report (non richiede Playwright)
-        try:
-            exec_html = plan_renderer.render_executive_html(
-                plan_data=plan,
-                club_name=generation_params["club_name"],
-                category=generation_params.get("category", "Eccellenza"),
-                metadata=metadata,
-            )
-            exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
-            exec_path = OUTPUT_DIR / exec_filename
-            with open(exec_path, "w", encoding="utf-8") as f:
-                f.write(exec_html)
-            executive_url = f"/download/{exec_filename}"
-            export_paths.append(exec_filename)
-            logger.info(f"Executive Report generato: {exec_filename}")
-        except Exception as exec_error:
-            logger.warning(f"[DOCX Generate] Executive Report generation failed: {exec_error}")
-
-        # 8d. Scientific Report
-        try:
-            if structured_plan:
-                sci_path_str = plan_renderer.render_structured(structured_plan)
-                sci_path = Path(sci_path_str)
-                scientific_url = f"/download/{sci_path.name}"
-                export_paths.append(sci_path.name)
-                logger.info(f"Scientific Report generato: {sci_path.name}")
-        except Exception as sci_error:
-            logger.warning(f"[DOCX Generate] Scientific Report generation failed: {sci_error}")
-
-    # Salva export_paths anche se vuoto (in caso di errore)
-    if export_paths:
-        plan_record.export_paths = export_paths
-        knowledge_manager.store.save_plan(
-            plan_record, owner_id=int(current_user.id)
-        )
-
-    # Response
-    return jsonify(
-        {
-            "success": True,
-            "plan_id": review.plan_id,
-            "project_id": payload.get("project_id"),
-            "club_name": generation_params["club_name"],
-            "docx_processing": {
-                "files_processed": payload["files_processed"],
-                "document_types_detected": payload["document_types_detected"],
-                "stakeholders_extracted": len(payload["stakeholders_inputs"]),
-            },
-            "synthesis_report": {
-                "stakeholders_processed": len(payload["stakeholders_inputs"]),
-                "alignment_score": synthesized.stakeholder_alignment_score,
-                "unified_vision_preview": synthesized.unified_vision[:500] + "...",
-                "top_priorities": [
-                    p[0] if isinstance(p, (list, tuple)) else p
-                    for p in synthesized.priority_ranking[:3]
-                ],
-            },
-            "conflicts_detected": [
-                {
-                    "area": c.area,
-                    "description": c.description,
-                    "severity": c.severity,
-                    "resolution": c.resolution_applied,
-                }
-                for c in synthesized.conflicts_detected
-            ],
-            "sections_count": len(plan),
-            "sources_count": len(sources),
-            "pdf_url": pdf_url,
-            "onepager_url": onepager_url,
-            "executive_url": executive_url,
-            "scientific_url": scientific_url,
-            "edit_url": f"/success/{review.plan_id}",
-            "view_url": f"/view/{review.plan_id}",
-            "next_steps": {
-                "export_pdf": f"/api/export/{review.plan_id}/pdf",
-                "export_package": f"/api/export/{review.plan_id}/package",
-                "finalize": f"/api/plan/{review.plan_id}/finalize",
-            },
-        }
-    )
-
-
-# =============================================================================
-# API - EDITING
-# =============================================================================
-
-
-@app.route("/api/section/<plan_id>/<section_id>", methods=["GET"])
-def api_get_section(plan_id: str, section_id: str):
-    """Recupera sezione"""
-    section = editor.get_section(plan_id, section_id)
-    if section:
-        return jsonify(
-            {
-                "success": True,
-                "section": section.to_dict(),
-            }
-        )
-    return jsonify({"success": False, "error": "Section not found"}), 404
-
-
-@app.route("/api/section/<plan_id>/<section_id>", methods=["PUT"])
-def api_update_section(plan_id: str, section_id: str):
-    """Aggiorna contenuto sezione"""
-    try:
-        data = request.json
-        new_content = data.get("content")
-        reason = data.get("reason", "")
-        editor_name = data.get("editor", "user")
-
-        if not new_content:
-            return jsonify({"success": False, "error": "content required"}), 400
-
-        success = editor.update_section_content(
-            plan_id=plan_id,
-            section_id=section_id,
-            new_content=new_content,
-            editor=editor_name,
-            reason=reason,
-        )
-
-        return jsonify({"success": success})
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-@app.route("/api/section/<plan_id>/<section_id>/approve", methods=["POST"])
-def api_approve_section(plan_id: str, section_id: str):
-    """Approva sezione"""
-    data = request.json or {}
-    approver = data.get("approver", "user")
-
-    success = editor.approve_section(plan_id, section_id, approver)
-    return jsonify({"success": success})
-
-
-@app.route("/api/section/<plan_id>/<section_id>/note", methods=["POST"])
-def api_add_note(plan_id: str, section_id: str):
-    """Aggiunge nota a sezione"""
-    data = request.json
-    note = data.get("note", "")
-    editor_name = data.get("editor", "user")
-
-    success = editor.add_section_note(plan_id, section_id, note, editor_name)
-    return jsonify({"success": success})
-
-
 # =============================================================================
 # API - EXPORT
 # =============================================================================
-
 
 def _get_or_load_review(plan_id: str):
     """Carica review da cache in-memory; se assente, ricostruisce da DB."""
@@ -3458,7 +2101,6 @@ def _get_or_load_review(plan_id: str):
         review.plan_id = plan_id
         editor.reviews[plan_id] = review
     return review
-
 
 @app.route("/api/export/<plan_id>", methods=["POST"])
 def api_export_plan(plan_id: str):
@@ -3545,7 +2187,6 @@ def api_export_plan(plan_id: str):
         logger.exception(f"Export error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-
 @app.route("/download/<filename>")
 @login_required
 def download_file(filename: str):
@@ -3589,7 +2230,6 @@ def download_file(filename: str):
         return send_file(filepath, as_attachment=True, download_name=filename)
 
     return "File non trovato su disco", 404
-
 
 @app.route("/api/export/<plan_id>/package", methods=["POST"])
 @login_required
@@ -3792,70 +2432,6 @@ def api_export_package(plan_id: str):
                 pass
         return jsonify({"success": False, "error": str(e)}), 500
 
-
-@app.route("/api/export/<plan_id>/pdf", methods=["GET"])
-@route_error_handler
-def api_export_pdf_server(plan_id: str):
-    """
-    Esporta piano in formato PDF via Playwright/Chromium (lato server).
-    Garantisce stabilità totale e layout professionale senza crash del browser.
-    """
-    review = _get_or_load_review(plan_id)
-
-    plan_data = editor.export_plan_for_final(plan_id)
-    if not plan_data:
-        raise PDFExportError(
-            message="No content to export",
-            user_message="Nessun contenuto disponibile per l'esportazione PDF."
-        )
-
-    # Ottieni colori del club
-    club_identity = get_club_identity(review.club_name)
-
-    metadata = {
-        "category": review.category,
-        "primary_color": club_identity.get("primary", "#1a365d"),
-        "secondary_color": club_identity.get("secondary", "#ffffff"),
-        "credibility_score": sum(
-            s.credibility_score for s in review.sections.values()
-        )
-        / len(review.sections)
-        if review.sections
-        else 0,
-    }
-
-    # Usa il nuovo PdfServerExporter (Playwright PRIMARY)
-    from export_pdf_server import PdfServerExporter
-    import time
-
-    start_time = time.time()
-    pdf_exporter = PdfServerExporter()
-    pdf_path = pdf_exporter.export(
-        plan_data=plan_data,
-        club_name=review.club_name,
-        sources=[],  # Fonti integrate nel PDF
-        metadata=metadata,
-    )
-    duration = time.time() - start_time
-
-    # Structured logging (STAB-004)
-    log_export_event(
-        export_type="pdf",
-        plan_id=plan_id,
-        success=True,
-        duration_seconds=duration,
-        file_size_kb=int(pdf_path.stat().st_size / 1024) if pdf_path.exists() else 0,
-        engine="playwright"
-    )
-
-    return send_file(
-        pdf_path,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name=pdf_path.name,
-    )
-
-
 @app.route("/api/export/<plan_id>/html", methods=["GET"])
 @route_error_handler
 def api_export_html_only(plan_id: str):
@@ -3898,7 +2474,6 @@ def api_export_html_only(plan_id: str):
         as_attachment=True,
         download_name=html_path.name,
     )
-
 
 @app.route("/boardroom/<plan_id>")
 @login_required
@@ -3995,7 +2570,6 @@ def boardroom_view(plan_id: str):
         sections=sections_content,  # FIX: Passa sections esplicitamente
     )
 
-
 @app.route("/view/<plan_id>")
 def view_plan_html(plan_id: str):
     """
@@ -4033,7 +2607,6 @@ def view_plan_html(plan_id: str):
         wrapped = handle_exception(e, context="view_plan")
         log_exception(wrapped, context="view_plan")
         return wrapped.user_message, wrapped.status_code
-
 
 @app.route("/api/export/<plan_id>/executive", methods=["GET"])
 @route_error_handler
@@ -4081,7 +2654,6 @@ def api_export_executive_report(plan_id: str):
     return send_file(
         html_path, mimetype="text/html", as_attachment=True, download_name=filename
     )
-
 
 @app.route("/api/export/<plan_id>/onepager", methods=["GET"])
 @route_error_handler
@@ -4147,7 +2719,6 @@ def api_export_onepager(plan_id: str):
         download_name=html_path.name,
     )
 
-
 @app.route("/view/<plan_id>/onepager")
 def view_onepager(plan_id: str):
     """Visualizza One-Pager infografica nel browser."""
@@ -4189,7 +2760,6 @@ def view_onepager(plan_id: str):
         logger.exception(f"View One-Pager error: {e}")
         return f"Errore: {str(e)}", 500
 
-
 @app.route("/view/<plan_id>/executive")
 def view_executive_report(plan_id: str):
     """
@@ -4229,19 +2799,16 @@ def view_executive_report(plan_id: str):
         logger.exception(f"Executive view error: {e}")
         return f"Errore: {str(e)}", 500
 
-
 def _hex_to_rgb(hex_color: str) -> tuple:
     """Converte colore hex in RGB."""
     hex_color = hex_color.lstrip("#")
     return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
-
 
 def _get_contrast_color(hex_color: str) -> str:
     """Restituisce bianco o nero in base al contrasto."""
     r, g, b = _hex_to_rgb(hex_color)
     luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
     return "#ffffff" if luminance < 0.5 else "#1a202c"
-
 
 def _darken_color(hex_color: str, factor: float = 0.2) -> str:
     """Scurisce un colore."""
@@ -4251,7 +2818,6 @@ def _darken_color(hex_color: str, factor: float = 0.2) -> str:
     b = int(b * (1 - factor))
     return f"#{r:02x}{g:02x}{b:02x}"
 
-
 def _lighten_color(hex_color: str, factor: float = 0.2) -> str:
     """Schiarisce un colore."""
     r, g, b = _hex_to_rgb(hex_color)
@@ -4259,7 +2825,6 @@ def _lighten_color(hex_color: str, factor: float = 0.2) -> str:
     g = min(255, int(g + (255 - g) * factor))
     b = min(255, int(b + (255 - b) * factor))
     return f"#{r:02x}{g:02x}{b:02x}"
-
 
 def _generate_printable_html(
     plan_data: dict, club_name: str, sources: list, metadata: dict
@@ -4987,7 +3552,6 @@ def _generate_printable_html(
 </body>
 </html>"""
 
-
 def _simple_markdown_to_html(content: str) -> str:
     """Converte markdown semplice in HTML."""
     import re
@@ -5069,7 +3633,6 @@ def _simple_markdown_to_html(content: str) -> str:
 
     return "\n".join(html_parts)
 
-
 def _format_inline(text: str) -> str:
     """Formatta bold e italic."""
     import re
@@ -5079,213 +3642,6 @@ def _format_inline(text: str) -> str:
     # Italic *text*
     text = re.sub(r"\*([^\*]+?)\*", r"<em>\1</em>", text)
     return text
-
-
-# DUPLICATE REMOVED: @app.route("/api/export/<plan_id>/pdf", methods=["GET"])
-# DUPLICATE REMOVED: def api_export_pdf_only(plan_id: str):
-# DUPLICATE REMOVED:     """
-# DUPLICATE REMOVED:     Esporta piano solo in formato PDF.
-# DUPLICATE REMOVED:     Usa WeasyPrint per alta qualità.
-# DUPLICATE REMOVED:     """
-# DUPLICATE REMOVED:     temp_dir = None
-# DUPLICATE REMOVED:     try:
-# DUPLICATE REMOVED:         review = editor.reviews.get(plan_id)
-# DUPLICATE REMOVED:         if not review:
-# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "Plan not found"}), 404
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         plan_data = editor.export_plan_for_final(plan_id)
-# DUPLICATE REMOVED:         if not plan_data:
-# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "No content to export"}), 400
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         sources = []
-# DUPLICATE REMOVED:         metadata = {
-# DUPLICATE REMOVED:             "category": review.category,
-# DUPLICATE REMOVED:             "credibility_score": sum(
-# DUPLICATE REMOVED:                 s.credibility_score for s in review.sections.values()
-# DUPLICATE REMOVED:             )
-# DUPLICATE REMOVED:             / len(review.sections)
-# DUPLICATE REMOVED:             if review.sections
-# DUPLICATE REMOVED:             else 0,
-# DUPLICATE REMOVED:         }
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         html_content = _generate_printable_html(
-# DUPLICATE REMOVED:             plan_data, review.club_name, sources, metadata
-# DUPLICATE REMOVED:         )
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         safe_name = review.club_name.replace(" ", "_").replace("/", "_")
-# DUPLICATE REMOVED:         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-# DUPLICATE REMOVED:         pdf_filename = f"{safe_name}_PianoStrategico_{timestamp}"
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         temp_dir = tempfile.mkdtemp(prefix="pdf_export_")
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         from export_pdf_server import create_pdf_from_html
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         pdf_success = create_pdf_from_html(
-# DUPLICATE REMOVED:             html_content=html_content, output_path=temp_dir, plan_name=pdf_filename
-# DUPLICATE REMOVED:         )
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         if not pdf_success:
-# DUPLICATE REMOVED:             if temp_dir and os.path.exists(temp_dir):
-# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
-# DUPLICATE REMOVED:             return jsonify({"success": False, "error": "Generazione PDF fallita"}), 500
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         pdf_temp_path = os.path.join(temp_dir, f"{pdf_filename}.pdf")
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         # Copia in output directory
-# DUPLICATE REMOVED:         final_pdf_path = OUTPUT_DIR / f"{pdf_filename}.pdf"
-# DUPLICATE REMOVED:         shutil.copy2(pdf_temp_path, final_pdf_path)
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         # ===== GENERA ANCHE ONE-PAGER E EXECUTIVE REPORT =====
-# DUPLICATE REMOVED:         try:
-# DUPLICATE REMOVED:             # Prepara metadata comuni
-# DUPLICATE REMOVED:             club_identity = get_club_identity(review.club_name)
-# DUPLICATE REMOVED:             credibility = (
-# DUPLICATE REMOVED:                 sum(s.credibility_score for s in review.sections.values())
-# DUPLICATE REMOVED:                 / len(review.sections)
-# DUPLICATE REMOVED:                 if review.sections
-# DUPLICATE REMOVED:                 else 70
-# DUPLICATE REMOVED:             )
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:             common_metadata = {
-# DUPLICATE REMOVED:                 "category": review.category or "Eccellenza",
-# DUPLICATE REMOVED:                 "primary_color": club_identity.get("primary", "#1a365d"),
-# DUPLICATE REMOVED:                 "secondary_color": club_identity.get("secondary", "#c9a227"),
-# DUPLICATE REMOVED:                 "credibility_score": int(credibility),
-# DUPLICATE REMOVED:                 "sources_count": sum(s.sources_count for s in review.sections.values())
-# DUPLICATE REMOVED:                 if review.sections
-# DUPLICATE REMOVED:                 else 10,
-# DUPLICATE REMOVED:             }
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:             # 1. Genera One-Pager
-# DUPLICATE REMOVED:             from export_onepager import create_onepager
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:             stw_progress = calculate_stw_progress(plan)
-# DUPLICATE REMOVED:             onepager_path = create_onepager(
-# DUPLICATE REMOVED:                 plan_data=plan_data,
-# DUPLICATE REMOVED:                 club_name=review.club_name,
-# DUPLICATE REMOVED:                 metadata=common_metadata,
-# DUPLICATE REMOVED:                 stw_progress=stw_progress,
-# DUPLICATE REMOVED:             )
-# DUPLICATE REMOVED:             logger.info(f"One-Pager generato: {onepager_path}")
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:             # 2. Genera Executive Report
-# DUPLICATE REMOVED:             exec_metadata = {
-# DUPLICATE REMOVED:                 "category": review.category or "Eccellenza",
-# DUPLICATE REMOVED:                 "primary_color": common_metadata.get("primary_color", "#1a365d"),
-# DUPLICATE REMOVED:                 "secondary_color": common_metadata.get("secondary_color", "#ffffff"),
-# DUPLICATE REMOVED:                 "dimensione_rosa": getattr(review, "squad_size", 22),
-# DUPLICATE REMOVED:                 "capienza_stadio": getattr(review, "stadium_capacity", 0),
-# DUPLICATE REMOVED:                 "known_financials": {},
-# DUPLICATE REMOVED:                 "estimated_fields": {
-# DUPLICATE REMOVED:                     "fatturato": "tier3_estimated",
-# DUPLICATE REMOVED:                     "monte_ingaggi": "tier2_deduced",
-# DUPLICATE REMOVED:                     "valore_rosa": "tier2_deduced",
-# DUPLICATE REMOVED:                 },
-# DUPLICATE REMOVED:             }
-# DUPLICATE REMOVED:             exec_html = plan_renderer.render_executive_html(
-# DUPLICATE REMOVED:                 plan_data=plan_data,
-# DUPLICATE REMOVED:                 club_name=review.club_name,
-# DUPLICATE REMOVED:                 category=review.category or "Eccellenza",
-# DUPLICATE REMOVED:                 metadata=exec_metadata,
-# DUPLICATE REMOVED:                 sources=[],
-# DUPLICATE REMOVED:             )
-# DUPLICATE REMOVED:             exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
-# DUPLICATE REMOVED:             exec_path = OUTPUT_DIR / exec_filename
-# DUPLICATE REMOVED:             with open(exec_path, "w", encoding="utf-8") as f:
-# DUPLICATE REMOVED:                 f.write(exec_html)
-# DUPLICATE REMOVED:             logger.info(f"Executive Report generato: {exec_path}")
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         except Exception as e:
-# DUPLICATE REMOVED:             logger.warning(
-# DUPLICATE REMOVED:                 f"Generazione One-Pager/Executive fallita (non bloccante): {e}"
-# DUPLICATE REMOVED:             )
-# DUPLICATE REMOVED:         # ===== FINE GENERAZIONE EXTRA =====
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         # Pulisci temp
-# DUPLICATE REMOVED:         if temp_dir and os.path.exists(temp_dir):
-# DUPLICATE REMOVED:             try:
-# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
-# DUPLICATE REMOVED:             except:
-# DUPLICATE REMOVED:                 pass
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:         return send_file(
-# DUPLICATE REMOVED:             final_pdf_path,
-# DUPLICATE REMOVED:             mimetype="application/pdf",
-# DUPLICATE REMOVED:             as_attachment=True,
-# DUPLICATE REMOVED:             download_name=f"{pdf_filename}.pdf",
-# DUPLICATE REMOVED:         )
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED:     except Exception as e:
-# DUPLICATE REMOVED:         logger.exception(f"PDF export error: {e}")
-# DUPLICATE REMOVED:         if temp_dir and os.path.exists(temp_dir):
-# DUPLICATE REMOVED:             try:
-# DUPLICATE REMOVED:                 shutil.rmtree(temp_dir)
-# DUPLICATE REMOVED:             except:
-# DUPLICATE REMOVED:                 pass
-# DUPLICATE REMOVED:         return jsonify({"success": False, "error": str(e)}), 500
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED: 
-# DUPLICATE REMOVED: @app.route("/api/export/<plan_id>/paged", methods=["GET"])
-def api_export_paged_html(plan_id: str):
-    """
-    Esporta piano come HTML Print-First con Paged.js.
-    Documento pronto per Stampa -> PDF con layout A4 paginato.
-    Branding automatico basato sul nome del club.
-    """
-    try:
-        review = editor.reviews.get(plan_id)
-        if not review:
-            return jsonify({"success": False, "error": "Plan not found"}), 404
-
-        plan_data = editor.export_plan_for_final(plan_id)
-        if not plan_data:
-            return jsonify({"success": False, "error": "No content to export"}), 400
-
-        # === BRANDING AUTOMATICO ===
-        # Prova a ottenere colori custom dai metadata del review
-        custom_primary = getattr(review, "primary_color", None)
-        custom_secondary = getattr(review, "secondary_color", None)
-
-        # Se non ci sono colori custom, deducili dal nome del club
-        club_identity = get_club_identity(
-            club_name=review.club_name,
-            custom_primary=custom_primary,
-            custom_secondary=custom_secondary,
-        )
-
-        logger.info(
-            f"Club branding: {review.club_name} -> {club_identity['primary']} (custom: {club_identity['is_custom']})"
-        )
-
-        sources = []
-        metadata = {
-            "category": review.category,
-            "primary_color": club_identity["primary"],
-            "secondary_color": club_identity["secondary"],
-            "accent_color": club_identity.get("accent"),
-        }
-
-        # Genera HTML Paged.js
-        from export_paged import create_paged_html
-
-        filepath = create_paged_html(
-            plan_data=plan_data,
-            club_name=review.club_name,
-            sources=sources,
-            metadata=metadata,
-        )
-
-        return send_file(
-            filepath,
-            mimetype="text/html",
-            as_attachment=True,
-            download_name=filepath.name,
-        )
-
-    except Exception as e:
-        logger.exception(f"Paged HTML export error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
 
 @app.route("/api/preview/<plan_id>", methods=["GET"])
 def api_preview_print(plan_id: str):
@@ -5342,11 +3698,9 @@ def api_preview_print(plan_id: str):
         logger.exception(f"Preview error: {e}")
         return f"Errore: {str(e)}", 500
 
-
 # =============================================================================
 # API - WORKFLOW
 # =============================================================================
-
 
 @app.route("/api/plan/<plan_id>/finalize", methods=["POST"])
 def api_finalize_plan(plan_id: str):
@@ -5412,33 +3766,11 @@ def api_finalize_plan(plan_id: str):
 
     return jsonify({"success": True})
 
-
 @app.route("/api/plan/<plan_id>/archive", methods=["POST"])
 def api_archive_plan(plan_id: str):
     """Archivia piano"""
     success = editor.archive_plan(plan_id)
     return jsonify({"success": success})
-
-
-@app.route("/api/bulk-approve", methods=["POST"])
-def api_bulk_approve():
-    """Auto-approva sezioni ad alta credibilità"""
-    data = request.json or {}
-    min_credibility = data.get("min_credibility", 80.0)
-
-    count = batch_manager.auto_approve_high_credibility(min_credibility)
-    return jsonify(
-        {
-            "success": True,
-            "approved_count": count,
-        }
-    )
-
-
-# =============================================================================
-# API - STATS
-# =============================================================================
-
 
 @app.route("/api/stats")
 def api_stats():
@@ -5455,17 +3787,14 @@ def api_stats():
         }
     )
 
-
 @app.route("/api/agents")
 def api_agents():
     """Info agenti disponibili"""
     return jsonify({"agents": orchestrator.get_agent_info()})
 
-
 # =============================================================================
 # API - SISTEMA STRUTTURATO v6.0
 # =============================================================================
-
 
 @app.route("/api/structured/generate", methods=["POST"])
 @route_error_handler
@@ -5536,7 +3865,6 @@ def api_structured_generate():
             }
         )
 
-
 @app.route("/api/structured/benchmarks/<category>")
 def api_structured_benchmarks(category: str):
     """
@@ -5554,7 +3882,6 @@ def api_structured_benchmarks(category: str):
 
     return jsonify({"success": True, "category": category, "benchmarks": benchmarks})
 
-
 @app.route("/api/structured/templates")
 def api_structured_templates():
     """
@@ -5562,14 +3889,12 @@ def api_structured_templates():
     """
     return jsonify({"success": True, "templates": SECTION_DATA_TEMPLATES})
 
-
 @app.route("/api/questionnaire/schema")
 def api_questionnaire_schema():
     """
     Restituisce lo schema del questionario per n8n/frontend.
     """
     return jsonify({"success": True, "schema": get_questionnaire_schema()})
-
 
 @app.route("/api/plan-export-status/<plan_id>")
 @login_required
@@ -5611,7 +3936,6 @@ def api_plan_export_status(plan_id):
         logger.error(f"Export status check error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 # NOTA: Route duplicata rimossa - usare /success/<plan_id> invece
 # La route /plan/<plan_id> è già gestita da plan_detail() alla linea 749
 # @app.route("/plan/<plan_id>")
@@ -5633,11 +3957,9 @@ def api_plan_export_status(plan_id):
 #         logger.error(f"Plan success page error: {e}")
 #         return "Errore rendering plan success page", 500
 
-
 # =============================================================================
 # ERROR HANDLERS
 # =============================================================================
-
 
 @app.errorhandler(404)
 def not_found(e):
@@ -5654,7 +3976,6 @@ def not_found(e):
     """,
         404,
     )
-
 
 @app.errorhandler(500)
 def server_error(e):
@@ -5673,11 +3994,9 @@ def server_error(e):
         500,
     )
 
-
 # =============================================================================
 # CLI COMMANDS
 # =============================================================================
-
 
 @app.cli.command("init-db")
 def init_db():
@@ -5685,13 +4004,11 @@ def init_db():
     knowledge_manager.store._init_db()
     print("Database initialized")
 
-
 @app.cli.command("export-knowledge")
 def export_knowledge():
     """Esporta knowledge base"""
     path = knowledge_manager.export_full_knowledge_base()
     print(f"Exported to: {path}")
-
 
 @app.cli.command("auto-approve")
 def auto_approve():
@@ -5699,11 +4016,9 @@ def auto_approve():
     count = batch_manager.auto_approve_high_credibility(80.0)
     print(f"Auto-approved {count} sections")
 
-
 # =============================================================================
 # MAIN
 # =============================================================================
-
 
 def check_port_available(port: int) -> bool:
     """Verifica se la porta è disponibile."""
@@ -5715,7 +4030,6 @@ def check_port_available(port: int) -> bool:
             return True
         except OSError:
             return False
-
 
 def kill_process_on_port(port: int) -> bool:
     """Tenta di terminare il processo che occupa la porta (Windows)."""
@@ -5750,7 +4064,6 @@ def kill_process_on_port(port: int) -> bool:
         print(f"[!] Errore durante kill processo: {e}")
         return False
 
-
 @app.route("/api/check-file/<path:filename>")
 def api_check_file(filename):
     """Verifica se un file esiste nella cartella output."""
@@ -5764,7 +4077,6 @@ def api_check_file(filename):
     except Exception as e:
         return jsonify({"ready": False, "error": str(e)})
 
-
 # ============================================================
 # LAB — Network access helpers
 # ============================================================
@@ -5774,7 +4086,6 @@ _lab_access: Dict[str, str] = {
     "lan": "", "tailscale": "", "tunnel": "", "tunnel_status": "inactive"
 }
 _WIN_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
-
 
 def _get_tailscale_ip() -> str:
     """Restituisce l'IP Tailscale (100.x.x.x) se Tailscale è attivo."""
@@ -5805,7 +4116,6 @@ def _get_tailscale_ip() -> str:
         pass
     return ""
 
-
 def _get_local_ip() -> str:
     try:
         s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
@@ -5815,7 +4125,6 @@ def _get_local_ip() -> str:
         return ip
     except Exception:
         return "127.0.0.1"
-
 
 def _ensure_ssl_cert(local_ip: str, extra_ips: Optional[List[str]] = None):
     """
@@ -5883,7 +4192,6 @@ def _ensure_ssl_cert(local_ip: str, extra_ips: Optional[List[str]] = None):
     except Exception as e:
         print(f"[SSL] Errore: {e} — uso SSL adhoc")
         return "adhoc"
-
 
 def _try_start_tunnel(port: int) -> None:
     """
@@ -5986,466 +4294,11 @@ def _try_start_tunnel(port: int) -> None:
     _lab_access["tunnel_status"] = "unavailable"
     print("[LAB] Nessun tunnel. Usa Tailscale per accesso permanente da qualsiasi rete.")
 
-
-@app.route("/api/lab/urls")
-def lab_urls():
-    return jsonify(_lab_access)
-
-
-@app.route("/api/lab/qr")
-def lab_qr():
-    """Return a QR code SVG for the given ?url= parameter."""
-    url = request.args.get("url", "").strip()
-    if not url:
-        return "", 400
-    try:
-        import qrcode, qrcode.image.svg, io
-        img = qrcode.make(url, image_factory=qrcode.image.svg.SvgImage, box_size=8)
-        buf = io.BytesIO()
-        img.save(buf)
-        return Response(buf.getvalue(), mimetype="image/svg+xml",
-                        headers={"Cache-Control": "max-age=3600"})
-    except ImportError:
-        # Minimal fallback SVG with text only
-        safe = url.replace("&", "&amp;").replace("<", "&lt;")
-        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">'
-               f'<rect width="200" height="60" fill="#f7fafc" rx="8"/>'
-               f'<text x="10" y="36" font-size="11" font-family="monospace" fill="#1a365d">{safe}</text>'
-               f'</svg>')
-        return Response(svg, mimetype="image/svg+xml")
-
-
-@app.route("/api/lab/cert")
-def lab_cert():
-    """Serve the self-signed root cert so Android can install it as trusted CA."""
-    cert_path = Path(__file__).parent / "ssl" / "cert.pem"
-    if not cert_path.exists():
-        return jsonify({"error": "Certificato non ancora generato"}), 404
-    return Response(
-        cert_path.read_bytes(),
-        mimetype="application/x-pem-file",
-        headers={
-            "Content-Disposition": 'attachment; filename="rf-lab-cert.pem"',
-            "Cache-Control": "no-cache",
-        },
-    )
-
-
-# ============================================================
-# LAB — Model comparison UI
-# ============================================================
-
-_lab_runs: Dict[str, dict] = {}        # run_id -> run data
-_lab_club_data: Dict = {}               # in-memory Riccione cache
-_LAB_DATA_FILE = Path(__file__).parent / "lab_data" / "riccione.json"
-
-
-@app.route("/lab")
-def lab():
-    return render_template("lab.html")
-
-
-@app.route("/lab/setup")
-def lab_setup():
-    return render_template("lab_setup.html")
-
-
-@app.route("/api/lab/models", methods=["GET"])
-def lab_models():
-    """Discover: OpenRouter free models, Ollama local models, Gemini available."""
-    import requests as _req
-    result: Dict[str, list] = {"openrouter": [], "ollama": [], "gemini": []}
-
-    # OpenRouter free models (no auth needed for public list)
-    try:
-        r = _req.get("https://openrouter.ai/api/v1/models", timeout=8)
-        if r.ok:
-            for m in r.json().get("data", []):
-                p = m.get("pricing", {})
-                if str(p.get("prompt", "1")) == "0" and str(p.get("completion", "1")) == "0":
-                    result["openrouter"].append({
-                        "id": m["id"],
-                        "name": m.get("name", m["id"]),
-                        "context": m.get("context_length", 0),
-                    })
-    except Exception as e:
-        app.logger.warning(f"lab_models OpenRouter: {e}")
-
-    # Ollama local models
-    ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-    if ollama_base.endswith("/v1"):
-        ollama_base = ollama_base[:-3]
-    try:
-        r = _req.get(f"{ollama_base}/api/tags", timeout=4)
-        if r.ok:
-            result["ollama"] = [m["name"] for m in r.json().get("models", [])]
-    except Exception:
-        pass
-
-    # Gemini — list available via API
-    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
-    if gemini_key:
-        try:
-            import google.generativeai as _genai
-            from ai_providers.gemini_provider import _PREFERRED_MODELS
-            _genai.configure(api_key=gemini_key)
-            avail = {m.name for m in _genai.list_models()}
-            result["gemini"] = [m for m in _PREFERRED_MODELS if f"models/{m}" in avail]
-        except Exception:
-            from ai_providers.gemini_provider import detect_best_gemini_model
-            result["gemini"] = [detect_best_gemini_model(gemini_key)]
-
-    return jsonify(result)
-
-
-@app.route("/api/lab/club-data", methods=["GET"])
-def lab_club_data_info():
-    """Status of cached club data."""
-    global _lab_club_data
-    if not _lab_club_data and _LAB_DATA_FILE.exists():
-        try:
-            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
-                _lab_club_data = json.load(f).get("club_data", {})
-        except Exception:
-            pass
-    if _lab_club_data:
-        return jsonify({
-            "loaded": True,
-            "club_name": _lab_club_data.get("club_name", "N/A"),
-            "has_interviews": bool(_lab_club_data.get("interviste_board")),
-        })
-    return jsonify({"loaded": False})
-
-
-@app.route("/api/lab/save-interviews", methods=["POST"])
-def lab_save_interviews():
-    """Load .docx interviews from a folder path and persist to lab_data/riccione.json."""
-    global _lab_club_data
-    body = request.get_json(force=True)
-    path = body.get("path", "").strip()
-    if not path:
-        return jsonify({"error": "path mancante"}), 400
-    try:
-        import importlib.util
-        _ab_spec = importlib.util.spec_from_file_location(
-            "ab_test", Path(__file__).parent / "ab_test.py"
-        )
-        _ab = importlib.util.module_from_spec(_ab_spec)
-        _ab_spec.loader.exec_module(_ab)
-
-        interviews = _ab.load_interviews(path)
-        if not interviews:
-            return jsonify({"error": f"Nessun .docx trovato in: {path}"}), 404
-
-        club_data = _ab.build_club_data(interviews)
-        _LAB_DATA_FILE.parent.mkdir(exist_ok=True)
-        cache = {
-            "saved_at": datetime.now().isoformat(),
-            "path": path,
-            "file_count": len(interviews),
-            "total_chars": sum(len(v) for v in interviews.values()),
-            "club_data": club_data,
-        }
-        with open(_LAB_DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-        _lab_club_data = club_data
-        return jsonify({
-            "ok": True,
-            "file_count": cache["file_count"],
-            "total_chars": cache["total_chars"],
-            "club_name": club_data.get("club_name", "N/A"),
-        })
-    except Exception as e:
-        app.logger.error(f"lab_save_interviews: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/lab/run", methods=["POST"])
-def lab_run():
-    """Generate a plan with one model; stream per-agent progress via SSE."""
-    global _lab_club_data
-
-    body = request.get_json(force=True)
-    provider_type = body.get("provider", "gemini")   # gemini | openrouter | ollama
-    model_id      = body.get("model", "")
-    api_key_ov    = body.get("api_key", "")
-    run_label     = body.get("label") or f"{provider_type} / {model_id or 'auto'}"
-
-    # Ensure club data
-    if not _lab_club_data and _LAB_DATA_FILE.exists():
-        try:
-            with open(_LAB_DATA_FILE, encoding="utf-8") as f:
-                _lab_club_data = json.load(f).get("club_data", {})
-        except Exception:
-            pass
-    if not _lab_club_data:
-        return jsonify({"error": "Dati club non caricati. Usa 'Carica Interviste'."}), 400
-
-    import uuid
-    run_id = str(uuid.uuid4())[:8]
-    club_data_snapshot = dict(_lab_club_data)
-
-    def _stream():
-        q: queue.Queue = queue.Queue()
-
-        def _worker():
-            orig_env: Dict[str, str] = {}
-
-            def _setenv(k, v):
-                orig_env[k] = os.environ.get(k, "")
-                if v:
-                    os.environ[k] = v
-                elif k in os.environ:
-                    del os.environ[k]
-
-            try:
-                if provider_type == "openrouter":
-                    _setenv("OLLAMA_BASE_URL", "https://openrouter.ai/api/v1")
-                    _setenv("OLLAMA_MODEL", model_id)
-                    _setenv("OLLAMA_API_KEY",
-                            api_key_ov or os.environ.get("OPENROUTER_API_KEY", ""))
-                elif provider_type == "ollama":
-                    _setenv("OLLAMA_BASE_URL",
-                            os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"))
-                    _setenv("OLLAMA_MODEL", model_id)
-                elif provider_type == "gemini":
-                    _setenv("OLLAMA_BASE_URL", "")   # force Gemini path
-                    if api_key_ov:
-                        _setenv("GEMINI_API_KEY", api_key_ov)
-
-                q.put({"event": "start", "run_id": run_id, "label": run_label})
-
-                # Fresh orchestrator (reads env vars at init)
-                from agents import MultiAgentOrchestrator as _Orch
-
-                orch = _Orch()
-                agent_metrics: List[dict] = []
-
-                # Disable AI cache and patch generate() for timing
-                class _NoCache:
-                    def get(self, _): return None
-                    def set(self, _k, _v): pass
-
-                for role, ag in orch.agents.items():
-                    ag.cache = _NoCache()
-                    _rname = role.value if hasattr(role, "value") else str(role)
-                    _orig  = ag.generate
-
-                    def _patch(rn, orig):
-                        def _w(*a, **kw):
-                            q.put({"event": "agent_start", "agent": rn})
-                            t0 = time.time()
-                            res = orig(*a, **kw)
-                            dt = round(time.time() - t0, 1)
-                            ch = len((res or {}).get("content", ""))
-                            agent_metrics.append({"agent": rn, "seconds": dt, "chars": ch})
-                            q.put({"event": "agent_done", "agent": rn,
-                                   "seconds": dt, "chars": ch})
-                            return res
-                        return _w
-
-                    ag.generate = _patch(_rname, _orig)
-
-                t_start = time.time()
-                plan_result = orch.generate_strategic_plan(club_data=club_data_snapshot)
-                total = round(time.time() - t_start, 1)
-
-                _lab_runs[run_id] = {
-                    "run_id": run_id, "label": run_label,
-                    "provider": provider_type, "model": model_id,
-                    "agents": agent_metrics, "plan": plan_result.get("plan", {}),
-                    "total_seconds": total,
-                    "started_at": datetime.now().isoformat(),
-                }
-                q.put({"event": "complete", "run_id": run_id,
-                       "total_seconds": total, "agents": agent_metrics,
-                       "plan_keys": list(plan_result.get("plan", {}).keys())})
-
-            except Exception as exc:
-                app.logger.error(f"lab_run worker: {exc}", exc_info=True)
-                q.put({"event": "error", "message": str(exc)})
-            finally:
-                for k, v in orig_env.items():
-                    if v:
-                        os.environ[k] = v
-                    elif k in os.environ:
-                        del os.environ[k]
-                q.put(None)
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-        while True:
-            item = q.get()
-            if item is None:
-                break
-            yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-
-    return Response(
-        _stream(),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-@app.route("/api/lab/runs", methods=["GET"])
-def lab_runs_list():
-    runs = [
-        {k: v for k, v in r.items() if k != "plan"}
-        for r in sorted(_lab_runs.values(), key=lambda x: x["started_at"], reverse=True)
-    ]
-    return jsonify(runs)
-
-
-@app.route("/api/lab/runs/<run_id>", methods=["GET"])
-def lab_run_detail(run_id):
-    run = _lab_runs.get(run_id)
-    if not run:
-        return jsonify({"error": "Run non trovata"}), 404
-    return jsonify(run)
-
-
-# ============================================================================
-# Questionari Digitali Board
-# ============================================================================
-from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
-
-QUESTIONNAIRE_DATA_DIR = Path("data/questionnaires")
-QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-_WIKI_KB = Path("wiki/kb")
-
-
-def _wiki_append_plan(club_data: dict, plan_id: str) -> None:
-    """
-    Aggiorna il wiki dopo ogni piano generato (Karpathy: file-back).
-    Deterministico, zero LLM. Aggiunge dati noti al benchmark e al log.
-    """
-    try:
-        if not _WIKI_KB.exists():
-            return
-
-        club_name = club_data.get("club_name", "Club Sconosciuto")
-        category = club_data.get("category", "Eccellenza").lower().replace(" ", "-")
-        region = club_data.get("region", "").lower().replace(" ", "-") or "italia"
-        city = club_data.get("city", "")
-        board_members = club_data.get("board_members", [])
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        # --- 1. Aggiorna/crea benchmark/<category>-<region>.md ---
-        benchmark_dir = _WIKI_KB / "benchmark"
-        benchmark_dir.mkdir(exist_ok=True)
-        bench_file = benchmark_dir / f"{category}-{region}.md"
-
-        new_entry = f"""
-## {club_name} — Piano generato {today} (plan_id: {plan_id})
-
-- **Categoria:** {club_data.get('category', 'N/A')}
-- **Città:** {city or 'N/A'}
-- **Regione:** {club_data.get('region', 'N/A')}
-- **Board consultati:** {len(board_members)} ({', '.join(board_members[:3])}{'...' if len(board_members) > 3 else ''})
-- **Fonte dati:** {club_data.get('data_source', 'manuale')}
-"""
-        if club_data.get("synthesized_vision"):
-            new_entry += f"- **Vision dichiarata:** {club_data['synthesized_vision'][:200]}\n"
-        if club_data.get("swot_aggregated", {}).get("forza"):
-            new_entry += f"- **Principali forze:** {club_data['swot_aggregated']['forza'][:150]}\n"
-
-        if bench_file.exists():
-            bench_file.write_text(
-                bench_file.read_text(encoding="utf-8") + new_entry,
-                encoding="utf-8"
-            )
-        else:
-            header = f"""---
-title: "Benchmark {club_data.get('category', 'Eccellenza')} - {club_data.get('region', region)}"
-tags: [{category}, {region}, benchmark]
-clubs: []
-date_created: {today}
-date_updated: {today}
----
-
-# Benchmark {club_data.get('category', 'Eccellenza')} — {club_data.get('region', region).title()}
-
-> Dati accumulati dai piani generati. Aggiornato automaticamente dopo ogni generazione.
-
-"""
-            bench_file.write_text(header + new_entry, encoding="utf-8")
-
-        # --- 2. Append a log.md ---
-        log_file = _WIKI_KB / "log.md"
-        log_entry = f"""
----
-## {today} -- Piano generato: {club_name}
-- Club: {club_name} ({club_data.get('category', 'N/A')}, {club_data.get('region', 'N/A')})
-- Plan ID: {plan_id}
-- Board consultati: {len(board_members)}
-- Benchmark aggiornato: benchmark/{category}-{region}.md
-"""
-        if log_file.exists():
-            log_file.write_text(
-                log_file.read_text(encoding="utf-8") + log_entry,
-                encoding="utf-8"
-            )
-
-        logger.info(f"Wiki updated after plan {plan_id} for {club_name}")
-
-    except Exception as e:
-        logger.warning(f"Wiki append failed (non-blocking): {e}")
-
-
-def _q_path(club_slug, member_slug, q_id):
-    """Path file JSON per singolo questionario compilato."""
-    d = QUESTIONNAIRE_DATA_DIR / club_slug / member_slug
-    d.mkdir(parents=True, exist_ok=True)
-    return d / f"{q_id}.json"
-
-
-def _q_statuses(club_slug, member_slug):
-    """Stato compilazione per ogni questionario."""
-    statuses = {}
-    for q_id in QUESTIONNAIRE_ORDER:
-        p = _q_path(club_slug, member_slug, q_id)
-        if p.exists():
-            data = json.loads(p.read_text(encoding="utf-8"))
-            # "completed" if the file exists and has any content — optional fields
-            # don't block progress (club presidents rarely fill every field)
-            has_content = False
-            for section_data in data.get("data", {}).values():
-                if isinstance(section_data, list):
-                    for item in section_data:
-                        if any(v for v in item.values()):
-                            has_content = True
-                            break
-                elif isinstance(section_data, dict):
-                    if any(v for v in section_data.values()):
-                        has_content = True
-                if has_content:
-                    break
-            statuses[q_id] = "completed" if has_content else "partial"
-        else:
-            statuses[q_id] = "empty"
-    return statuses
-
-
-def _get_clubs():
-    """Lista club disponibili da data/clubs/."""
-    clubs_dir = Path("data/clubs")
-    if not clubs_dir.exists():
-        return []
-    result = []
-    for d in sorted(clubs_dir.iterdir()):
-        if d.is_dir():
-            name = d.name.replace("-", " ").title()
-            result.append((d.name, name))
-    return result
-
-
 @app.route("/demo/questionari")
 def demo_questionari():
     """Route pubblica demo pre-caricata con Riccione Calcio."""
     session["demo_mode"] = True
     return redirect(url_for("questionnaire_index", club="riccione-calcio-1926", member="demo", role="board"))
-
 
 @app.route("/questionnaires")
 def questionnaire_index():
@@ -6463,7 +4316,6 @@ def questionnaire_index():
         statuses=statuses,
         year=datetime.now().year,
     )
-
 
 @app.route("/questionnaire/<club_slug>/<member_slug>/<q_id>")
 def questionnaire_form(club_slug, member_slug, q_id):
@@ -6501,7 +4353,6 @@ def questionnaire_form(club_slug, member_slug, q_id):
         next_title=QUESTIONNAIRES[next_id]["title"] if next_id else "",
     )
 
-
 @app.route("/api/questionnaire/<club_slug>/<member_slug>/<q_id>", methods=["POST"])
 def api_questionnaire_save(club_slug, member_slug, q_id):
     if q_id not in QUESTIONNAIRES:
@@ -6522,7 +4373,6 @@ def api_questionnaire_save(club_slug, member_slug, q_id):
     p.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return jsonify({"success": True, "path": str(p)})
-
 
 @app.route("/api/questionnaire/<club_slug>/<member_slug>/export-md", methods=["POST"])
 def api_questionnaire_export_md(club_slug, member_slug):
@@ -6583,7 +4433,6 @@ def api_questionnaire_export_md(club_slug, member_slug):
         "member": display_name,
     })
 
-
 @app.route("/api/questionnaire/<club_slug>/export-all-md", methods=["POST"])
 def api_questionnaire_export_all_md(club_slug):
     """Esporta tutti i membri di un club in markdown."""
@@ -6641,12 +4490,10 @@ def api_questionnaire_export_all_md(club_slug):
 
     return jsonify({"success": True, "exported": results})
 
-
 @app.route("/free-swot")
 def free_swot_page():
     """Landing page pubblica: mini-SWOT gratuita come funnel hook."""
     return render_template("free_swot.html")
-
 
 @app.route("/api/free-swot", methods=["POST"])
 def api_free_swot():
@@ -6686,7 +4533,6 @@ Rispondi in formato JSON: {{"strengths": "html bullets", "weaknesses": "html bul
 
     # Fallback
     return jsonify({"success": True, "strengths": "", "weaknesses": "", "opportunities": "", "threats": "", "summary": ""})
-
 
 @app.route("/api/generate-from-questionnaires", methods=["POST"])
 @login_required
@@ -6891,7 +4737,6 @@ def api_generate_from_questionnaires():
         logger.error(f"generate-from-questionnaires error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/demo/generate", methods=["POST"])
 def api_demo_generate():
     """Genera piano da dati demo Riccione — pubblico, nessun login richiesto."""
@@ -7088,7 +4933,6 @@ def api_demo_generate():
         logger.error(f"Demo generate error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/wiki/anagrafica", methods=["POST"])
 def api_wiki_anagrafica():
     """
@@ -7170,13 +5014,11 @@ source: splash_form
         logger.error(f"Wiki anagrafica error: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/demo/risultati")
 def demo_risultati():
     """Pagina pubblica risultati demo — polling + 3 download."""
     project_id = request.args.get("project_id", "")
     return render_template("demo_risultati.html", project_id=project_id)
-
 
 @app.route("/demo/quicktest")
 def demo_quicktest():
@@ -7236,7 +5078,6 @@ fetch('/api/demo/generate', {
 });
 </script>
 </body></html>"""
-
 
 if __name__ == "__main__":
     PORT = 5000
