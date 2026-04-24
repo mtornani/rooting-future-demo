@@ -174,6 +174,14 @@ OPENROUTER_MODELS = {
     "google/gemini-2.0-flash-001": "Gemini 2.0 Flash (fallback, paid)",
 }
 
+# Catena di modelli gratuiti: tentati in ordine su quota/errore
+FREE_MODEL_CHAIN = [
+    "google/gemma-3-27b-it:free",
+    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+]
+
 # Motore principale: Gemma 3 27B via OpenRouter (gratuito, open source)
 # Fallback: Gemini Flash (a pagamento, solo su errore Gemma)
 OPENROUTER_DEFAULT_MODEL = os.environ.get(

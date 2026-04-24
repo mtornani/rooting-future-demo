@@ -143,7 +143,7 @@ def generate_rooting_future_methodology_html(
                 <div class="step-content">
                     <h4>🤖 AI Multi-Agente STW-Aligned</h4>
                     <div class="step-details">
-                        <p class="step-desc">Sistema di 6 agenti AI specializzati (Gemini 2.0) che generano
+                        <p class="step-desc">Sistema di 6 agenti AI specializzati che generano
                         obiettivi strategici allineati alla matrice STW (Sport To Win) con 21 macro-obiettivi.</p>
                         <div class="agents-grid">
                             <span class="agent-badge">⚽ Sportivi</span>
@@ -511,7 +511,7 @@ def generate_methodology_section_html(
         </div>
         <div class="content methodology-content">
             <div class="methodology-intro">
-                <p>Questo report è stato generato da <strong>Rooting Future Strategy Engine v5.4</strong>,
+                <p>Questo report è stato generato da <strong>Rooting Future</strong>,
                 un sistema di intelligenza artificiale specializzato in pianificazione strategica per club calcistici.</p>
                 <p>I dati presentati provengono da molteplici fonti con diversi livelli di affidabilità,
                 come indicato dalle etichette <span class="tier-badge tier-1">FATTO</span>,

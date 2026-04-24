@@ -540,7 +540,7 @@ class OnePagerExporter(BaseExporter):
     <footer class="footer">
         <div>&copy; {current_year} Rooting Future</div>
         <div>Piano Strategico · Analisi Dati · Uso Riservato</div>
-        <div>rooting-future.it</div>
+        <div></div>
     </footer>
 </body>
 </html>'''

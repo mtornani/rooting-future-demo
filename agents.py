@@ -43,6 +43,7 @@ from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_DEFAULT_MODEL,
     OPENROUTER_FALLBACK_MODEL,
+    FREE_MODEL_CHAIN,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
@@ -107,23 +108,46 @@ class OpenRouterClient:
     def generate_content(self, prompt: str, temperature: float = 0.7,
                          max_tokens: int = 8192) -> str:
         """
-        Genera contenuto tramite OpenRouter (interfaccia simile a Gemini).
-        Restituisce il testo della risposta.
+        Genera contenuto tramite OpenRouter.
+        Tenta la catena FREE_MODEL_CHAIN in ordine su quota esaurita (429) o risposta vuota.
         """
         if not self.available:
             raise RuntimeError("OpenRouter client non disponibile")
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=max_tokens,
-            extra_headers={
-                "HTTP-Referer": "https://rootingfuture.app",
-                "X-Title": "Rooting Future Strategy Engine",
-            },
+        # Build chain: preferred model first, then rest of free chain (deduped)
+        chain = [self.model] + [m for m in FREE_MODEL_CHAIN if m != self.model]
+
+        last_error = None
+        for model in chain:
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    extra_headers={
+                        "HTTP-Referer": "https://rootingfuture.app",
+                        "X-Title": "Rooting Future Strategy Engine",
+                    },
+                )
+                content = response.choices[0].message.content or ""
+                if content.strip():
+                    if model != self.model:
+                        logger.info(f"OpenRouter: fallback model {model} succeeded")
+                    return content
+                # Empty response → try next model
+                logger.warning(f"OpenRouter: model {model} returned empty response, trying next")
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
+                    logger.warning(f"OpenRouter: model {model} quota/rate limit, trying next")
+                    last_error = e
+                else:
+                    raise  # Non-quota errors bubble up immediately
+
+        raise RuntimeError(
+            f"All models in FREE_MODEL_CHAIN exhausted. Last error: {last_error}"
         )
-        return response.choices[0].message.content
 
 
 def get_active_provider() -> str:
