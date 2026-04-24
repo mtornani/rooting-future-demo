@@ -94,7 +94,7 @@ from config import (
     get_missing_config,
 )
 
-from agents import MultiAgentOrchestrator, AgentRole
+from agents import MultiAgentOrchestrator, AgentRole, OpenRouterClient
 from web_research import WebResearcher, ResearchAggregator
 from data_sourcing import SourcedContentGenerator
 from knowledge_store import KnowledgeManager, PlanRecord
@@ -117,7 +117,7 @@ from post_production_editor import (
 
 # Sistema strutturato v6.0
 from domain.rendering import PlanRenderer
-from structured_agent import StructuredOrchestrator
+from structured_agent import StructuredOrchestrator, SECTION_DATA_TEMPLATES
 from file_search_manager import FileSearchManager
 from football_data_provider import data_provider
 
@@ -4565,7 +4565,8 @@ Per ogni quadrante SWOT, espandi i punti indicati con 3-5 bullet professionali.
 Aggiungi un paragrafo di sintesi strategica (max 3 righe).
 Rispondi in formato JSON: {{"strengths": "html bullets", "weaknesses": "html bullets", "opportunities": "html bullets", "threats": "html bullets", "summary": "testo sintesi"}}"""
 
-        result = _ai_generation_provider.generate(prompt, max_tokens=2000)
+        _swot_client = OpenRouterClient()
+        result = _swot_client.generate_content(prompt, max_tokens=2000)
         # Parse JSON from response
         import re as _re
         json_match = _re.search(r'\{.*\}', result, _re.DOTALL)
