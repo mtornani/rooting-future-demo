@@ -294,85 +294,48 @@ def broadcast_log(level: str, message: str, source: str = "system"):
 # SSE handler rimosso perché instabile su alcuni sistemi
 log_stream_handler = None
 
-from license_manager import licenser
-
 # =============================================================================
-# LICENSE ENFORCEMENT MIDDLEWARE
+# COMPONENTI (inizializzazione con gestione errori)
 # =============================================================================
 
-@app.before_request
-def check_system_activation():
-    """
-    Verifica l'attivazione della licenza prima di ogni richiesta.
-    Controlla sia la validità della chiave che la scadenza temporale.
-    Esclude rotte di login, static e la pagina di attivazione stessa.
-    Su HF Spaces (SPACE_ID presente) bypassa il controllo licenza.
-    """
-    # HF Spaces deployment: no license required
-    if os.environ.get("SPACE_ID"):
-        return
-    allowed_routes = ["activation", "static", "auth.login", "auth.logout"]
-    if request.endpoint in allowed_routes or not request.endpoint:
-        return
+# FileSearchManager (Gemini RAG)
+try:
+    file_search_manager = FileSearchManager()
+    file_search_store_name = file_search_manager.get_store_name()
+except Exception as e:
+    logger.warning(f"FileSearchManager non disponibile: {e}")
+    file_search_manager = None
+    file_search_store_name = None
 
-    license_status = licenser.get_license_status()
+# Knowledge manager (DB + RAG)
+knowledge_manager = KnowledgeManager(file_search_manager=file_search_manager)
 
-    if not license_status["valid"]:
-        if license_status.get("expired"):
-            flash(license_status["message"], "error")
-        if request.endpoint != "activation":
-            return redirect(url_for("activation"))
+# Session Manager — persistente su SQLite /data
+from session_manager import init_session_manager
+session_manager = init_session_manager(store=knowledge_manager.store)
 
-@app.route("/activation", methods=["GET", "POST"])
-def activation():
-    """Pagina di blocco e attivazione licenza"""
-    machine_code = licenser.get_machine_code()
+# Auth
+init_auth(app, knowledge_manager.store)
 
-    if request.method == "POST":
-        email = request.form.get("email")
-        key = request.form.get("key")
+# Multi-Agent Orchestrator (Gemma primary, Gemini Flash fallback)
+orchestrator = MultiAgentOrchestrator(
+    knowledge_store=knowledge_manager,
+    file_search_store_name=file_search_store_name,
+)
 
-        if licenser.verify_license(key, email):
-            # Salva licenza con scadenza (default 365 giorni, perpetua se 0)
-            duration_days = request.form.get("duration_days", type=int) or 365
-            licenser.save_license(email, key, duration_days=duration_days)
+# Componenti base
+researcher = WebResearcher()
+research_aggregator = ResearchAggregator()
+docx_exporter = ProfessionalDocxExporter()
+html_exporter = ChunkedHTMLExporter()
+editor = PostProductionEditor()
+batch_manager = BatchReviewManager()
 
-            # Auto-creazione utente se non esiste
-            from auth_manager import bcrypt, User
-            from flask_login import login_user
-
-            existing_user = knowledge_manager.store.get_user_by_email(email)
-            if not existing_user:
-                # Genera password temporanea basata su parte della license key
-                temp_password = key[:8]  # Primi 8 caratteri della chiave
-                password_hash = bcrypt.generate_password_hash(temp_password).decode('utf-8')
-
-                # Crea utente con ruolo 'manager' e crediti iniziali
-                user_id = knowledge_manager.store.create_user(
-                    email=email,
-                    password_hash=password_hash,
-                    full_name="",  # L'utente può aggiornarlo dopo
-                    role="manager"  # Ruolo di default per clienti con licenza
-                )
-                # Assegna crediti iniziali (es. 10 piani)
-                knowledge_manager.store.update_user_credits(user_id, 10)
-
-                # Recupera l'utente appena creato
-                existing_user = knowledge_manager.store.get_user_by_email(email)
-
-                flash(f"Account creato! Password temporanea: {temp_password} (cambiala nelle impostazioni)", "success")
-
-            # Auto-login dell'utente
-            if existing_user:
-                user = User(existing_user)
-                login_user(user)
-
-            flash("Sistema Attivato con Successo!", "success")
-            return redirect(url_for("index"))
-        else:
-            flash("Chiave di Licenza non valida per questo PC.", "error")
-
-    return render_template("activation.html", machine_code=machine_code)
+# Sistema strutturato v6.0
+structured_orchestrator = StructuredOrchestrator(
+    file_search_store_name=file_search_store_name,
+    knowledge_store=knowledge_manager,
+)
 
 # =============================================================================
 # LEGAL & GDPR
