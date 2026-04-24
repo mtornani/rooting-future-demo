@@ -133,7 +133,7 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # Provider AI attivo: "gemini" (default) o "openrouter"
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "gemini")
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "openrouter")
 
 # STRIPE PAYMENTS
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_placeholder")
@@ -167,18 +167,20 @@ class ModelConfig:
 MODEL_CONFIG = ModelConfig()
 
 
-# Modelli OpenRouter consigliati (gratuiti o economici)
+# Modelli OpenRouter
 OPENROUTER_MODELS = {
-    "google/gemini-2.0-flash-exp:free": "Gemini 2.0 Flash (free)",
-    "google/gemma-3-27b-it:free": "Google Gemma 3 27B (free)",
-    "deepseek/deepseek-chat-v3-0324:free": "DeepSeek V3 0324 (free)",
-    "meta-llama/llama-4-maverick:free": "Llama 4 Maverick (free)",
-    "qwen/qwen3-235b-a22b:free": "Qwen3 235B (free)",
+    "google/gemma-3-27b-it:free": "Gemma 3 27B (primary, free)",
+    "google/gemini-flash-1.5": "Gemini Flash 1.5 (fallback, paid)",
+    "google/gemini-2.0-flash-001": "Gemini 2.0 Flash (fallback, paid)",
 }
 
-# Modello OpenRouter di default
+# Motore principale: Gemma 3 27B via OpenRouter (gratuito, open source)
+# Fallback: Gemini Flash (a pagamento, solo su errore Gemma)
 OPENROUTER_DEFAULT_MODEL = os.environ.get(
-    "OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"
+    "OPENROUTER_MODEL", "google/gemma-3-27b-it:free"
+)
+OPENROUTER_FALLBACK_MODEL = os.environ.get(
+    "OPENROUTER_FALLBACK_MODEL", "google/gemini-flash-1.5"
 )
 
 

@@ -42,6 +42,7 @@ from config import (
     AI_PROVIDER,
     OPENROUTER_API_KEY,
     OPENROUTER_DEFAULT_MODEL,
+    OPENROUTER_FALLBACK_MODEL,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
@@ -1036,10 +1037,10 @@ e soggette a revisione post-allineamento.
                     log_exception(wrapped, context=f"agent_{self.spec.name}")
                     return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
-            # === OPENROUTER PATH ===
+            # === OPENROUTER PATH (primary: Gemma, fallback: Gemini Flash) ===
             elif self._provider == "openrouter" and self._openrouter_client:
                 try:
-                    logger.debug(f"Invio richiesta a OpenRouter per {self.spec.name}")
+                    logger.debug(f"Invio richiesta a OpenRouter [{self._openrouter_client.model}] per {self.spec.name}")
                     raw_content = self._openrouter_client.generate_content(
                         prompt_content,
                         temperature=MODEL_CONFIG.temperature,
@@ -1048,9 +1049,23 @@ e soggette a revisione post-allineamento.
                     citations = []
                     self.cache.set(prompt_content, raw_content)
                 except Exception as e:
-                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_openrouter")
-                    log_exception(wrapped, context=f"agent_{self.spec.name}")
-                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+                    # Gemma failed — attempt Gemini Flash fallback (paid, controlled)
+                    logger.warning(f"Agent {self.spec.name}: Gemma failed ({e}), trying Gemini Flash fallback")
+                    or_key = self._openrouter_client.api_key if hasattr(self._openrouter_client, 'api_key') else ""
+                    try:
+                        fallback_client = OpenRouterClient(api_key=or_key, model=OPENROUTER_FALLBACK_MODEL)
+                        raw_content = fallback_client.generate_content(
+                            prompt_content,
+                            temperature=MODEL_CONFIG.temperature,
+                            max_tokens=MODEL_CONFIG.max_tokens,
+                        )
+                        citations = []
+                        logger.info(f"Agent {self.spec.name}: Gemini Flash fallback OK")
+                        self.cache.set(prompt_content, raw_content)
+                    except Exception as fallback_e:
+                        wrapped = handle_exception(fallback_e, context=f"agent_{self.spec.name}_fallback")
+                        log_exception(wrapped, context=f"agent_{self.spec.name}")
+                        return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === GEMINI PATH (default) ===
             else:
