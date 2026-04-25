@@ -123,15 +123,26 @@ def _extract_key_points(content: str, max_points: int = 5) -> List[str]:
 
 
 def _format_estimated_fields(estimated_fields: Dict[str, str]) -> str:
-    """Formatta i campi stimati con badge colorati per tier."""
+    """Formatta i campi stimati con badge colorati leggibili."""
     if not estimated_fields:
-        return '<li>Tutti i campi stimati algoritmicamente</li>'
+        return '<li>Dati elaborati su benchmark di categoria</li>'
 
+    _TIER_LABEL = {
+        "tier1_fact": "Verificato", "fatto": "Verificato",
+        "tier2_deduced": "Calcolato", "dedotto": "Calcolato",
+        "tier3_estimated": "Stimato", "stimato": "Stimato",
+    }
+    _TIER_CLASS = {
+        "tier1_fact": "tier-1", "fatto": "tier-1",
+        "tier2_deduced": "tier-2", "dedotto": "tier-2",
+        "tier3_estimated": "tier-3", "stimato": "tier-3",
+    }
     result = []
     for k, v in estimated_fields.items():
         label = k.replace("_", " ").title()
-        tier_class = "tier-1" if v == "fatto" else "tier-2" if v == "dedotto" else "tier-3"
-        result.append(f'<li>{label}: <span class="tier-badge {tier_class}">{v.upper()}</span></li>')
+        badge_label = _TIER_LABEL.get(v, "Stimato")
+        tier_class = _TIER_CLASS.get(v, "tier-3")
+        result.append(f'<li>{label}: <span class="tier-badge {tier_class}">{badge_label}</span></li>')
 
     return ''.join(result)
 

@@ -300,16 +300,14 @@ class ChunkedHTMLExporter(BaseExporter):
         if not self.sections:
             sections_html = '''\
             <section class="section chapter" id="no-content">
-                <div class="section-header"><h2>⚠ Contenuto non disponibile</h2></div>
+                <div class="section-header"><h2>⚠ Contenuto non ancora disponibile</h2></div>
                 <div class="section-body" style="color:#555;">
-                    <p>Il piano strategico non contiene sezioni generate. Possibili cause:</p>
+                    <p>Il piano strategico non è stato ancora elaborato. Per procedere:</p>
                     <ul style="margin:12px 0 0 20px; line-height:2;">
-                        <li>Il modello AI (Gemma 3 27B) ha superato la quota giornaliera gratuita</li>
-                        <li>Timeout durante la generazione parallela degli agenti</li>
-                        <li>Sessione scaduta — rigenera il piano</li>
+                        <li>Torna alla pagina di generazione e avvia nuovamente il processo</li>
+                        <li>Verifica che tutti i questionari siano stati completati correttamente</li>
+                        <li>Se il problema persiste, contatta il team Rooting Future</li>
                     </ul>
-                    <p style="margin-top:16px;"><strong>Soluzione:</strong> Rigenera il piano. Se il problema persiste,
-                    il sistema passerà automaticamente al modello Gemini Flash.</p>
                 </div>
             </section>'''
         else:
