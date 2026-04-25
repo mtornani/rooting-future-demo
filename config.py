@@ -136,8 +136,8 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 HF_MODEL = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
 HF_MODEL_CHAIN = [
-    "Qwen/Qwen2.5-72B-Instruct",           # primary: 72B, multilingual, high quality
-    "meta-llama/Llama-3.3-70B-Instruct",   # 70B fallback, multilingual
+    "meta-llama/Llama-3.3-70B-Instruct",   # primary: confirmed working on together
+    "Qwen/Qwen2.5-72B-Instruct",           # 72B fallback, multilingual
     "Qwen/Qwen2.5-32B-Instruct",           # 32B fallback, fast
     "mistralai/Mistral-Nemo-Instruct-2407", # 12B, lightweight fallback
     "Qwen/Qwen2.5-7B-Instruct",            # 7B, last resort

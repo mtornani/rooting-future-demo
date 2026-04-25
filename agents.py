@@ -644,7 +644,9 @@ Sei l'ANALISTA AREA STRUTTURALE STW. Redigi la sezione OBIETTIVI STRUTTURALI sec
   - Budget: [stima]
   - Beneficiari: [target]
 
-**REGOLE:**
+**REGOLE ASSOLUTE:**
+- Questa sezione ha ESATTAMENTE 2 MACRO (MACRO 1 e MACRO 2). NON aggiungere MACRO 3, MACRO 4 o altri obiettivi macro.
+- Finanziario e marketing NON appartengono a questa sezione.
 - Costi SEMPRE come range con fonte (es. "€50.000-80.000 - benchmark club simili")
 - Dati mancanti: `(dato da acquisire)`
 - Voce istituzionale

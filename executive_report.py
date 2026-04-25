@@ -377,21 +377,31 @@ def _extract_timeline_from_plan(plan_data: Dict) -> list:
     for key in ['roadmap', 'piano_triennale', 'strategic_roadmap', 'timeline']:
         content = plan_data.get(key, '')
         if content and len(content) > 100:
+            # Formato markdown table: | Anno 1 | Titolo | Desc |
+            table_blocks = re.findall(
+                r'\|\s*(?:Anno|Year)\s*(\d)[^|]*\|\s*([^|\n]{5,120})\|(?:\s*([^|\n]{5,250})\|)?',
+                content, re.IGNORECASE
+            )
+            if len(table_blocks) >= 2:
+                return [(f'Y{b[0]}', _clean_text(b[1]), _clean_text(b[2] or '')) for b in table_blocks[:3]]
+
+            # Formato standard: Anno 1: Titolo\nDescrizione
             blocks = re.findall(
-                r'(?:Anno|Year)\s*(\d)[:\s\-–—]*([^\n]{5,80})(?:\n([^\n]{20,250}))?',
+                r'(?:Anno|Year)\s*(\d)[:\s\-–—]*([^\n]{5,200})(?:\n([^\n]{20,250}))?',
                 content, re.IGNORECASE
             )
             if len(blocks) >= 2:
-                return [(f'Y{b[0]}', b[1].strip(), (b[2] or '').strip()[:200]) for b in blocks[:3]]
+                return [(f'Y{b[0]}', _clean_text(b[1]), _clean_text((b[2] or '').strip())) for b in blocks[:3]]
+
     # Fallback: cerca nell'executive summary
     exec_s = plan_data.get('executive_summary', '') or plan_data.get('coordinator_summary', '')
     if exec_s:
         blocks = re.findall(
-            r'(?:Anno|Triennio|Year)\s*(\d)[:\s\-–—]*([^\n.]{10,80})',
+            r'(?:Anno|Triennio|Year)\s*(\d)[:\s\-–—]*([^\n.]{10,200})',
             exec_s, re.IGNORECASE
         )
         if len(blocks) >= 2:
-            return [(f'Y{b[0]}', b[1].strip(), '') for b in blocks[:3]]
+            return [(f'Y{b[0]}', _clean_text(b[1]), '') for b in blocks[:3]]
     return []
 
 
