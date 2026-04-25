@@ -1303,8 +1303,8 @@ def generate_executive_report_html(
     </div>
 
     <div class="footer">
-        Documento generato da <strong>Rooting Future Strategy Engine v5.4.3</strong> |
-        {datetime.now().strftime('%d/%m/%Y %H:%M')}
+        Piano elaborato da <strong>Rooting Future</strong> |
+        {datetime.now().strftime('%d/%m/%Y')}
     </div>
 </div>
 
