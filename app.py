@@ -222,8 +222,21 @@ from flask_login import login_required, current_user
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
+
+# Server-side sessions: small session ID cookie instead of large encrypted cookie.
+# Fixes HF Spaces proxy cookie truncation issue.
+_session_dir = Path("/data/flask_sessions") if Path("/data").exists() else Path(tempfile.gettempdir()) / "rf_sessions"
+_session_dir.mkdir(parents=True, exist_ok=True)
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = str(_session_dir)
+app.config["SESSION_PERMANENT"] = True
+app.config["SESSION_USE_SIGNER"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False  # HF Spaces: HTTP interno, HTTPS esterno via proxy
+app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24h
+
+from flask_session import Session as FlaskSession
+FlaskSession(app)
 
 # ProxyFix: HF Spaces usa reverse proxy — senza questo le sessioni non persistono
 from werkzeug.middleware.proxy_fix import ProxyFix
