@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
@@ -64,17 +65,28 @@ def init_auth(app, store):
     login_manager.login_view = 'auth.login'
     app.register_blueprint(auth_bp)
 
-    # Create default admin if not exists (with app_context for proper bcrypt init)
+    # Create or reset default admin (with app_context for proper bcrypt init)
     admin_email = 'mirkotornani@gmail.com'
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
     try:
         with app.app_context():
-            if not store.get_user_by_email(admin_email):
-                pw_hash = bcrypt.generate_password_hash('admin').decode('utf-8')
+            pw_hash = bcrypt.generate_password_hash(admin_password).decode('utf-8')
+            existing = store.get_user_by_email(admin_email)
+            if not existing:
                 store.create_user(admin_email, pw_hash, 'Mirko Tornani', 'super_admin')
                 user = store.get_user_by_email(admin_email)
                 if user:
                     store.update_user_credits(user['id'], 100)
-                print(f"Created default admin: {admin_email} / admin with 100 credits")
+                print(f"Created admin: {admin_email}")
+            else:
+                # Always sync password hash so restarts don't break login
+                import sqlite3 as _sq
+                with _sq.connect(store.db_path) as _conn:
+                    _conn.execute(
+                        "UPDATE users SET password_hash = ? WHERE email = ?",
+                        (pw_hash, admin_email)
+                    )
+                    _conn.commit()
+                print(f"Admin password synced: {admin_email}")
     except Exception as e:
-        # Race condition or other error
-        print(f"Admin user already exists or creation skipped: {e}")
+        print(f"Admin init error: {e}")
