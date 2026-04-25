@@ -175,11 +175,13 @@ OPENROUTER_MODELS = {
 }
 
 # Catena di modelli gratuiti: tentati in ordine su quota/errore
+# Ordinati per capacità (testo lungo strutturato in italiano)
 FREE_MODEL_CHAIN = [
-    "google/gemma-3-27b-it:free",
-    "google/gemma-2-9b-it:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
-    "mistralai/mistral-7b-instruct:free",
+    "google/gemma-3-27b-it:free",                   # primary (27B, 131K ctx)
+    "qwen/qwen3-coder-480b-a35b-instruct:free",     # 480B MoE, 35B active, 262K ctx
+    "nousresearch/hermes-3-405b-instruct:free",     # 405B Llama fine-tune, 131K ctx
+    "meta-llama/llama-3.3-70b-instruct:free",       # 70B, multilingual + italiano, 66K ctx
+    "google/gemma-3-12b-it:free",                   # 12B fallback minimo, 33K ctx
 ]
 
 # Motore principale: Gemma 3 27B via OpenRouter (gratuito, open source)
