@@ -44,6 +44,9 @@ from config import (
     OPENROUTER_DEFAULT_MODEL,
     OPENROUTER_FALLBACK_MODEL,
     FREE_MODEL_CHAIN,
+    HF_TOKEN,
+    HF_MODEL,
+    HF_MODEL_CHAIN,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
@@ -79,6 +82,13 @@ try:
 except ImportError:
     OPENAI_LIB_AVAILABLE = False
     _OpenAI = None
+
+try:
+    from huggingface_hub import InferenceClient as _HFInferenceClient
+    HF_HUB_AVAILABLE = True
+except ImportError:
+    HF_HUB_AVAILABLE = False
+    _HFInferenceClient = None
 
 
 class OpenRouterClient:
@@ -144,6 +154,65 @@ class OpenRouterClient:
         raise RuntimeError(
             f"All models in FREE_MODEL_CHAIN exhausted. Last error: {last_error}"
         )
+
+
+class HFInferenceClient:
+    """
+    Client per HuggingFace Serverless Inference API.
+    Stessa rete di HF Spaces — nessuna dipendenza esterna.
+    Usa HF_TOKEN env var (disponibile automaticamente su HF Spaces).
+    """
+
+    def __init__(self, token: str = None, model: str = None):
+        self.token = token or HF_TOKEN
+        self.model = model or HF_MODEL
+        self.available = False
+
+        if HF_HUB_AVAILABLE and self.token:
+            try:
+                self.client = _HFInferenceClient(token=self.token)
+                self.available = True
+            except Exception as e:
+                logger.error(f"HF InferenceClient init error: {e}")
+        else:
+            if not HF_HUB_AVAILABLE:
+                logger.warning("huggingface_hub non installato.")
+            elif not self.token:
+                logger.warning("HF_TOKEN mancante — HF provider non disponibile.")
+
+    def generate_content(self, prompt: str, temperature: float = 0.7,
+                         max_tokens: int = 8192) -> str:
+        """
+        Genera contenuto via HF Serverless Inference.
+        Tenta la catena HF_MODEL_CHAIN in ordine su errore o risposta vuota.
+        """
+        if not self.available:
+            raise RuntimeError("HF InferenceClient non disponibile")
+
+        chain = [self.model] + [m for m in HF_MODEL_CHAIN if m != self.model]
+        last_error = None
+
+        for model in chain:
+            try:
+                response = self.client.chat_completion(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                content = response.choices[0].message.content or ""
+                if content.strip():
+                    if model != self.model:
+                        logger.info(f"HF: fallback model {model} succeeded")
+                    return content
+                logger.warning(f"HF: model {model} returned empty, trying next")
+            except Exception as e:
+                logger.warning(
+                    f"HF: model {model} failed ({type(e).__name__}: {str(e)[:120]}), trying next"
+                )
+                last_error = e
+
+        raise RuntimeError(f"All HF models exhausted. Last error: {last_error}")
 
 
 def get_active_provider() -> str:
@@ -902,8 +971,9 @@ class StrategicAgent:
         self.file_search_store_name = file_search_store_name
         self.model = None
         self.cache = AICache() # Inizializza cache
-        self._provider = get_active_provider()  # "gemini" o "openrouter"
+        self._provider = get_active_provider()  # "gemini", "openrouter", "huggingface"
         self._openrouter_client = None
+        self._hf_client = None
         self._generation_provider = None  # ai_providers.GenerationProvider (Ollama o Gemini)
 
         # --- Ollama path: OLLAMA_BASE_URL presente → usa adapter layer ---
@@ -922,6 +992,25 @@ class StrategicAgent:
                 logger.error(f"Agent {spec.name}: Errore init Ollama: {e}")
                 self._generation_provider = None
                 self.available = False
+
+        elif self._provider == "huggingface":
+            # --- HuggingFace Serverless Inference API ---
+            hf_token = HF_TOKEN or os.environ.get("HF_TOKEN", "")
+            hf_model = os.environ.get("HF_MODEL", HF_MODEL)
+            if hf_token:
+                try:
+                    self._hf_client = HFInferenceClient(token=hf_token, model=hf_model)
+                    self.available = self._hf_client.available
+                    if self.available:
+                        logger.info(f"Agent {spec.name}: HF Inference inizializzato (model={hf_model})")
+                    else:
+                        logger.warning(f"Agent {spec.name}: HF client non disponibile")
+                except Exception as e:
+                    logger.error(f"Agent {spec.name}: Errore init HF: {e}")
+                    self.available = False
+            else:
+                self.available = False
+                logger.warning(f"Agent {spec.name}: HF_TOKEN mancante.")
 
         elif self._provider == "openrouter":
             # --- OpenRouter provider ---
@@ -1083,6 +1172,22 @@ e soggette a revisione post-allineamento.
                     self.cache.set(prompt_content, raw_content)
                 except Exception as e:
                     wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
+                    log_exception(wrapped, context=f"agent_{self.spec.name}")
+                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+
+            # === HUGGINGFACE SERVERLESS INFERENCE PATH ===
+            elif self._provider == "huggingface" and self._hf_client:
+                try:
+                    logger.debug(f"Invio richiesta a HF Inference [{self._hf_client.model}] per {self.spec.name}")
+                    raw_content = self._hf_client.generate_content(
+                        prompt_content,
+                        temperature=MODEL_CONFIG.temperature,
+                        max_tokens=MODEL_CONFIG.max_tokens,
+                    )
+                    citations = []
+                    self.cache.set(prompt_content, raw_content)
+                except Exception as e:
+                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_hf")
                     log_exception(wrapped, context=f"agent_{self.spec.name}")
                     return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 

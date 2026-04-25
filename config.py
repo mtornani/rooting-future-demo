@@ -132,8 +132,21 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 # OpenRouter (provider AI alternativo - OpenAI-compatible)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
-# Provider AI attivo: "gemini" (default) o "openrouter"
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "openrouter")
+# HuggingFace Inference API (same-network, no external deps on HF Spaces)
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
+HF_MODEL = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-72B-Instruct")
+HF_MODEL_CHAIN = [
+    "Qwen/Qwen2.5-72B-Instruct",           # primary: 72B, multilingual, high quality
+    "meta-llama/Llama-3.3-70B-Instruct",   # 70B fallback, multilingual
+    "Qwen/Qwen2.5-32B-Instruct",           # 32B fallback, fast
+    "mistralai/Mistral-Nemo-Instruct-2407", # 12B, lightweight fallback
+    "Qwen/Qwen2.5-7B-Instruct",            # 7B, last resort
+]
+
+# Provider AI attivo: auto-detect HF Spaces (HF_TOKEN present) → "huggingface"
+# Override con env var AI_PROVIDER se esplicito
+_default_provider = "huggingface" if HF_TOKEN else "openrouter"
+AI_PROVIDER = os.environ.get("AI_PROVIDER", _default_provider)
 
 # STRIPE PAYMENTS
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "pk_test_placeholder")
