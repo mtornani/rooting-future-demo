@@ -183,36 +183,37 @@ class HFInferenceClient:
     def generate_content(self, prompt: str, temperature: float = 0.7,
                          max_tokens: int = 8192) -> str:
         """
-        Genera contenuto via HF Serverless Inference.
-        Tenta la catena HF_MODEL_CHAIN in ordine su errore o risposta vuota.
+        Genera contenuto via HF Inference.
+        Prova ogni modello con provider multipli (rutati attraverso HF → nessun blocco di rete).
+        Ordine provider: together → fireworks-ai → hf-inference (fallback piccoli modelli).
         """
         if not self.available:
             raise RuntimeError("HF InferenceClient non disponibile")
 
         chain = [self.model] + [m for m in HF_MODEL_CHAIN if m != self.model]
+        providers = ["together", "fireworks-ai", "hf-inference"]
         last_error = None
 
         for model in chain:
-            try:
-                response = self.client.chat_completion(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                )
-                content = response.choices[0].message.content or ""
-                if content.strip():
-                    if model != self.model:
-                        logger.info(f"HF: fallback model {model} succeeded")
-                    return content
-                logger.warning(f"HF: model {model} returned empty, trying next")
-            except Exception as e:
-                logger.warning(
-                    f"HF: model {model} failed ({type(e).__name__}: {str(e)[:120]}), trying next"
-                )
-                last_error = e
+            for provider in providers:
+                try:
+                    tmp_client = _HFInferenceClient(provider=provider, token=self.token)
+                    response = tmp_client.chat_completion(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    content = response.choices[0].message.content or ""
+                    if content.strip():
+                        logger.info(f"HF [{provider}/{model}] succeeded")
+                        return content
+                    logger.warning(f"HF [{provider}/{model}] empty response, trying next")
+                except Exception as e:
+                    logger.warning(f"HF [{provider}/{model}] failed: {str(e)[:100]}")
+                    last_error = e
 
-        raise RuntimeError(f"All HF models exhausted. Last error: {last_error}")
+        raise RuntimeError(f"All HF models/providers exhausted. Last error: {last_error}")
 
 
 def get_active_provider() -> str:
