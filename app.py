@@ -291,7 +291,19 @@ def broadcast_log(level: str, message: str, source: str = "system"):
     # Buffer per dashboard
     add_to_log_history(level, message, source)
 
-# SSE handler rimosso perché instabile su alcuni sistemi
+# Intercetta tutti i logger Python nel buffer in-memory
+class _InMemoryLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            add_to_log_history(record.levelname, self.format(record), record.name)
+        except Exception:
+            pass
+
+_mem_handler = _InMemoryLogHandler()
+_mem_handler.setLevel(logging.INFO)
+_mem_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger().addHandler(_mem_handler)
+
 log_stream_handler = None
 
 # Questionnaire data directory
