@@ -222,6 +222,12 @@ from flask_login import login_required, current_user
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False  # HF Spaces: HTTP interno, HTTPS esterno via proxy
+
+# ProxyFix: HF Spaces usa reverse proxy — senza questo le sessioni non persistono
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configurazione Logging Aggressiva (Anti-Noise)
 logging.basicConfig(
