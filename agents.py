@@ -138,12 +138,8 @@ class OpenRouterClient:
                 # Empty response → try next model
                 logger.warning(f"OpenRouter: model {model} returned empty response, trying next")
             except Exception as e:
-                err_str = str(e)
-                if "429" in err_str or "quota" in err_str.lower() or "rate" in err_str.lower():
-                    logger.warning(f"OpenRouter: model {model} quota/rate limit, trying next")
-                    last_error = e
-                else:
-                    raise  # Non-quota errors bubble up immediately
+                logger.warning(f"OpenRouter: model {model} failed ({type(e).__name__}: {str(e)[:120]}), trying next")
+                last_error = e
 
         raise RuntimeError(
             f"All models in FREE_MODEL_CHAIN exhausted. Last error: {last_error}"
