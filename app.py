@@ -376,6 +376,33 @@ structured_orchestrator = StructuredOrchestrator(
 # LEGAL & GDPR
 # =============================================================================
 
+@app.route("/session-test")
+def session_test():
+    """Diagnostica sessioni — visita due volte: prima imposta, seconda legge."""
+    count = session.get('_test_count', 0) + 1
+    session['_test_count'] = count
+    session.modified = True
+    return jsonify({
+        'count': count,
+        'session_type': app.config.get('SESSION_TYPE', 'cookie'),
+        'session_keys': list(session.keys()),
+        'works': count > 1,
+    })
+
+@app.route("/autologin")
+def autologin():
+    """Bypass form — login diretto admin per diagnostica. RIMUOVERE DOPO TEST."""
+    from auth_manager import User, bcrypt, _store
+    user_data = _store.get_user_by_email('mirkotornani@gmail.com') if _store else None
+    if not user_data:
+        return jsonify({'error': 'user not found', 'store': str(_store)})
+    from flask_login import login_user
+    user = User(user_data)
+    login_user(user)
+    session.modified = True
+    print(f"[AUTOLOGIN] done, is_auth={current_user.is_authenticated}", flush=True)
+    return redirect(url_for('index'))
+
 @app.route("/legal/privacy")
 def view_privacy():
     return render_template("privacy.html", user=current_user)
