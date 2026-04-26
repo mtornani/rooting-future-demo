@@ -1,12 +1,15 @@
 import os
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+import logging
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 
 auth_bp = Blueprint('auth', __name__)
 login_manager = LoginManager()
+login_manager.session_protection = "basic"  # "strong" invalida sessioni dietro proxy
 bcrypt = Bcrypt()
 _store = None
+_log = logging.getLogger("auth")
 
 class User(UserMixin):
     def __init__(self, user_data):
@@ -37,17 +40,34 @@ def login():
         return redirect(url_for('index'))
     
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        user_data = _store.get_user_by_email(email)
-        
-        if user_data and bcrypt.check_password_hash(user_data['password_hash'], password):
-            user = User(user_data)
-            login_user(user)
-            return redirect(url_for('index'))
-        else:
-            flash('Email o password non validi', 'error')
+        email = request.form.get('email', '')
+        password = request.form.get('password', '')
+        _log.info(f"[AUTH] Login attempt: {email}")
+
+        try:
+            user_data = _store.get_user_by_email(email)
+            _log.info(f"[AUTH] User found: {bool(user_data)}")
+        except Exception as e:
+            _log.error(f"[AUTH] DB error looking up user: {e}")
+            user_data = None
+
+        if user_data:
+            try:
+                pw_match = bcrypt.check_password_hash(user_data['password_hash'], password)
+                _log.info(f"[AUTH] Password match: {pw_match}")
+            except Exception as e:
+                _log.error(f"[AUTH] bcrypt error: {e}")
+                pw_match = False
+
+            if pw_match:
+                user = User(user_data)
+                login_user(user)
+                session.modified = True
+                _log.info(f"[AUTH] login_user OK, session keys: {list(session.keys())}")
+                return redirect(url_for('index'))
+
+        flash('Email o password non validi', 'error')
+        _log.info(f"[AUTH] Login failed for {email}")
             
     return render_template('login.html')
 
