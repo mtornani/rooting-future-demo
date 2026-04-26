@@ -36,38 +36,40 @@ def load_user(user_id):
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    print(f"[AUTH] /login {request.method}", flush=True)
     if current_user.is_authenticated:
+        print(f"[AUTH] already authenticated, redirect to index", flush=True)
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         email = request.form.get('email', '')
         password = request.form.get('password', '')
-        _log.info(f"[AUTH] Login attempt: {email}")
+        print(f"[AUTH] Login attempt: {email}", flush=True)
 
         try:
             user_data = _store.get_user_by_email(email)
-            _log.info(f"[AUTH] User found: {bool(user_data)}")
+            print(f"[AUTH] User found: {bool(user_data)}", flush=True)
         except Exception as e:
-            _log.error(f"[AUTH] DB error looking up user: {e}")
+            print(f"[AUTH] DB error: {e}", flush=True)
             user_data = None
 
         if user_data:
             try:
                 pw_match = bcrypt.check_password_hash(user_data['password_hash'], password)
-                _log.info(f"[AUTH] Password match: {pw_match}")
+                print(f"[AUTH] Password match: {pw_match}", flush=True)
             except Exception as e:
-                _log.error(f"[AUTH] bcrypt error: {e}")
+                print(f"[AUTH] bcrypt error: {e}", flush=True)
                 pw_match = False
 
             if pw_match:
                 user = User(user_data)
                 login_user(user)
                 session.modified = True
-                _log.info(f"[AUTH] login_user OK, session keys: {list(session.keys())}")
+                print(f"[AUTH] login_user OK, session keys: {list(session.keys())}", flush=True)
                 return redirect(url_for('index'))
 
         flash('Email o password non validi', 'error')
-        _log.info(f"[AUTH] Login failed for {email}")
+        print(f"[AUTH] Login failed for {email}", flush=True)
             
     return render_template('login.html')
 
