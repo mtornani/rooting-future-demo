@@ -223,10 +223,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
 
-# SameSite=None + Secure: necessario perché HF Spaces embeds l'app in iframe su huggingface.co
-# I browser bloccano cookie SameSite=Lax in contesti cross-site (iframe).
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = True  # Richiesto dai browser con SameSite=None
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
 
 # ProxyFix: HF Spaces usa reverse proxy — senza questo le sessioni non persistono
 from werkzeug.middleware.proxy_fix import ProxyFix
