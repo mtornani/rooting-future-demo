@@ -522,6 +522,7 @@ def index():
         tiers=FOOTBALL_TIERS,
         docx_available=DOCX_AVAILABLE,
         user=current_user,
+        license_status={},
     )
 
 # =============================================================================
