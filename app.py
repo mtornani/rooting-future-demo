@@ -231,8 +231,8 @@ app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_FILE_DIR"] = str(_session_dir)
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_USE_SIGNER"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = False  # HF Spaces: HTTP interno, HTTPS esterno via proxy
+app.config["SESSION_COOKIE_SAMESITE"] = "None"  # Necessario per iframe HF Spaces (cross-site)
+app.config["SESSION_COOKIE_SECURE"] = True  # Richiesto da browser con SameSite=None
 app.config["PERMANENT_SESSION_LIFETIME"] = 86400  # 24h
 
 from flask_session import Session as FlaskSession
