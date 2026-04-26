@@ -3994,7 +3994,10 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    import traceback
+    tb = traceback.format_exc()
     logger.exception(f"Server error: {e}")
+    print(f"[500] {e}\n{tb}", flush=True)
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": str(e)}), 500
     return (
@@ -4003,6 +4006,7 @@ def server_error(e):
     <body style="font-family: sans-serif; text-align: center; padding: 50px;">
         <h1>500 - Errore interno</h1>
         <p>Si e verificato un errore: {str(e)}</p>
+        <pre style="text-align:left;background:#f5f5f5;padding:15px;border-radius:8px;overflow:auto;max-width:900px;margin:20px auto;">{tb}</pre>
         <p><a href="/">Torna alla Dashboard</a></p>
     </body></html>
     """,
