@@ -36,8 +36,11 @@ def _clean_text(text: str) -> str:
     """Pulisce il testo da markdown e formattazione."""
     if not text:
         return ""
-    # Rimuovi markdown
-    text = re.sub(r'\*\*|\*|#{1,4}\s*', '', text)
+    # Prima rimuovi bold **testo** e *testo* (con contenuto)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    # Rimuovi marker residui
+    text = re.sub(r'\*+|#{1,4}\s*', '', text)
     # Rimuovi spazi multipli
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
@@ -387,21 +390,46 @@ def _extract_timeline_from_plan(plan_data: Dict) -> list:
 
             # Formato standard: Anno 1: Titolo\nDescrizione
             blocks = re.findall(
-                r'(?:Anno|Year)\s*(\d)[:\s\-–—]*([^\n]{5,200})(?:\n([^\n]{20,250}))?',
+                r'(?:Anno|Year)\s*(\d)[:\s\-–—]*([^\n]{5,400})(?:\n([^\n]{20,400}))?',
                 content, re.IGNORECASE
             )
             if len(blocks) >= 2:
-                return [(f'Y{b[0]}', _clean_text(b[1]), _clean_text((b[2] or '').strip())) for b in blocks[:3]]
+                result = []
+                for b in blocks[:3]:
+                    raw = _clean_text(b[1])
+                    # Splitta "Label: descrizione" → titolo breve + desc lunga
+                    colon_idx = raw.find(':')
+                    if colon_idx > 0 and colon_idx < 60:
+                        label = raw[:colon_idx].strip()
+                        desc_part = raw[colon_idx+1:].strip()
+                    else:
+                        label = raw[:60].strip()
+                        desc_part = raw[60:].strip()
+                    extra_desc = _clean_text((b[2] or '').strip())
+                    full_desc = (desc_part + ' ' + extra_desc).strip() if extra_desc else desc_part
+                    result.append((f'Y{b[0]}', label, full_desc))
+                return result
 
     # Fallback: cerca nell'executive summary
     exec_s = plan_data.get('executive_summary', '') or plan_data.get('coordinator_summary', '')
     if exec_s:
         blocks = re.findall(
-            r'(?:Anno|Triennio|Year)\s*(\d)[:\s\-–—]*([^\n.]{10,200})',
+            r'(?:Anno|Triennio|Year)\s*(\d)[:\s\-–—]*([^\n.]{10,400})',
             exec_s, re.IGNORECASE
         )
         if len(blocks) >= 2:
-            return [(f'Y{b[0]}', _clean_text(b[1]), '') for b in blocks[:3]]
+            result = []
+            for b in blocks[:3]:
+                raw = _clean_text(b[1])
+                colon_idx = raw.find(':')
+                if colon_idx > 0 and colon_idx < 60:
+                    label = raw[:colon_idx].strip()
+                    desc_part = raw[colon_idx+1:].strip()
+                else:
+                    label = raw[:60].strip()
+                    desc_part = ''
+                result.append((f'Y{b[0]}', label, desc_part))
+            return result
     return []
 
 
