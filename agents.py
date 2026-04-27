@@ -33,8 +33,8 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
-# Max 3 concurrent Gemini calls — prevents 429 burst after cache-clear restart
-_gemini_semaphore = Semaphore(3)
+# Serialize Gemini calls — free tier 429s clear after ~60s, burst kills all agents
+_gemini_semaphore = Semaphore(1)
 
 from wiki_reader import WikiReader
 from config import (
@@ -1201,8 +1201,9 @@ e soggette a revisione post-allineamento.
                         for _gemini_attempt in range(3):
                             try:
                                 if _gemini_attempt > 0:
-                                    _retry_delay = (2 ** _gemini_attempt) + __import__('random').uniform(0, 1)
-                                    logger.warning(f"Agent {self.spec.name}: Gemini retry {_gemini_attempt}/2 in {_retry_delay:.1f}s")
+                                    # 429 rate limit clears after ~60s on free tier
+                                    _retry_delay = __import__('random').uniform(55, 75)
+                                    logger.warning(f"Agent {self.spec.name}: Gemini retry {_gemini_attempt}/2 in {_retry_delay:.1f}s (rate-limit backoff)")
                                     time.sleep(_retry_delay)
                                 with _gemini_semaphore:
                                     genai.configure(api_key=_gapi_key)
