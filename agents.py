@@ -1204,11 +1204,15 @@ e soggette a revisione post-allineamento.
                                     max_output_tokens=MODEL_CONFIG.max_tokens,
                                 )
                             )
-                            raw_content = _response.text
+                            raw_content = _response.text or ""
                             citations = []
-                            logger.info(f"Agent {self.spec.name}: Gemini fallback OK")
+                            if not raw_content.strip():
+                                logger.error(f"Agent {self.spec.name}: Gemini fallback returned EMPTY content (finish_reason={getattr(_response.candidates[0] if _response.candidates else None, 'finish_reason', 'unknown')})")
+                            else:
+                                logger.info(f"Agent {self.spec.name}: Gemini fallback OK ({len(raw_content)} chars)")
                             self.cache.set(prompt_content, raw_content)
                         except Exception as gemini_e:
+                            logger.error(f"Agent {self.spec.name}: Gemini fallback FAILED — {type(gemini_e).__name__}: {gemini_e}")
                             wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_fallback")
                             log_exception(wrapped, context=f"agent_{self.spec.name}")
                             return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}

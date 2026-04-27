@@ -121,10 +121,11 @@ class OnePagerExporter(BaseExporter):
         # Estrai dall'executive summary (anche coordinator_summary come alias)
         exec_summary = plan_data.get('executive_summary') or plan_data.get('coordinator_summary') or ''
         if exec_summary:
-            # Cerca visione — pattern specifico
-            vision_match = re.search(r'(?:visione|vision)[:\s]*([^.]+\.)', exec_summary, re.IGNORECASE)
+            # Cerca visione — skip heading words (e.g. "VISIONE STRATEGICA TRIENNALE\n")
+            # then capture the first full sentence
+            vision_match = re.search(r'(?:visione|vision)[^:\n]*[\n:]+\s*([^#\n][^.]+\.)', exec_summary, re.IGNORECASE)
             if vision_match:
-                highlights['vision'] = vision_match.group(1).strip()[:200]
+                highlights['vision'] = vision_match.group(1).strip()[:300]
             # Fallback: prima frase lunga del summary come vision statement
             if not highlights['vision']:
                 sentences = re.findall(r'[A-ZÀ-Ÿ][^.!?]{40,200}[.!?]', exec_summary)
