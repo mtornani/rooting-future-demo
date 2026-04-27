@@ -119,11 +119,7 @@ class OnePagerExporter(BaseExporter):
         }
 
         # Estrai dall'executive summary (anche coordinator_summary come alias)
-        # Fallback su qualsiasi sezione disponibile se entrambi vuoti
-        exec_summary = (plan_data.get('executive_summary') or
-                        plan_data.get('coordinator_summary') or
-                        plan_data.get('stw_sportivi') or
-                        plan_data.get('stw_sociali') or '')
+        exec_summary = plan_data.get('executive_summary') or plan_data.get('coordinator_summary') or ''
         if exec_summary:
             # Cerca visione — pattern specifico
             vision_match = re.search(r'(?:visione|vision)[:\s]*([^.]+\.)', exec_summary, re.IGNORECASE)
