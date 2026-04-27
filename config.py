@@ -132,6 +132,9 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 # OpenRouter (provider AI alternativo - OpenAI-compatible)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
+# NVIDIA NIM (OpenAI-compatible, free Gemma endpoint — fallback when Gemini rate-limited)
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+
 # HuggingFace Inference API (same-network, no external deps on HF Spaces)
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 HF_MODEL = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-72B-Instruct")

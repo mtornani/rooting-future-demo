@@ -52,6 +52,7 @@ from config import (
     HF_TOKEN,
     HF_MODEL,
     HF_MODEL_CHAIN,
+    NVIDIA_API_KEY,
 )
 from data_sourcing import SourcedContentGenerator, DataSourcer
 from data_estimator import estimate_missing_financials, DataTier
@@ -1222,9 +1223,36 @@ e soggette a revisione post-allineamento.
                             logger.error(f"Agent {self.spec.name}: Gemini Direct risposta vuota")
                     except Exception as gemini_e:
                         logger.error(f"Agent {self.spec.name}: Gemini Direct FAILED — {type(gemini_e).__name__}: {gemini_e}")
-                        wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_direct")
-                        log_exception(wrapped, context=f"agent_{self.spec.name}")
-                        return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+                        # --- NVIDIA NIM fallback (Gemma 3 27B, free endpoint) ---
+                        _nim_key = os.environ.get("NVIDIA_API_KEY") or NVIDIA_API_KEY
+                        if _nim_key:
+                            try:
+                                logger.info(f"Agent {self.spec.name}: NIM fallback → google/gemma-3-27b-it")
+                                _nim_client = _OpenAI(
+                                    base_url="https://integrate.api.nvidia.com/v1",
+                                    api_key=_nim_key,
+                                )
+                                _nim_resp = _nim_client.chat.completions.create(
+                                    model="google/gemma-3-27b-it",
+                                    messages=[{"role": "user", "content": prompt_content}],
+                                    temperature=MODEL_CONFIG.temperature,
+                                    max_tokens=MODEL_CONFIG.max_tokens,
+                                )
+                                raw_content = _nim_resp.choices[0].message.content or ""
+                                if raw_content.strip():
+                                    logger.info(f"Agent {self.spec.name}: NIM OK ({len(raw_content)} chars)")
+                                    self.cache.set(prompt_content, raw_content)
+                                else:
+                                    logger.error(f"Agent {self.spec.name}: NIM risposta vuota")
+                            except Exception as nim_e:
+                                logger.error(f"Agent {self.spec.name}: NIM FAILED — {type(nim_e).__name__}: {nim_e}")
+                                wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_direct")
+                                log_exception(wrapped, context=f"agent_{self.spec.name}")
+                                return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+                        else:
+                            wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_direct")
+                            log_exception(wrapped, context=f"agent_{self.spec.name}")
+                            return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === HUGGINGFACE SERVERLESS INFERENCE PATH ===
             elif self._provider == "huggingface" and self._hf_client:
