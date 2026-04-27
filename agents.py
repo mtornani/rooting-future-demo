@@ -33,8 +33,10 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
-# Serialize Gemini calls — free tier 429s clear after ~60s, burst kills all agents
+# Serialize + throttle Gemini calls — free tier ~10 RPM = min 6s between calls
 _gemini_semaphore = Semaphore(1)
+_gemini_last_call = [0.0]   # mutable so inner methods can write without `global`
+_GEMINI_MIN_INTERVAL = 7.0  # seconds between calls → max ~8 RPM, within free tier
 
 from wiki_reader import WikiReader
 from config import (
@@ -1206,6 +1208,13 @@ e soggette a revisione post-allineamento.
                                     logger.warning(f"Agent {self.spec.name}: Gemini retry {_gemini_attempt}/2 in {_retry_delay:.1f}s (rate-limit backoff)")
                                     time.sleep(_retry_delay)
                                 with _gemini_semaphore:
+                                    # Rate-throttle: enforce min 7s between calls (≤8 RPM)
+                                    _since = time.time() - _gemini_last_call[0]
+                                    if _since < _GEMINI_MIN_INTERVAL:
+                                        _tw = _GEMINI_MIN_INTERVAL - _since
+                                        logger.info(f"Agent {self.spec.name}: Gemini throttle {_tw:.1f}s")
+                                        time.sleep(_tw)
+                                    _gemini_last_call[0] = time.time()
                                     genai.configure(api_key=_gapi_key)
                                     _fallback_model = genai.GenerativeModel("gemini-2.0-flash")
                                     _response = _fallback_model.generate_content(
@@ -1223,7 +1232,14 @@ e soggette a revisione post-allineamento.
                                 self.cache.set(prompt_content, raw_content)
                                 break  # success — exit retry loop
                             except Exception as gemini_e:
-                                _is_rate_limit = '429' in str(gemini_e) or 'exhausted' in str(gemini_e).lower()
+                                _emsg = str(gemini_e).lower()
+                                _etype = type(gemini_e).__name__.lower()
+                                _is_rate_limit = (
+                                    '429' in _emsg or 'exhausted' in _emsg or
+                                    'quota' in _emsg or 'ratelimit' in _etype or
+                                    'rate_limit' in _etype or 'resource' in _etype
+                                )
+                                logger.warning(f"Agent {self.spec.name}: Gemini exc type={type(gemini_e).__name__} is_rl={_is_rate_limit} attempt={_gemini_attempt}")
                                 if _is_rate_limit and _gemini_attempt < 2:
                                     logger.warning(f"Agent {self.spec.name}: Gemini 429 attempt {_gemini_attempt+1}/3, will retry")
                                     continue
