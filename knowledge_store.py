@@ -147,7 +147,21 @@ class SQLiteKnowledgeStore:
 
     def __init__(self, db_path: Path = None):
         self.db_path = db_path or (KNOWLEDGE_DIR / "rooting_future.db")
-        self._init_db()
+        try:
+            self._init_db()
+        except sqlite3.OperationalError as e:
+            if "readonly" in str(e).lower():
+                # DB corrotto o read-only: rimuovi e ricrea
+                import logging as _log
+                _log.getLogger(__name__).warning(f"DB read-only ({e}), removing and recreating: {self.db_path}")
+                for suffix in ["", "-wal", "-shm"]:
+                    p = Path(str(self.db_path) + suffix)
+                    if p.exists():
+                        try: p.unlink()
+                        except Exception: pass
+                self._init_db()
+            else:
+                raise
 
     def _init_db(self) -> None:
         """Inizializza database con schema e ottimizzazioni (OPT-001)"""
