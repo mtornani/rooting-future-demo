@@ -33,6 +33,9 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
+# Max 3 concurrent Gemini calls — prevents 429 burst after cache-clear restart
+_gemini_semaphore = Semaphore(3)
+
 from wiki_reader import WikiReader
 from config import (
     GEMINI_API_KEY,
@@ -1201,15 +1204,16 @@ e soggette a revisione post-allineamento.
                                     _retry_delay = (2 ** _gemini_attempt) + __import__('random').uniform(0, 1)
                                     logger.warning(f"Agent {self.spec.name}: Gemini retry {_gemini_attempt}/2 in {_retry_delay:.1f}s")
                                     time.sleep(_retry_delay)
-                                genai.configure(api_key=_gapi_key)
-                                _fallback_model = genai.GenerativeModel("gemini-2.0-flash")
-                                _response = _fallback_model.generate_content(
-                                    prompt_content,
-                                    generation_config=genai.types.GenerationConfig(
-                                        temperature=MODEL_CONFIG.temperature,
-                                        max_output_tokens=MODEL_CONFIG.max_tokens,
+                                with _gemini_semaphore:
+                                    genai.configure(api_key=_gapi_key)
+                                    _fallback_model = genai.GenerativeModel("gemini-2.0-flash")
+                                    _response = _fallback_model.generate_content(
+                                        prompt_content,
+                                        generation_config=genai.types.GenerationConfig(
+                                            temperature=MODEL_CONFIG.temperature,
+                                            max_output_tokens=MODEL_CONFIG.max_tokens,
+                                        )
                                     )
-                                )
                                 raw_content = _response.text or ""
                                 if not raw_content.strip():
                                     logger.error(f"Agent {self.spec.name}: Gemini fallback returned EMPTY content (finish_reason={getattr(_response.candidates[0] if _response.candidates else None, 'finish_reason', 'unknown')})")
