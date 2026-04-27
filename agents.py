@@ -1190,9 +1190,32 @@ e soggette a revisione post-allineamento.
                     citations = []
                     self.cache.set(prompt_content, raw_content)
                 except Exception as e:
-                    wrapped = handle_exception(e, context=f"agent_{self.spec.name}_hf")
-                    log_exception(wrapped, context=f"agent_{self.spec.name}")
-                    return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+                    logger.warning(f"Agent {self.spec.name}: HF exhausted ({e}), trying Gemini fallback")
+                    # Gemini fallback quando tutti i modelli HF falliscono
+                    _gapi_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY
+                    if GENAI_AVAILABLE and _gapi_key:
+                        try:
+                            genai.configure(api_key=_gapi_key)
+                            _fallback_model = genai.GenerativeModel("gemini-2.0-flash")
+                            _response = _fallback_model.generate_content(
+                                prompt_content,
+                                generation_config=genai.types.GenerationConfig(
+                                    temperature=MODEL_CONFIG.temperature,
+                                    max_output_tokens=MODEL_CONFIG.max_tokens,
+                                )
+                            )
+                            raw_content = _response.text
+                            citations = []
+                            logger.info(f"Agent {self.spec.name}: Gemini fallback OK")
+                            self.cache.set(prompt_content, raw_content)
+                        except Exception as gemini_e:
+                            wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_fallback")
+                            log_exception(wrapped, context=f"agent_{self.spec.name}")
+                            return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+                    else:
+                        wrapped = handle_exception(e, context=f"agent_{self.spec.name}_hf")
+                        log_exception(wrapped, context=f"agent_{self.spec.name}")
+                        return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === OPENROUTER PATH (primary: Gemma, fallback: Gemini Flash) ===
             elif self._provider == "openrouter" and self._openrouter_client:

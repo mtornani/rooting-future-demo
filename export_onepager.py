@@ -119,7 +119,11 @@ class OnePagerExporter(BaseExporter):
         }
 
         # Estrai dall'executive summary (anche coordinator_summary come alias)
-        exec_summary = plan_data.get('executive_summary', '') or plan_data.get('coordinator_summary', '')
+        # Fallback su qualsiasi sezione disponibile se entrambi vuoti
+        exec_summary = (plan_data.get('executive_summary') or
+                        plan_data.get('coordinator_summary') or
+                        plan_data.get('stw_sportivi') or
+                        plan_data.get('stw_sociali') or '')
         if exec_summary:
             # Cerca visione — pattern specifico
             vision_match = re.search(r'(?:visione|vision)[:\s]*([^.]+\.)', exec_summary, re.IGNORECASE)
@@ -533,7 +537,7 @@ class OnePagerExporter(BaseExporter):
 
         <div class="vision-section">
             <div style="font-size: 8pt; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3mm; opacity: 0.8;">Visione Strategica</div>
-            <div class="vision-quote">"{highlights.get('vision', 'Guidare il club verso una crescita sostenibile, unendo eccellenza tecnica e solidità finanziaria.')}"</div>
+            <div class="vision-quote">"{highlights.get('vision') or 'Guidare il club verso una crescita sostenibile, unendo eccellenza tecnica e solidità finanziaria.'}"</div>
         </div>
     </main>
 
