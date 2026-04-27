@@ -1001,6 +1001,16 @@ class StrategicAgent:
                 self._generation_provider = None
                 self.available = False
 
+        elif self._provider == "gemini_direct":
+            # --- Gemini Direct (skip HF: all free-tier models broken) ---
+            _gkey = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY
+            if GENAI_AVAILABLE and _gkey:
+                self.available = True
+                logger.info(f"Agent {spec.name}: Gemini Direct v2 inizializzato")
+            else:
+                self.available = False
+                logger.warning(f"Agent {spec.name}: Gemini Direct — chiave mancante")
+
         elif self._provider == "huggingface":
             # --- HuggingFace Serverless Inference API ---
             hf_token = HF_TOKEN or os.environ.get("HF_TOKEN", "")
@@ -1182,6 +1192,39 @@ e soggette a revisione post-allineamento.
                     wrapped = handle_exception(e, context=f"agent_{self.spec.name}_ollama")
                     log_exception(wrapped, context=f"agent_{self.spec.name}")
                     return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
+
+            # === GEMINI DIRECT PATH (primary when HF broken) ===
+            elif self._provider == "gemini_direct":
+                _gapi_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY
+                citations = []
+                with _gemini_semaphore:
+                    _since = time.time() - _gemini_last_call[0]
+                    if _since < _GEMINI_MIN_INTERVAL:
+                        _tw = _GEMINI_MIN_INTERVAL - _since
+                        logger.info(f"Agent {self.spec.name}: Gemini throttle {_tw:.1f}s")
+                        time.sleep(_tw)
+                    _gemini_last_call[0] = time.time()
+                    try:
+                        genai.configure(api_key=_gapi_key)
+                        _model = genai.GenerativeModel("gemini-2.0-flash")
+                        _response = _model.generate_content(
+                            prompt_content,
+                            generation_config=genai.types.GenerationConfig(
+                                temperature=MODEL_CONFIG.temperature,
+                                max_output_tokens=MODEL_CONFIG.max_tokens,
+                            )
+                        )
+                        raw_content = _response.text or ""
+                        if raw_content.strip():
+                            logger.info(f"Agent {self.spec.name}: Gemini Direct OK ({len(raw_content)} chars)")
+                            self.cache.set(prompt_content, raw_content)
+                        else:
+                            logger.error(f"Agent {self.spec.name}: Gemini Direct risposta vuota")
+                    except Exception as gemini_e:
+                        logger.error(f"Agent {self.spec.name}: Gemini Direct FAILED — {type(gemini_e).__name__}: {gemini_e}")
+                        wrapped = handle_exception(gemini_e, context=f"agent_{self.spec.name}_gemini_direct")
+                        log_exception(wrapped, context=f"agent_{self.spec.name}")
+                        return {'content': '', 'sources': [], 'unverified_claims': [], 'metadata': {'error_id': wrapped.error_id, 'error_msg': wrapped.user_message}}
 
             # === HUGGINGFACE SERVERLESS INFERENCE PATH ===
             elif self._provider == "huggingface" and self._hf_client:

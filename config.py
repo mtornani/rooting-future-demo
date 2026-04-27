@@ -143,9 +143,15 @@ HF_MODEL_CHAIN = [
     "Qwen/Qwen2.5-7B-Instruct",            # 7B, last resort
 ]
 
-# Provider AI attivo: auto-detect HF Spaces (HF_TOKEN present) → "huggingface"
+# Provider AI attivo: prefer gemini_direct when key available (HF free models all broken)
 # Override con env var AI_PROVIDER se esplicito
-_default_provider = "huggingface" if HF_TOKEN else "openrouter"
+_has_gemini = bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+if _has_gemini:
+    _default_provider = "gemini_direct"
+elif HF_TOKEN:
+    _default_provider = "huggingface"
+else:
+    _default_provider = "openrouter"
 AI_PROVIDER = os.environ.get("AI_PROVIDER", _default_provider)
 
 # STRIPE PAYMENTS
