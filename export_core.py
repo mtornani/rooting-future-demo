@@ -311,8 +311,11 @@ class BaseExporter(ABC):
             html, flags=re.DOTALL
         )
 
-        # Strip orphaned pipe-table rows (AI outputs "| Anno 2 | Anno 3" as table remnants)
-        html = re.sub(r'<p>(\s*\|[^<\n]+)+\s*</p>', '', html)
+        # Strip "| Anno N" timeline remnants that appear at start of paragraphs
+        # (AI outputs "| Anno 2 | Anno 3\n<strong>Budget:..." in same <p>)
+        html = re.sub(r'(?:\|\s*(?:Anno|Year)\s*\d[^|\n<]*)+\|?\s*\n?', '', html)
+        # Clean up any resulting empty paragraphs
+        html = re.sub(r'<p>\s*</p>', '', html)
 
         # Wrap MACRO blocks in styled cards (Phase 3)
         html = _wrap_macro_blocks(html)
