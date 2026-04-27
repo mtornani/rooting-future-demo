@@ -984,6 +984,7 @@ class StrategicAgent:
         self._openrouter_client = None
         self._hf_client = None
         self._generation_provider = None  # ai_providers.GenerationProvider (Ollama o Gemini)
+        logger.info(f"Agent {spec.name}: provider='{self._provider}'")
 
         # --- Ollama path: OLLAMA_BASE_URL presente → usa adapter layer ---
         _ollama_url = os.environ.get("OLLAMA_BASE_URL", "").strip()
