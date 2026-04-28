@@ -23,11 +23,15 @@ class User(UserMixin):
 
     @staticmethod
     def get(user_id):
-        if not _store: return None
+        if not _store:
+            print(f"[AUTH] user_loader: _store is None", flush=True)
+            return None
         try:
             data = _store.get_user_by_id(int(user_id))
+            print(f"[AUTH] user_loader({user_id}): data={'found' if data else 'None'}", flush=True)
             return User(data) if data else None
-        except (ValueError, TypeError):
+        except Exception as e:
+            print(f"[AUTH] user_loader({user_id}) ERROR: {type(e).__name__}: {e}", flush=True)
             return None
 
 @login_manager.user_loader
