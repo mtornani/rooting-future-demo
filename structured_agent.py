@@ -25,8 +25,11 @@ except Exception as e:
     GENAI_AVAILABLE = False
     genai = None
 
+from openai import OpenAI as _OpenAI
+
 from config import (
     GEMINI_API_KEY,
+    NVIDIA_API_KEY,
     MODEL_CONFIG,
     KNOWLEDGE_DIR,
     OUTPUT_DIR,
@@ -438,35 +441,32 @@ REGOLE CRITICHE:
                     result.get('recommendations', [])
                 )
         except Exception as e:
-            # Fallback: Se la generazione con strumenti fallisce, riprova senza
-            logger.warning(f"Errore generazione analisi ({type(e).__name__}: {e}). Riprova fallback...")
-            try:
-                if self._provider == "openrouter" and self._openrouter_client:
-                    # OpenRouter non ha fallback diverso, riprova
-                    text = self._openrouter_client.generate_content(
-                        prompt, temperature=0.3, max_tokens=MODEL_CONFIG.max_tokens
-                    ).strip()
-                else:
-                    # Riprova SENZA tools
-                    fallback_model = genai.GenerativeModel(MODEL_CONFIG.name)
-                    response = fallback_model.generate_content(
-                        prompt,
-                        generation_config=genai.types.GenerationConfig(temperature=0.3)
+            logger.warning(f"Errore generazione analisi ({type(e).__name__}: {e}). NIM fallback...")
+            _nim_key = os.environ.get("NVIDIA_API_KEY") or NVIDIA_API_KEY
+            if _nim_key:
+                try:
+                    _nim_client = _OpenAI(
+                        base_url="https://integrate.api.nvidia.com/v1",
+                        api_key=_nim_key,
                     )
-                    text = response.text.strip()
-
-                # Estrai JSON dalla risposta
-                json_match = re.search(r'\{[\s\S]*\}', text)
-                if json_match:
-                    result = json.loads(json_match.group())
-                    return (
-                        result.get('summary', ''),
-                        result.get('key_findings', []),
-                        result.get('recommendations', [])
+                    _nim_resp = _nim_client.chat.completions.create(
+                        model="google/gemma-3-27b-it",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.3,
+                        max_tokens=MODEL_CONFIG.max_tokens,
                     )
-            except Exception as fallback_e:
-                logger.error(f"Fallback generation failed: {fallback_e}")
-                return self._generate_mock_analysis(data_points)
+                    text = (_nim_resp.choices[0].message.content or "").strip()
+                    json_match = re.search(r'\{[\s\S]*\}', text)
+                    if json_match:
+                        result = json.loads(json_match.group())
+                        logger.info(f"Structured NIM OK ({len(text)} chars)")
+                        return (
+                            result.get('summary', ''),
+                            result.get('key_findings', []),
+                            result.get('recommendations', [])
+                        )
+                except Exception as nim_e:
+                    logger.error(f"Structured NIM FAILED: {nim_e}")
 
         return self._generate_mock_analysis(data_points)
 
