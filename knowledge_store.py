@@ -665,95 +665,47 @@ class SQLiteKnowledgeStore:
             logger.error(f"Database error in save_plan: {e}")
             raise DatabaseError(message=f"Errore durante il salvataggio del piano {plan.id}", details=str(e))
 
-        def list_plans(
-
+    def list_plans(
             self,
-
             status: str = "",
-
             category: str = "",
-
             club_name: str = "",
-
             owner_id: int = None,
-
             plan_ids: List[str] = None,
-
             limit: int = 50,
-
             offset: int = 0,
-
             exclude_status: str = ""
-
         ) -> Tuple[List[PlanRecord], int]:
+        """Lista piani con filtri e paginazione."""
+        conditions = []
+        params = []
 
-            """
+        if owner_id:
+            assigned_ids = self.get_assigned_plans(owner_id)
+            if assigned_ids:
+                placeholders = ",".join(["?" for _ in assigned_ids])
+                conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
+                params.append(owner_id)
+                params.extend(assigned_ids)
+            else:
+                conditions.append("owner_id = ?")
+                params.append(owner_id)
 
-            Lista piani con filtri e paginazione.
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
 
-            Isolamento stretto: l'utente vede solo i propri piani o quelli a lui assegnati.
+        if exclude_status:
+            conditions.append("status != ?")
+            params.append(exclude_status)
 
-            """
+        if category:
+            conditions.append("category = ?")
+            params.append(category)
 
-            conditions = []
-
-            params = []
-
-    
-
-            # SICUREZZA: Filtro obbligatorio per owner_id (tranne Super Admin gestito a livello app)
-
-            if owner_id:
-
-                # Mostra i piani di cui è owner O quelli che gli sono stati assegnati
-
-                assigned_ids = self.get_assigned_plans(owner_id)
-
-                if assigned_ids:
-
-                    placeholders = ",".join(["?" for _ in assigned_ids])
-
-                    conditions.append(f"(owner_id = ? OR id IN ({placeholders}))")
-
-                    params.append(owner_id)
-
-                    params.extend(assigned_ids)
-
-                else:
-
-                    conditions.append("owner_id = ?")
-
-                    params.append(owner_id)
-
-    
-
-            if status:
-
-                conditions.append("status = ?")
-
-                params.append(status)
-
-            
-
-            if exclude_status:
-
-                conditions.append("status != ?")
-
-                params.append(exclude_status)
-
-    
-
-            if category:
-
-                conditions.append("category = ?")
-
-                params.append(category)
-
-            if club_name:
-
-                conditions.append("club_name LIKE ?")
-
-                params.append(f"%{club_name}%")
+        if club_name:
+            conditions.append("club_name LIKE ?")
+            params.append(f"%{club_name}%")
         
         if plan_ids is not None:
             if not plan_ids: 

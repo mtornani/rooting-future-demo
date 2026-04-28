@@ -1117,7 +1117,7 @@ def api_generate_plan():
 
     auditor = AuditorAgent()
     audit_report = auditor.audit_plan(
-        plan, club_data, metadata.get("financial_estimates", {})
+        plan, enriched_data, metadata.get("financial_estimates", {})
     )
 
     # Salva report di audit nei metadati
