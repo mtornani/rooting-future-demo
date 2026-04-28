@@ -1152,8 +1152,10 @@ def api_generate_plan():
     logger.info(f"Plan generated successfully: {review.plan_id}")
 
     # 5. Genera pacchetto report (on-demand via export routes)
+    pdf_url = None
     onepager_url = None
     executive_url = None
+    scientific_url = None
 
     export_paths = []
     safe_name = club_name.replace(" ", "_").replace("/", "_")
@@ -1186,7 +1188,6 @@ def api_generate_plan():
             club_name=club_name,
             category=data.get("category", "Eccellenza"),
             metadata=metadata,
-            sources=sources,
         )
         exec_filename = f"{safe_name}_ExecutiveReport_{timestamp}.html"
         exec_path = OUTPUT_DIR / exec_filename
