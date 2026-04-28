@@ -572,6 +572,25 @@ def system_status():
         }
     )
 
+@app.route("/api/admin/clear-cache", methods=["POST"])
+@login_required
+def admin_clear_cache():
+    """Svuota la cache AI (solo admin)."""
+    if current_user.role not in ["super_admin", "admin"]:
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    cache_dir = KNOWLEDGE_DIR / "ai_cache"
+    deleted = 0
+    if cache_dir.exists():
+        for f in cache_dir.glob("*.txt"):
+            try:
+                f.unlink()
+                deleted += 1
+            except Exception:
+                pass
+    logger.info(f"Admin {current_user.email}: AI cache cleared ({deleted} files)")
+    return jsonify({"success": True, "deleted": deleted})
+
+
 @app.route("/plans")
 @login_required
 def plans_list():
