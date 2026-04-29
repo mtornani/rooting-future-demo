@@ -1,0 +1,16 @@
+{
+  "club": "riccione-calcio-1926",
+  "member": "test-member",
+  "questionnaire": "swot",
+  "role": "board",
+  "display_name": "Test Member",
+  "data": {
+    "grid": {
+      "strengths": "Settore giovanile",
+      "weaknesses": "Budget limitato",
+      "opportunities": "Turismo",
+      "threats": "Concorrenza"
+    }
+  },
+  "updated_at": "2026-04-18T14:04:47.673923"
+}

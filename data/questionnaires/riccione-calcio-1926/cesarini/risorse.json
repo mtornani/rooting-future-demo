@@ -1,0 +1,27 @@
+{
+  "display_name": "Cesarini",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "risorse_list": [
+      {
+        "categoria": "UMANE",
+        "lista_attuali": "Custode, referente amministrativo, barista, team manager",
+        "cosa_manca": "Nulla ma siamo destinati a crescere e quindi si dovrà valutare.",
+        "intervento_5anni": "Serve un segretario sportivo fisso, un direttore sportivo, avere 4-5 volontari in più, staff per gestione food-beverage nei tornei"
+      },
+      {
+        "categoria": "STRUTTURALI",
+        "lista_attuali": "Campo stadio centrale, antistadio erba, antistadio sintetico, Camp Spontriccioli",
+        "cosa_manca": "Antistadio sintetico nuovo, antistadio in erba migliore come manto",
+        "intervento_5anni": "Allacciare rapporti con altre realtà per avere altri campi per i tornei. Sistemare campo calcetto"
+      },
+      {
+        "categoria": "PATRIMONIALI",
+        "lista_attuali": [],
+        "cosa_manca": "Servono 1-2 pulmini per i trasporti.",
+        "intervento_5anni": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "display_name": "Cesarini",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "Collaboratori",
+        "comunicazione": "Personale, via chat",
+        "relazione": "Molto buona, basata sul rispetto dei ruoli e la condivisione degli obiettivi",
+        "importanza": "Determinante",
+        "azioni": [
+          "Aumentare consapevolezza del progetto.",
+          "Rendere consapevoli sull’importanza del miglioramento tecnico dell’offerta formativa.",
+          "Investire per migliorare ulteriormente il parco allenatori del settore giovanile."
+        ]
+      },
+      {
+        "gruppo": "Fornitori, sponsor",
+        "comunicazione": "Prevalentemente digitale, telefonica",
+        "relazione": "Discreta",
+        "importanza": "E’ importante far crescere senza meno il loro numero per il sostegno economico.",
+        "azioni": [
+          "Aumentare numericamente la loro presenza.",
+          "Raccontare ancora e meglio le attività extra campo da implementare.",
+          "Lavorare sulla ricaduta nel bilancio sociale che si ha diventando partner del nostro club"
+        ]
+      },
+      {
+        "gruppo": "Istituzioni locali, sportive, scuole",
+        "comunicazione": "Grande attenzione al sistema di pubbliche relazioni sia con incontri periodici, disponibilità nel collaborare, comunicazione digitale e telefonica.",
+        "relazione": "Molto buona e c’è grande attenzione ad ogni dettaglio.",
+        "importanza": "Per accreditarci è stato decisivo per crescere potrebbe esserlo ugualmente",
+        "azioni": [
+          "Diventare punto di riferimento magari come centro tecnico federale.",
+          "Punto di riferimento per eventi anche extrasportivi.",
+          "Diventare elemento di brand del territorio."
+        ]
+      },
+      {
+        "gruppo": "Famiglie, abitanti della città, tifosi",
+        "comunicazione": "Relazioni quotidiane attraverso l’attività del club, chat con tutti i gruppi seguite direttamente, buona esposizione come i media.",
+        "relazione": "Al momento molto buona forse anche per l’effetto “luna di miele” non si sono registrate particolari criticità",
+        "importanza": "Fondamentale, sono i nostri ambasciatori",
+        "azioni": [
+          "Coinvolgere in società ancora altri genitori.",
+          "Individuare quali potrebbero sostenerci come sponsor con le loro aziende.",
+          "Diventare sempre di più ambasciatori della città attraverso una forte campagna identitaria."
+        ]
+      },
+      {
+        "gruppo": "Altre società",
+        "comunicazione": "Relazioni sporadiche legate all’ordinaria attività",
+        "relazione": "Da migliorare sia in tempo investito che in qualità",
+        "importanza": "Utile nella crescita tecnica del club",
+        "azioni": [
+          "Provare ad allacciare un legame strutturale con la Riccione Calcio Femminile.",
+          "Diventare punto di riferimento tecnico della città con collaborazione con le altre società.",
+          "Strutturare meglio il nostro team che segue i rapporti con le altre società sia di categoria inferiore che maggiore."
+        ]
+      }
+    ]
+  }
+}

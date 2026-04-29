@@ -1,0 +1,47 @@
+{
+  "display_name": "Cesarini",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "valori": [
+      {
+        "valore": "Passione",
+        "descrizione": "Il calcio è opportunità di crescita umana in tutti i sensi"
+      },
+      {
+        "valore": "Serietà",
+        "descrizione": "Zero balle, costanza, lavoro, determinazione e consapevolezza."
+      },
+      {
+        "valore": "Identità",
+        "descrizione": "Riccione è la nostra città,.ci mettiamo la faccia e non possiamo sbagliare"
+      },
+      {
+        "valore": "Affidabilità",
+        "descrizione": "Sono le persone a fare la differenza: dare valore al loro valore"
+      },
+      {
+        "valore": "Rispetto",
+        "descrizione": "Rispetto per le regole di convivenza, dei ruoli, dei tempi di ognuno, delle personalità differenti, degli impegni che ci si prende"
+      },
+      {
+        "valore": "Impegno",
+        "descrizione": "Fai sempre del tuo meglio a qualcuno potrebbe piacere"
+      },
+      {
+        "valore": "Sostenibilità Ambientale, economica e sociale",
+        "descrizione": "La SOSTENIBILITÀ economica è al centro del progetto che deve autoalimentarsi attraverso il lavoro di squadra di un gruppo capace di esprimere tutte le competenze necessarie."
+      }
+    ],
+    "fondamenta": [
+      {
+        "pilastro": "Settore Giovanile",
+        "motivazione": "È l’elemento da cui tutto parte per rendere futuribile il progetto. Investire nel settore giovanile significa investire nel futuro e significa farlo con la consapevolezza che serve continuità per poi raccogliere i frutti attraverso uno stile ben definito del club che cresce i suoi giovani calciatori in casa."
+      },
+      {
+        "pilastro": "Competenze",
+        "motivazione": "Non basta la buona volontà, servono capacità, volontà di mettersi in discussione, di aggiornarsi, formarsi, capacità di ascolto continua e per questo volontà e inclinazione a stare tra la gente, rapportarsi con i ragazzi, le loro famiglie e con la città tutta."
+      }
+    ]
+  }
+}

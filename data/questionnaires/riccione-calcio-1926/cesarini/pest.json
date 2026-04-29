@@ -1,0 +1,13 @@
+{
+  "display_name": "Cesarini",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "pest_grid": {
+      "politica": "Il rapporto con l’amministrazione è l’aspetto più incisivo. Profili politici e dirigenziali. Difficoltà ad avere consenso trasversale a Riccione a causa di dinamiche locali che portano a essere etichettati se si hanno rapporti con una parte politica.",
+      "economica": "Costi energetici lievitati e nuova legge sullo sport hanno fatto lievitare i costi di gestione del 35-40%. Investimento per il nuovo campo sintetico con rata del mutuo per 15 anni. Reperimento di finanze tramite eventi sportivi e tornei.",
+      "sociale": "Il calcio è lo sport più praticato. Elemento di integrazione, con una percentuale di stranieri iscritti al club probabilmente più alta del 14% della popolazione scolastica di Riccione. Importanza del sentimento di appartenenza dei tesserati e dei loro genitori.",
+      "tecnologica": "Formazione e aggiornamento sono più importanti della tecnologia in sé. Investimenti in campi di ultima generazione e illuminazione a Led per ridurre i costi energetici."
+    }
+  }
+}
