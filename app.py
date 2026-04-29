@@ -4827,6 +4827,8 @@ def api_generate_from_questionnaires():
         project_id = f"quest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         update_project_status(project_id, "processing", 10, "Preparazione dati questionari...")
 
+        owner_id = int(current_user.id)
+
         def run_generation(p_id, c_data):
             try:
                 update_project_status(p_id, "processing", 20, "Generazione piano in corso...")
@@ -4836,20 +4838,30 @@ def api_generate_from_questionnaires():
                     parallel=True,
                     on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
-                update_project_status(p_id, "completed", 100, "Piano generato con successo")
-                # Salva risultato
-                plan_id = knowledge_manager.store.save_plan(c_data["club_name"], result)
-                # Registra in editor per abilitare export immediato
-                plan_record = knowledge_manager.store.get_plan(plan_id)
-                if plan_record:
-                    review = editor.create_review_from_plan(
-                        plan_data=plan_record.plan_data,
-                        club_name=plan_record.club_name,
-                        metadata={"category": plan_record.category},
-                        owner_id=plan_record.owner_id,
-                    )
-                    review.plan_id = plan_id
-                    editor.reviews[plan_id] = review
+                # Crea review (stessa logica del flusso normale)
+                review = editor.create_review_from_plan(
+                    plan_data=result,
+                    club_name=c_data["club_name"],
+                    metadata={"category": c_data.get("category", "")},
+                    owner_id=owner_id,
+                )
+                plan_id = review.plan_id
+                # Salva nel DB
+                plan_record = PlanRecord(
+                    id=plan_id,
+                    club_name=c_data["club_name"],
+                    category=c_data.get("category", ""),
+                    region=c_data.get("region", ""),
+                    created_at=datetime.now().isoformat(),
+                    status="draft",
+                    plan_data=result,
+                    sources_count=0,
+                    credibility_score=0,
+                )
+                try:
+                    knowledge_manager.add_plan_to_knowledge(plan_record, owner_id=owner_id)
+                except Exception as _e:
+                    logger.error(f"add_plan_to_knowledge failed (non-fatal): {_e}")
                 _wiki_append_plan(c_data, plan_id)
                 update_project_status(p_id, "completed", 100, "Piano salvato", data={"plan_id": plan_id})
             except Exception as e:
