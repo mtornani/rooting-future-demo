@@ -106,6 +106,7 @@ _PERSISTENT_ROOT = _HF_DATA if _HF_DATA.exists() else BASE_DIR
 
 OUTPUT_DIR = _PERSISTENT_ROOT / "output"
 KNOWLEDGE_DIR = _PERSISTENT_ROOT / "knowledge_base"
+QUESTIONNAIRE_DATA_DIR = _PERSISTENT_ROOT / "questionnaires"
 ASSETS_DIR = BASE_DIR / "assets"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
@@ -115,6 +116,7 @@ FILE_SEARCH_STORE_ID_PATH = KNOWLEDGE_DIR / "file_search_store_id.txt"
 # Crea directories se non esistono
 OUTPUT_DIR.mkdir(exist_ok=True)
 KNOWLEDGE_DIR.mkdir(exist_ok=True)
+QUESTIONNAIRE_DATA_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
 
 

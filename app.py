@@ -85,6 +85,7 @@ def update_project_status(p_id, status, progress=0, message="", data=None):
 from config import (
     OUTPUT_DIR,
     KNOWLEDGE_DIR,
+    QUESTIONNAIRE_DATA_DIR,
     CATEGORIE_CALCIO_ITALIANO,
     REGIONI_ITALIANE,
     COUNTRIES_LEAGUES,
@@ -314,9 +315,7 @@ logging.getLogger().addHandler(_mem_handler)
 
 log_stream_handler = None
 
-# Questionnaire data directory
-QUESTIONNAIRE_DATA_DIR = Path(__file__).parent / "data" / "questionnaires"
-QUESTIONNAIRE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+# Questionnaire data directory (persistent — defined in config.py)
 
 # =============================================================================
 # COMPONENTI (inizializzazione con gestione errori)
@@ -340,6 +339,20 @@ session_manager = init_session_manager(store=knowledge_manager.store)
 
 # Auth
 init_auth(app, knowledge_manager.store)
+
+# Seed fixture questionnaires from bundle → persistent volume (one-time copy)
+def _seed_fixture_questionnaires():
+    bundle_q = Path(__file__).parent / "data" / "questionnaires"
+    if not bundle_q.exists():
+        return
+    import shutil
+    for src in bundle_q.rglob("*.json"):
+        rel = src.relative_to(bundle_q)
+        dst = QUESTIONNAIRE_DATA_DIR / rel
+        if not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+_seed_fixture_questionnaires()
 
 # Multi-Agent Orchestrator (Gemma primary, Gemini Flash fallback)
 orchestrator = MultiAgentOrchestrator(
