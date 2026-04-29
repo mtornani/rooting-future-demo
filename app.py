@@ -4838,11 +4838,16 @@ def api_generate_from_questionnaires():
                     parallel=True,
                     on_progress=lambda msg, pct: update_project_status(p_id, "processing", 20 + int(pct * 0.7), msg),
                 )
+                plan = result["plan"]
+                sources = result.get("sources", [])
+                metadata = result.get("metadata", {})
+                metadata["category"] = c_data.get("category", "")
                 # Crea review (stessa logica del flusso normale)
                 review = editor.create_review_from_plan(
-                    plan_data=result,
+                    plan_data=plan,
                     club_name=c_data["club_name"],
-                    metadata={"category": c_data.get("category", "")},
+                    sources=sources,
+                    metadata=metadata,
                     owner_id=owner_id,
                 )
                 plan_id = review.plan_id
@@ -4854,9 +4859,9 @@ def api_generate_from_questionnaires():
                     region=c_data.get("region", ""),
                     created_at=datetime.now().isoformat(),
                     status="draft",
-                    plan_data=result,
-                    sources_count=0,
-                    credibility_score=0,
+                    plan_data=plan,
+                    sources_count=len(sources),
+                    credibility_score=metadata.get("credibility_score", 0),
                 )
                 try:
                     knowledge_manager.add_plan_to_knowledge(plan_record, owner_id=owner_id)
