@@ -221,6 +221,7 @@ from flask_login import login_required, current_user
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
+app.jinja_env.globals['now'] = datetime.now
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
 
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -1140,9 +1141,12 @@ def api_generate_plan():
             "overall_quality_score", metadata.get("credibility_score", 0)
         ),
     )
-    knowledge_manager.add_plan_to_knowledge(
-        plan_record, owner_id=int(current_user.id)
-    )
+    try:
+        knowledge_manager.add_plan_to_knowledge(
+            plan_record, owner_id=int(current_user.id)
+        )
+    except Exception as _e:
+        logger.error(f"add_plan_to_knowledge failed (non-fatal): {_e}")
 
     # DETRAZIONE CREDITO (Escluso Super Admin)
     if current_user.role != "super_admin":
@@ -2824,7 +2828,6 @@ def view_executive_report(plan_id: str):
             club_name=review.club_name,
             category=review.category,
             metadata=metadata,
-            sources=[],
         )
 
         return html_content

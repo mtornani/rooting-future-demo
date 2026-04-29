@@ -149,11 +149,11 @@ class SQLiteKnowledgeStore:
         self.db_path = db_path or (KNOWLEDGE_DIR / "rooting_future.db")
         try:
             self._init_db()
-        except sqlite3.OperationalError as e:
-            if "readonly" in str(e).lower():
-                # DB corrotto o read-only: rimuovi e ricrea
+        except sqlite3.DatabaseError as e:
+            _emsg = str(e).lower()
+            if "readonly" in _emsg or "malformed" in _emsg or "corrupt" in _emsg:
                 import logging as _log
-                _log.getLogger(__name__).warning(f"DB read-only ({e}), removing and recreating: {self.db_path}")
+                _log.getLogger(__name__).warning(f"DB corrupt/malformed ({e}), removing and recreating: {self.db_path}")
                 for suffix in ["", "-wal", "-shm"]:
                     p = Path(str(self.db_path) + suffix)
                     if p.exists():
