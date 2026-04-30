@@ -568,5 +568,20 @@
             }
         }
     </script>
+    <!-- marked.js: render markdown in section previews -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Strip (fonte: ...) annotations and render markdown in all content divs
+        function renderSectionMarkdown() {
+            const cleanSource = (html) => html.replace(/\s*\(fonte:[^)]*\)/gi, '');
+            document.querySelectorAll('.content-preview, .content-full').forEach(el => {
+                const raw = el.textContent || el.innerText;
+                if (raw && raw.trim()) {
+                    el.innerHTML = marked.parse(cleanSource(raw));
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', renderSectionMarkdown);
+    </script>
 </body>
 </html>
