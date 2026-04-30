@@ -2399,26 +2399,6 @@ def api_export_package(plan_id: str):
         except Exception as docx_error:
             logger.error(f"Errore generazione DOCX: {docx_error}", exc_info=True)
 
-        # --- EXECUTIVE REPORT (HTML) ---
-        try:
-            exec_html = plan_renderer.render_executive_html(
-                plan_data=plan_data,
-                club_name=review.club_name,
-                category=review.category,
-                metadata=metadata,
-            )
-            exec_filename = f"{safe_name}_ExecutiveReport.html"
-            exec_path = Path(temp_dir) / exec_filename
-            with open(exec_path, "w", encoding="utf-8") as f:
-                f.write(exec_html)
-
-            files_added.append(("html_exec", str(exec_path)))
-            logger.info(f"Executive Report generato: {exec_path}")
-        except Exception as exec_error:
-            logger.error(
-                f"Errore generazione Executive Report: {exec_error}", exc_info=True
-            )
-
         # --- ONE-PAGER (Infografica) ---
         try:
             from export_onepager import create_onepager
