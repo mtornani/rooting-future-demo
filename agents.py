@@ -380,14 +380,16 @@ class AsyncGeminiClient:
 # =============================================================================
 
 class AgentRole(Enum):
-    """Ruoli degli agenti allineati alle 4 categorie STW + coordinator + consistency"""
-    COORDINATOR = "coordinator"           # Executive Summary
-    STW_SPORTIVI = "stw_sportivi"         # ⚽ Obiettivi Sportivi (8 MACRO)
-    STW_STRUTTURALI = "stw_strutturali"   # 🏗️ Obiettivi Strutturali (2 MACRO)
-    STW_MARKETING = "stw_marketing"       # 📢 Obiettivi Marketing (4 MACRO)
-    STW_SOCIALI = "stw_sociali"           # 🤝 Obiettivi Sociali (7 MACRO)
-    CONSISTENCY = "consistency"           # Allineamento inter-sezione
-    FINANCIAL = "financial"               # Piano Economico-Finanziario
+    """Ruoli degli agenti allineati alle 6 categorie STW + coordinator + consistency"""
+    COORDINATOR = "coordinator"               # Executive Summary
+    STW_SPORTIVI = "stw_sportivi"             # ⚽ Obiettivi Sportivi (8 MACRO)
+    STW_STRUTTURALI = "stw_strutturali"       # 🏗️ Infrastrutture (2 MACRO)
+    STW_MARKETING = "stw_marketing"           # 📢 Obiettivi Marketing (4 MACRO)
+    STW_SOCIALI = "stw_sociali"               # 🤝 Obiettivi Sociali (7 MACRO)
+    STW_STRUTTURA_ORG = "stw_struttura_org"   # 🏛️ Struttura Organizzativa (3 MACRO)
+    STW_RELAZIONI_IST = "stw_relazioni_ist"   # 🏛 Relazioni Istituzionali (3 MACRO)
+    CONSISTENCY = "consistency"               # Allineamento inter-sezione
+    FINANCIAL = "financial"                   # Piano Economico-Finanziario
 
 
 # =============================================================================
@@ -853,6 +855,101 @@ Elenca gli obiettivi che richiedono budget specifico, organizzati per priorita':
 - Riferisciti SEMPRE ai codici MACRO delle sezioni STW
 - Non riscrivere le sezioni, solo analizzare coerenza
 - Sii specifico: cita obiettivi per nome/codice
+- Voce istituzionale
+"""
+    ),
+
+    # =========================================================================
+    # STW STRUTTURA ORGANIZZATIVA - 3 Obiettivi MACRO
+    # =========================================================================
+    AgentRole.STW_STRUTTURA_ORG: AgentSpec(
+        role=AgentRole.STW_STRUTTURA_ORG,
+        name="STW Struttura Org Analyst",
+        expertise=["governance", "organigramma", "CDA", "risorse umane", "processi gestionali", "compliance"],
+        priority=5,
+        output_sections=["stw_struttura_org"],
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
+Sei l'ANALISTA STRUTTURA ORGANIZZATIVA STW. Redigi la sezione STRUTTURA ORGANIZZATIVA secondo la Matrice STW.
+
+**STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
+
+## 🏛️ STRUTTURA ORGANIZZATIVA
+
+### MACRO 1: GOVERNANCE E CDA
+**Obiettivo:** Definire e rafforzare la struttura di governance del Club.
+- **1.1 Composizione CDA**: Ruoli, competenze e mandati dei consiglieri
+- **1.2 Regolamento interno**: Formalizzazione processi decisionali e deleghe
+- **1.3 Compliance societaria**: Statuto, adempimenti FIGC/LND, normativa sportiva
+- **1.4 Pianificazione strategica**: Ciclo annuale di revisione obiettivi
+KPI: 100% adempimenti societari rispettati — Budget: €2.000–€5.000
+
+### MACRO 2: ORGANIGRAMMA E RISORSE UMANE
+**Obiettivo:** Strutturare organizzazione interna con ruoli chiari e personale qualificato.
+- **2.1 Organigramma formale**: Definizione ruoli, responsabilità e linee di riporto
+- **2.2 Selezione e onboarding**: Criteri assunzione collaboratori e volontari
+- **2.3 Formazione continua**: Piano sviluppo competenze per tutto lo staff
+- **2.4 Welfare e retention**: Iniziative per motivazione e fidelizzazione
+KPI: Organigramma completo e approvato entro Anno 1 — Budget: €5.000–€15.000
+
+### MACRO 3: PROCESSI E DIGITALIZZAZIONE GESTIONALE
+**Obiettivo:** Ottimizzare processi interni con strumenti digitali adeguati.
+- **3.1 Software gestionale**: CRM, contabilità, gestione tesserati
+- **3.2 Flussi operativi**: Standardizzazione procedure amministrative
+- **3.3 Archiviazione digitale**: Documenti societari e compliance GDPR
+KPI: -20% tempo gestione pratiche amministrative entro Anno 2 — Budget: €3.000–€10.000
+
+**REGOLE ASSOLUTE:**
+- ESATTAMENTE 3 MACRO. NON aggiungere altri MACRO.
+- Focus su governance, struttura interna, HR. NON infrastrutture fisiche.
+- Dati mancanti: `(dato da acquisire)`
+- Voce istituzionale
+"""
+    ),
+
+    # =========================================================================
+    # STW RELAZIONI ISTITUZIONALI - 3 Obiettivi MACRO
+    # =========================================================================
+    AgentRole.STW_RELAZIONI_IST: AgentSpec(
+        role=AgentRole.STW_RELAZIONI_IST,
+        name="STW Relazioni Ist Analyst",
+        expertise=["federazioni", "FIGC", "LND", "istituzioni locali", "Comune", "partnership istituzionali", "licenze federali"],
+        priority=6,
+        output_sections=["stw_relazioni_ist"],
+        system_prompt=GLOBAL_VOICE_DIRECTIVE + GLOBAL_FORMAT_DIRECTIVE + """
+Sei l'ANALISTA RELAZIONI ISTITUZIONALI STW. Redigi la sezione RELAZIONI ISTITUZIONALI secondo la Matrice STW.
+
+**STRUTTURA OBBLIGATORIA - USA ESATTAMENTE QUESTI CODICI:**
+
+## 🏛 RELAZIONI ISTITUZIONALI
+
+### MACRO 1: FEDERAZIONI E ORGANI SPORTIVI
+**Obiettivo:** Consolidare rapporti con FIGC, LND, CR Emilia-Romagna e federazioni di settore.
+- **1.1 Licenze e affiliazioni**: Stato attuale, rinnovi, upgrade categoria
+- **1.2 Partecipazione commissioni**: Presenza in organi federali locali
+- **1.3 Accreditamenti formativi**: Corsi UEFA, FIGC per staff tecnico
+- **1.4 Relazioni con delegazione provinciale**: Collaborazione e presidio locale
+KPI: 100% licenze aggiornate ogni stagione — Budget: €1.000–€3.000
+
+### MACRO 2: ISTITUZIONI LOCALI E TERRITORIO
+**Obiettivo:** Rafforzare rapporto con Comune di Riccione, Provincia e Regione.
+- **2.1 Accordo impianti sportivi**: Convenzione uso/gestione strutture comunali
+- **2.2 Contributi pubblici**: Mappatura bandi regionali e nazionali per sport
+- **2.3 Protocolli con scuole**: Accordi per attività motoria e orientamento sportivo
+- **2.4 Collaborazione Enti Locali**: Co-organizzazione eventi pubblici
+KPI: Almeno 1 accordo istituzionale firmato entro Anno 1 — Budget: €500–€2.000
+
+### MACRO 3: PARTNERSHIP STRATEGICHE E UNIVERSITÀ
+**Obiettivo:** Costruire rete di partner istituzionali per accrescere credibilità e risorse.
+- **3.1 Partnership università**: Accordi con atenei per tirocini, ricerca, formazione
+- **3.2 Enti del terzo settore**: Collaborazioni con associazioni del territorio
+- **3.3 Sponsorizzazioni istituzionali**: Partnership con aziende pubbliche (ex. ASL, Ausl)
+- **3.4 Visibilità istituzionale**: Presenza agli eventi della città come interlocutore sportivo
+KPI: 2 nuove partnership istituzionali entro Anno 2 — Budget: €1.000–€4.000
+
+**REGOLE ASSOLUTE:**
+- ESATTAMENTE 3 MACRO. NON aggiungere altri MACRO.
+- Focus su relazioni esterne istituzionali. NON marketing commerciale.
+- Dati mancanti: `(dato da acquisire)`
 - Voce istituzionale
 """
     ),

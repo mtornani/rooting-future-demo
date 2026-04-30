@@ -292,10 +292,12 @@ class OnePagerExporter(BaseExporter):
         # STW Progress bars
         stw_bars_html = ''
         stw_labels = [
-            ('sportivi', 'SPORTIVI', STWCategory.SPORTIVI),
-            ('strutturali', 'STRUTTURALI', STWCategory.STRUTTURALI),
+            ('sportivi', 'TECNICO-SPORTIVA', STWCategory.SPORTIVI),
+            ('strutturali', 'INFRASTRUTTURE', STWCategory.STRUTTURALI),
+            ('struttura_org', 'STRUTTURA ORG.', STWCategory.STRUTTURA_ORG),
+            ('relazioni_ist', 'RELAZIONI IST.', STWCategory.RELAZIONI_IST),
             ('marketing', 'MARKETING', STWCategory.MARKETING),
-            ('sociali', 'SOCIALI', STWCategory.SOCIALI)
+            ('sociali', 'SOCIALE', STWCategory.SOCIALI),
         ]
         for key, label, cat_enum in stw_labels:
             prog_data = stw_progress.get(key, {})

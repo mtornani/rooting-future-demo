@@ -93,9 +93,11 @@ class STWAnalyzer:
         # Mapping chiavi sezione → categoria STW
         section_mappings = {
             'sportivi': ['stw_sportivi', 'technical_sporting', 'sporting', 'settore_giovanile'],
-            'strutturali': ['stw_strutturali', 'infrastructure', 'facilities', 'hr'],
+            'strutturali': ['stw_strutturali', 'infrastructure', 'facilities'],
             'marketing': ['stw_marketing', 'marketing', 'commercial', 'communication'],
-            'sociali': ['stw_sociali', 'social', 'community', 'sustainability']
+            'sociali': ['stw_sociali', 'social', 'community', 'sustainability'],
+            'struttura_org': ['stw_struttura_org', 'governance', 'hr', 'organigramma'],
+            'relazioni_ist': ['stw_relazioni_ist', 'relazioni_istituzionali', 'istituzionali'],
         }
 
         content_parts = []

@@ -17,6 +17,8 @@ class STWCategory(Enum):
     STRUTTURALI = "strutturali"
     MARKETING = "marketing"
     SOCIALI = "sociali"
+    STRUTTURA_ORG = "struttura_org"
+    RELAZIONI_IST = "relazioni_ist"
 
 
 @dataclass
@@ -423,6 +425,8 @@ def get_category_icon(category: STWCategory) -> str:
         STWCategory.STRUTTURALI: "🏗️",
         STWCategory.MARKETING: "📢",
         STWCategory.SOCIALI: "🤝",
+        STWCategory.STRUTTURA_ORG: "🏛️",
+        STWCategory.RELAZIONI_IST: "🤝🏛",
     }
     return icons.get(category, "📋")
 
@@ -430,10 +434,12 @@ def get_category_icon(category: STWCategory) -> str:
 def get_category_color(category: STWCategory) -> str:
     """Restituisce un colore CSS per la categoria"""
     colors = {
-        STWCategory.SPORTIVI: "#2E7D32",      # Verde scuro
-        STWCategory.STRUTTURALI: "#1565C0",   # Blu
-        STWCategory.MARKETING: "#E65100",     # Arancione
-        STWCategory.SOCIALI: "#7B1FA2",       # Viola
+        STWCategory.SPORTIVI: "#2E7D32",        # Verde scuro
+        STWCategory.STRUTTURALI: "#1565C0",     # Blu
+        STWCategory.MARKETING: "#E65100",       # Arancione
+        STWCategory.SOCIALI: "#7B1FA2",         # Viola
+        STWCategory.STRUTTURA_ORG: "#00695C",   # Teal
+        STWCategory.RELAZIONI_IST: "#AD1457",   # Rosa scuro
     }
     return colors.get(category, "#424242")
 
