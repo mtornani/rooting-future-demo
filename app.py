@@ -223,6 +223,16 @@ from flask_login import login_required, current_user
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "rf-secret-key-2026")
 app.jinja_env.globals['now'] = datetime.now
+
+# Jinja2 filter: convert markdown to HTML (server-side, no CDN dependency)
+import markdown as _markdown
+@app.template_filter('md')
+def md_filter(text):
+    if not text:
+        return ''
+    import re as _re
+    text = _re.sub(r'\s*\(fonte:[^)]*\)', '', text, flags=_re.IGNORECASE)
+    return _markdown.markdown(str(text), extensions=['tables'])
 app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024
 
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
