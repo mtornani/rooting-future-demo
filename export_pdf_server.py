@@ -501,8 +501,7 @@ class PdfServerExporter(BaseExporter):
         }}
 
         .section-body {{
-            column-count: 2;
-            column-gap: 10mm;
+            column-count: 1;
             text-align: justify;
         }}
 
@@ -580,6 +579,11 @@ class PdfServerExporter(BaseExporter):
 
         h2, h3, h4 {{
             page-break-after: avoid;
+            break-after: avoid;
+        }}
+
+        h3 + p, h3 + ul, h3 + ol {{
+            break-before: avoid;
         }}
 
         /* Simplified layout without columns to prevent WeasyPrint infinite loops */
