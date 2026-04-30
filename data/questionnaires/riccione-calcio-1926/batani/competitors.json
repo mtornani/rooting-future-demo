@@ -1,0 +1,27 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "UNITED RICCIONE",
+        "punti_forza": "Credibilità e serietà nella struttura gestionale e societaria.",
+        "debolezze": "Dubbi circa l’offerta proposta ai tesserati e simpatizzanti legata soprattutto ai progetti ed iniziative.",
+        "azioni": "Al momento non prendo in considerazione azioni di merito in quanto ritengo che la società abbia già compromesso la fiducia che i tesserati e i simpatizzanti vi avevano riposto, deludendo ampiamente sia le promesse che le aspettative."
+      },
+      {
+        "nome": "Asar",
+        "punti_forza": "Essere presente sul territorio da parecchi anni nel ricoprire l’offerta formativa all’attività di calcio giovanile",
+        "debolezze": "",
+        "azioni": "Proporre delle offerte per le attività del settore giovanile più appetibile ed incentivante"
+      },
+      {
+        "nome": "Polisportiva San Lorenzo",
+        "punti_forza": "",
+        "debolezze": "",
+        "azioni": ""
+      }
+    ]
+  }
+}

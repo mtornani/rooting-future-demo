@@ -1,0 +1,43 @@
+{
+  "display_name": "Adriano Brisigotti",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "valori": [
+      {
+        "valore": "Passione",
+        "descrizione": "Rappresenta il valore assoluto"
+      },
+      {
+        "valore": "Responsabilità",
+        "descrizione": "Verso i nostri tesserati in modo particolare all'attività di base"
+      },
+      {
+        "valore": "Lavoro di squadra",
+        "descrizione": "Il lavoro di squadra ha permesso al nostro gruppo di soci di essere assieme da oltre 20 anni quindi lo ritengo fondamentale."
+      },
+      {
+        "valore": "Eccellenza",
+        "descrizione": "Offrire la migliore qualità"
+      },
+      {
+        "valore": "Trasparenza",
+        "descrizione": "Dare il migliore servizio con assoluta trasparenza."
+      }
+    ],
+    "fondamenta": [
+      {
+        "pilastro": "SOSTENIBILITA'",
+        "motivazione": ""
+      },
+      {
+        "pilastro": "SVILUPPO A 360 GRADI DEL SETTORE GIOVANILE",
+        "motivazione": ""
+      },
+      {
+        "pilastro": "CENTRALITA’ DELLA CONDIVISIONE",
+        "motivazione": "Sono fondamentali!"
+      }
+    ]
+  }
+}

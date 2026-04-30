@@ -1,0 +1,15 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "mission_main": {
+      "parole_chiave": "valori che guidano l’azione, bisogni a cui rispondere, target di utenti, risorse a disposizione, strumenti da utilizzare, vantaggi competitivi rispetto alla concorrenza",
+      "cosa_facciamo": "Proponiamo un’offerta formativa per la crescita dei giovani calciatori",
+      "come_lo_facciamo": "Tramite le risorse a disposizione su base volontaristica dei collaboratori",
+      "per_chi": "Per i nostri giovani tesserati",
+      "benefici": "Idealmente di formare dei giovani che una volta adulti potranno condividere i nostri stessi ideali",
+      "mission_bozza": "Anche te, diventato adulto potrai fare parte della nostra famiglia"
+    }
+  }
+}

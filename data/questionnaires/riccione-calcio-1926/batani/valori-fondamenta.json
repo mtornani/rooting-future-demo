@@ -1,0 +1,30 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "valori": [
+      {
+        "valore": "Passione",
+        "descrizione": "Rappresenta il sentimento alla base di tutto."
+      },
+      {
+        "valore": "Responsabilità",
+        "descrizione": "Con la passione è il sentimento che permette di operare con dedizione nel difficile compito di supporto ed educatore nei confronti dei giovani tesserati"
+      },
+      {
+        "valore": "Lavoro di squadra",
+        "descrizione": "E’ importante che ognuno nel proprio ruolo si senta partecipe e non escluso dal gruppo."
+      },
+      {
+        "valore": "Eccellenza",
+        "descrizione": "E’ importantissimo la qualità dell’offerta proposta"
+      },
+      {
+        "valore": "Integrità",
+        "descrizione": "Che comprende anche la trasparenza perché tutte le attività siano fatte opportunamente e spassionatamente."
+      }
+    ],
+    "fondamenta": []
+  }
+}

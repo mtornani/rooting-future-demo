@@ -1,0 +1,148 @@
+{
+  "display_name": "Carnevali",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "Istituzioni",
+        "comunicazione": "Comunicazione digitale, Documenti ufficiale, Incontri istituzionali, Comunicazioni formali",
+        "relazione": "Buone",
+        "importanza": "Essenziali",
+        "azioni": [
+          "Organizzare incontri periodici",
+          "Promuovere iniziative di sostenibilità e inclusività",
+          "Rafforzare la presenza nelle attività istituzionali"
+        ]
+      },
+      {
+        "gruppo": "Tesserati",
+        "comunicazione": "Comunicazioni interne (e-mail, whatsapp), Riunioni periodiche e incontri One-to-One, Comunicazione digitale, Eventi e media",
+        "relazione": "Cruciali",
+        "importanza": "Cruciali",
+        "azioni": [
+          "Implementare un programma di formazione continua",
+          "Organizzare eventi a loro dedicati",
+          "Migliorare ambiente di lavoro"
+        ]
+      },
+      {
+        "gruppo": "Famiglie",
+        "comunicazione": "Comunicazioni interne (e-mail, whatsapp), Riunioni periodiche e incontri one-to-one, Comunicazione digitale, Eventi e media",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Coinvolgere le famiglie nei progetti",
+          "Organizzare eventi",
+          "Migliorare il canale di comunicazione dedicato"
+        ]
+      },
+      {
+        "gruppo": "Sponsor",
+        "comunicazione": "Attivazioni digitali (post dedicati, storytelling social), Incontri periodici, Comunicazioni personalizzate via email, Organizzare eventi",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Creare report",
+          "Migliorare la comunicazione nei loro confronti",
+          ""
+        ]
+      },
+      {
+        "gruppo": "Media",
+        "comunicazione": "Comunicati stampa, Conferenze stampa, Collaborazioni con media locali, Comunicazione digitale, Eventi",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Organizzare conferenze stampa periodiche",
+          "Coinvolgere giornalisti",
+          "Sviluppare contenuti a loro dedicati"
+        ]
+      },
+      {
+        "gruppo": "Altre società sportive",
+        "comunicazione": "Tornei ed iniziative congiunte, Eventi, Comunicazione digitale, E-mail e incontri",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Organizzare amichevoli e tornei comuni",
+          "Sviluppare iniziative condivise",
+          "Collaborare per eventi di sostenibilità e inclusione"
+        ]
+      },
+      {
+        "gruppo": "Partner",
+        "comunicazione": "Comunicati stampa, Conferenze stampa, Collaborazioni con media locali, Comunicazione digitale, Eventi, E-mail e incontri",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Creare pacchetti di opportunità reciproche",
+          "Organizzare visite periodiche o incontri",
+          ""
+        ]
+      },
+      {
+        "gruppo": "Fornitori",
+        "comunicazione": "Contratti, Riunioni di allineamento, Comunicazione diretta, E-mail e incontri",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Stabilire contratti chiari e trasparenti",
+          "Collaborare per sviluppare servizi",
+          "Organizzare visite periodiche o incontri"
+        ]
+      },
+      {
+        "gruppo": "Scuole",
+        "comunicazione": "Progetti educativi, Eventi, Incontri con dirigenti scolastici, Comunicazione digitale",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Organizzare eventi a loro dedicati",
+          "Creare progetti dedicati",
+          "Organizzare visite periodiche o incontri"
+        ]
+      },
+      {
+        "gruppo": "Residenti",
+        "comunicazione": "Tornei ed iniziative congiunte, Eventi, Comunicazione digitale, E-mail e incontri, Affissioni locali",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Organizzare eventi comunitari",
+          "Coinvolgerli nelle iniziative del club",
+          "Creare progetti dedicati"
+        ]
+      },
+      {
+        "gruppo": "Dipendenti e Collaboratori",
+        "comunicazione": "Incontri periodici, Comunicazione interna, Eventi, Comunicazione digitale",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Implementare un programma di formazione continua",
+          "Valorizzare il feedback dei dipendenti",
+          "Valorizzare il loro contributo"
+        ]
+      },
+      {
+        "gruppo": "Istituti di credito",
+        "comunicazione": "Report finanziari, Aggiornamenti periodici sui risultati finanziari, Organizzare incontri personalizzati",
+        "relazione": "",
+        "importanza": "",
+        "azioni": []
+      },
+      {
+        "gruppo": "Strutture e realtà del territorio",
+        "comunicazione": "Eventi, Comunicazioni dirette, Comunicazione digitale, Incontri periodici",
+        "relazione": "",
+        "importanza": "",
+        "azioni": [
+          "Organizzare eventi congiunti di promozione del territorio",
+          "Promuovere convenzioni",
+          "Creare pacchetti dedicati"
+        ]
+      }
+    ]
+  }
+}

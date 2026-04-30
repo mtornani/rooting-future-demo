@@ -1,0 +1,30 @@
+{
+  "display_name": "Giorgio Veschi",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "valori": [
+      {
+        "valore": "1",
+        "descrizione": ""
+      },
+      {
+        "valore": "2",
+        "descrizione": ""
+      },
+      {
+        "valore": "3",
+        "descrizione": ""
+      },
+      {
+        "valore": "4",
+        "descrizione": ""
+      },
+      {
+        "valore": "5",
+        "descrizione": ""
+      }
+    ],
+    "fondamenta": []
+  }
+}

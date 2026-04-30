@@ -1,0 +1,48 @@
+{
+  "display_name": "Carnevali",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "risorse_list": [
+      {
+        "categoria": "UMANE",
+        "lista_attuali": [
+          "1 resp. Settore Giovanile",
+          "1 resp. Agonistico",
+          "1 direttore generale",
+          "1 segretario sportivo",
+          "1 vice presidente",
+          "1 presidente",
+          "1 custode",
+          "1 addetta al bar",
+          "1 persona amministrativa",
+          "1 persona dedicata alla gestione magazzino",
+          "1 resp. Eventi area food and beverage"
+        ],
+        "cosa_manca": "Ampliare la struttura dirigenziale\nPersonale per attività eventi\nRicerca delle figure mancanti\nMaggiore coinvolgimento nei confronti delle famiglie",
+        "intervento_5anni": "Ampliamento per la gestione degli eventi/tornei"
+      },
+      {
+        "categoria": "IMMOBILI",
+        "lista_attuali": [
+          "Stadio comunale (campo centrale, tribuna, area food and beverage, bar, campo a 11 sinteico in fase di realizzazione, campo a 11 in erba, campo di calcio a 5 da realizzare, tensostrutture, locale cucina)",
+          "Campo spontricciolo (11 in erba, campo a 8 in erba)",
+          "Campo da calcio Riccione femminile (in gestione per i tornei sportivi er anno 2025)",
+          "Campo Beach soccer per eventi tornei"
+        ],
+        "cosa_manca": "Rifacimento totale del campo in erba sintetica\nCreazione comunità energetica\nCreazione villaggio per eventi\nAmmodernamento generale delle strutture\nArredamento uffici",
+        "intervento_5anni": "Pannelli solari per la struttura tribuna"
+      },
+      {
+        "categoria": "STRUMENTI",
+        "lista_attuali": [
+          "Materiale tecnico per allenamento",
+          "Arredamento strutture",
+          "Materiale per eventi"
+        ],
+        "cosa_manca": "",
+        "intervento_5anni": "Aggiornamento e ammodernamento costante"
+      }
+    ]
+  }
+}

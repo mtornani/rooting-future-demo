@@ -1,0 +1,15 @@
+{
+  "display_name": "Carnevali",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "mission_main": {
+      "parole_chiave": "Formazione, Progetto etico sociale, Valori, Percorso sportivo",
+      "cosa_facciamo": "Progetto sportivo e fomativo",
+      "come_lo_facciamo": "In maniera strutturata e orientata all’eccellenza",
+      "per_chi": "Per i giovani atleti e le persone che gravitano intorno alla Riccione calcio",
+      "benefici": "Formazione e promozione di valori fondamentali",
+      "mission_bozza": "Formare giovani atleti e cittadini responsabili attraverso un percorso sportivo ed educativo di eccellenza, che promuova valori come il rispetto, l’inclusività la crescita personale e la sostenibilità"
+    }
+  }
+}

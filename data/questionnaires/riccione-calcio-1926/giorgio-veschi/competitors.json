@@ -1,0 +1,33 @@
+{
+  "display_name": "Giorgio Veschi",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "Rimini calcio",
+        "punti_forza": "Professionisti, da sempre punto di riferimento, ambiziosi, ottima reputazione",
+        "debolezze": "Non ne sono a conoscenza",
+        "azioni": "Collaborazione e dialogo"
+      },
+      {
+        "nome": "United Riccione",
+        "punti_forza": "La categoria (serie D)",
+        "debolezze": "Hanno una pessima reputazione, senza campi e senza un progetto valido",
+        "azioni": "Evitarli, sono pericolosi. Non credo sia fattibile una collaborazione, troppi problemi economici"
+      },
+      {
+        "nome": "San Lorenzo",
+        "punti_forza": "Da oltre quarant’anni sul territorio, un buon settore giovanile, discreta reputazione",
+        "debolezze": "Chiusi in se stessi e negli ultimi anni ancor di più",
+        "azioni": ""
+      },
+      {
+        "nome": "Asar",
+        "punti_forza": "Hanno un discreto gruppo dirigenziale, da molto tempo sono sul territorio, buon settore giovanile",
+        "debolezze": "Poco propensi al dialogo e chiusi in se stessi, vedono la Riccione Calcio come una minaccia",
+        "azioni": "Cercare di collaborare e quasi impossibile"
+      }
+    ]
+  }
+}

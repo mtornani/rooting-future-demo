@@ -1,0 +1,25 @@
+{
+  "display_name": "Adriano Brisigotti",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "Collaboratori",
+        "comunicazione": "WhatsApp, email o diretta",
+        "relazione": "Molto importante per la programmazione societaria",
+        "importanza": "Molto importante",
+        "azioni": []
+      },
+      {
+        "gruppo": "Sponsor",
+        "comunicazione": "",
+        "relazione": "Sono parte fondamentale per la vita della società",
+        "importanza": "Fondamentale",
+        "azioni": [
+          "Ridurre il loro peso con attività che permettano entrate certe annuali."
+        ]
+      }
+    ]
+  }
+}

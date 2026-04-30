@@ -1,0 +1,13 @@
+{
+  "display_name": "Carnevali",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "pest_grid": {
+      "politica": "Amministrazione di sinistra guidata dal Partito Democratico (PD). Buon rapporto con l’amministrazione locale. Transizione politica con elezioni previste tra due anni. Interruzione passata del mandato amministrativo dovuta a un commissariamento di 6 mesi. Assessore allo Sport con forte coinvolgimento nelle attività del territorio.",
+      "economica": "Riccione offre opportunità significative grazie alla sua posizione e al suo brand. Difficoltà economiche per le famiglie con più figli. Vulnerabilità a fluttuazioni economiche e recessioni. Costi significativi per la gestione e manutenzione delle infrastrutture sportive.",
+      "sociale": "Comunità forte e coesa con un forte legame tra la società e il territorio. Passione diffusa per lo sport. Interesse e impegno dei giovani. Iniziative di responsabilità sociale e sostenibilità.",
+      "tecnologica": "Evoluzione delle tecnologie digitali e diffusione dei social media per raggiungere un pubblico più ampio. Importanza della digitalizzazione nella gestione sportiva."
+    }
+  }
+}

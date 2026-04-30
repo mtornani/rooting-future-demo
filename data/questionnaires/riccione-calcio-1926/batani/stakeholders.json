@@ -1,0 +1,62 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "stakeholders_list": [
+      {
+        "gruppo": "azionisti",
+        "comunicazione": "Comunicazione diretta Chat wattshapp",
+        "relazione": "Dinamica e abbastanza tempestiva.",
+        "importanza": "Importante per la programmazione delle attività e delle mansioni.",
+        "azioni": [
+          ".Programmazione delle attività.",
+          ". Frequenza riunioni tecniche",
+          ".frequenza riunioni organizzative."
+        ]
+      },
+      {
+        "gruppo": "istituzioni locali scuole istituzioni sportive",
+        "comunicazione": "Tramite social Pubblicità affissa e itinerante",
+        "relazione": "",
+        "importanza": "Importante per confermare la presenza sul territorio",
+        "azioni": []
+      },
+      {
+        "gruppo": "fornitori sponsor",
+        "comunicazione": "Contatti diretti Pubblicità delle attività (sponsor)",
+        "relazione": "",
+        "importanza": "Importante per divulgare le offerte proposte dalla società.",
+        "azioni": []
+      },
+      {
+        "gruppo": "famiglie dei giovani calciatori del sett/giovanile",
+        "comunicazione": "",
+        "relazione": "",
+        "importanza": "",
+        "azioni": []
+      },
+      {
+        "gruppo": "abitanti Riccione tifosi media",
+        "comunicazione": "",
+        "relazione": "",
+        "importanza": "",
+        "azioni": []
+      },
+      {
+        "gruppo": "altre società sportive calcistiche del proprio contesto di mercato",
+        "comunicazione": "",
+        "relazione": "Cordiale",
+        "importanza": "Importante in considerazione di uno spirito partecipe e collaborativo",
+        "azioni": []
+      },
+      {
+        "gruppo": "altre società sportive anche non calcistiche del territorio",
+        "comunicazione": "",
+        "relazione": "",
+        "importanza": "",
+        "azioni": []
+      }
+    ]
+  }
+}

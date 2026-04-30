@@ -1,0 +1,27 @@
+{
+  "display_name": "Giorgio Veschi",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "risorse_list": [
+      {
+        "categoria": "Umane",
+        "lista_attuali": "Siamo tutti volontari circa 15 persone",
+        "cosa_manca": "Occorre cercare di ampliare il numero di volontari",
+        "intervento_5anni": "Coinvolgere i genitori e farli sentire a casa propria"
+      },
+      {
+        "categoria": "Strutturali",
+        "lista_attuali": "Difficile quantificare",
+        "cosa_manca": "Non manca niente",
+        "intervento_5anni": "Tutto dipende dalla categoria della prima squadra. Un ulteriore salto di categoria aumenta il valore del Club ed è un’attrazione maggiore per i giovani calciatori."
+      },
+      {
+        "categoria": "Patrimoniali",
+        "lista_attuali": "Stadio Comunale Nicoletti e campo sportivo di Spontricciolo",
+        "cosa_manca": "Non lo so.",
+        "intervento_5anni": "Ripristinare lo stadio con lavori di manutenzione e rinnovo, in parte lavori già avviati, di alcuni locali. Bar, cucina uffici."
+      }
+    ]
+  }
+}

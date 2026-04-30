@@ -1,0 +1,13 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "swot_grid": {
+      "forza": "Forte marchio nel mondo del calcio Prima squadra di giocatori possibilmente provenienti dal proprio settore giovanile Importanza dello stadio comunale e delle migliorie apportabili Ampliare il numero dei tesserati del settore giovanile Garantire un benessere e uno sviluppo adeguato a tutti i tesserati Tifosi e supporters locali",
+      "debolezza": "Rischio di mantenere un equilibrio finanziario sano",
+      "opportunita": "Aumento della visibilità e del valore del marchio grazie a successi sportivi Possibilità di aumentare il numero di tesserti del settore giovanile Possibilità di ampliare la base di tifosi e aumentare i ricavi grazie all’espansione del merchandising e dei diritti televisivi",
+      "minacce": "Allo stato le minacce possono venire da una nostra non ottimale gestione nel momento in cui non si riesca a garantire un benessere e uno sviluppo adeguato e si corra pertanto il rischio di non accontentare i tesserati del nostro settore giovanile."
+    }
+  }
+}

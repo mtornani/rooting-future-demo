@@ -1,0 +1,33 @@
+{
+  "display_name": "Carnevali",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "Polisportiva San Lorenzo",
+        "punti_forza": "Realtà di quartiere radicata sul territorio, Elevato numero di iscritti per il settore di base, Quota di iscrizione competitiva, Promozione della struttura, Promozione del progetto etico sociale, Personale qualificato",
+        "debolezze": "Scarso numero di iscritti per il settore agonistico, Struttura non adeguata, Staff poco qualificato",
+        "azioni": "[]"
+      },
+      {
+        "nome": "Green Forest Rover",
+        "punti_forza": "Elevata notorietà del brand, Progetto di sostenibilità, Comunicazione efficace",
+        "debolezze": "Eccessivo programma di sostenibilità",
+        "azioni": "Ampliamento e miglioramento del progetto di sostenibilità"
+      },
+      {
+        "nome": "Sant’ Arcangelo e Misano",
+        "punti_forza": "Settore giovanile importante con giocatori in prima squadra che arrivano dal proprio settore giovanile, Strutturati con progetto di crescita di categoria, Buone strutture, Presenza in un territorio ricco di aziende",
+        "debolezze": "Non hanno brand forte come Riccione, Scarsa diversificazione delle entrate",
+        "azioni": "Promozione del brand, Promozione della struttura e della governance, Miglioramento della strategia si sponsorizzazione, Miglioramento della comunicazione"
+      },
+      {
+        "nome": "Rimini Calcio",
+        "punti_forza": "Presenza di squadra professionistica, Ottima struttura (stadio e centro sportivo), Forte proprietà, Orientamento vs la prima squadra",
+        "debolezze": "Scarsa comunicazione con il territorio",
+        "azioni": "Miglioramento della strategia di sponsorizzazione, Promozione della collaborazione con il Sassuolo Calcio"
+      }
+    ]
+  }
+}

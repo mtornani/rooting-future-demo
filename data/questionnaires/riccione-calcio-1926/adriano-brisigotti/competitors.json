@@ -1,0 +1,27 @@
+{
+  "display_name": "Adriano Brisigotti",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "competitors_list": [
+      {
+        "nome": "United Riccione",
+        "punti_forza": "",
+        "debolezze": "attualmente sono in serie D, in questo momento risulta allo sbando",
+        "azioni": "Fare in modo che i loro tesserati, dell'attività i base, diventino nostri tesserati!"
+      },
+      {
+        "nome": "Polisportiva San Lorenzo",
+        "punti_forza": "Società sul territorio da quasi 70 anni",
+        "debolezze": "",
+        "azioni": "Proporre delle attività per indirizzare i loro ragazzi verso il nostro settore giovanile. Scontistica sulle nuove iscrizioni"
+      },
+      {
+        "nome": "Accademia Asar",
+        "punti_forza": "Società storica di Riccione",
+        "debolezze": "",
+        "azioni": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "display_name": "Batani",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "risorse_list": [
+      {
+        "categoria": "UMANE",
+        "lista_attuali": "Nr. 14 (di cui 2 persone non più opertive)",
+        "cosa_manca": "Bisognerebbe coinvolgere altre persone per compensare le attività che necessitano di personale.",
+        "intervento_5anni": ""
+      },
+      {
+        "categoria": "STRUTTURALI",
+        "lista_attuali": "Non sono in condizione di segnalare nessun rilievo.",
+        "cosa_manca": "",
+        "intervento_5anni": ""
+      },
+      {
+        "categoria": "PATRIMONIALI",
+        "lista_attuali": "",
+        "cosa_manca": "",
+        "intervento_5anni": ""
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "display_name": "Giorgio Veschi",
+  "role": "Membro del Board",
+  "weight": 1.0,
+  "data": {
+    "swot_grid": {
+      "forza": "PUNTI DI FORZA:",
+      "debolezza": "PUNTI DI DEBOLEZZA:",
+      "opportunita": "ANALISI ESTERNA OPPORTUNITÀ:",
+      "minacce": "MINACCE:"
+    }
+  }
+}
