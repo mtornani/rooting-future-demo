@@ -139,17 +139,29 @@ class OnePagerExporter(BaseExporter):
                     v = re.sub(r'\s*\(fonte:[^)]*\)', '', sentences[0], flags=re.IGNORECASE).strip()
                     highlights['vision'] = v
 
-            # Cerca priorità (liste numerate o bold) con eventuale motivazione
-            # Skip internal section labels like "SPORTIVI MACRO 1:" or "STW ..."
-            _INTERNAL_LABEL = re.compile(
-                r'^(?:SPORTIVI|STRUTTURALI|MARKETING|SOCIALI|FINANZIARI|STW)\s+MACRO\s*\d+',
+            # Cerca priorità (liste numerate o bullet) con eventuale motivazione
+            _GENERIC_LABEL = re.compile(
+                r'^(?:Azioni\s+chiave|Obiettivo|KPI|Budget|Quick\s+Win|Roadmap|SINTESI|MACRO\s+\d)',
                 re.IGNORECASE
             )
-            priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
-            priorities = [p for p in priorities if not _INTERNAL_LABEL.match(p.strip())]
-            if not priorities:
-                bold_all = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
-                priorities = [p for p in bold_all if not _INTERNAL_LABEL.match(p.strip())]
+            _MACRO_PATTERN = re.compile(
+                r'^(?:SPORTIVI|STRUTTURALI|MARKETING|SOCIALI|FINANZIARI)\s+MACRO\s*\d+[:\s]+(.+)',
+                re.IGNORECASE
+            )
+
+            # 1. Bullet list: "- SPORTIVI MACRO 1: Titolo" (coordinator format)
+            bullet_macros = re.findall(
+                r'(?:^|\n)\s*[-*]\s+(?:SPORTIVI|STRUTTURALI|MARKETING|SOCIALI|FINANZIARI)\s+MACRO\s*\d+[:\s]+([^\n]+)',
+                exec_summary, re.IGNORECASE
+            )
+            # 2. Numbered list: "1. Titolo"
+            numbered = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
+            numbered = [p for p in numbered if not _GENERIC_LABEL.match(p.strip())]
+            # 3. Fallback: bold text (skip generic labels)
+            bold_all = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
+            bold_filtered = [p for p in bold_all if not _GENERIC_LABEL.match(p.strip())]
+
+            priorities = bullet_macros or numbered or bold_filtered
 
             # Formatta priorità separando eventuale motivazione (cerca " - " o " : ")
             formatted_priorities = []
