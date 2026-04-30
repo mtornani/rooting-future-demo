@@ -204,13 +204,34 @@ class BaseExporter(ABC):
         """Shared markdown normalization logic to fix common AI generation issues."""
         if not content:
             return ""
-        
+
         # Normalize existing newlines
         content = content.replace('\r\n', '\n')
+
+        # Strip code fences (```...```) — AI sometimes wraps tables/data in code blocks
+        content = re.sub(r'```[^\n]*\n([\s\S]*?)```', r'\1', content)
+        content = re.sub(r'```[^\n]*\n?', '', content)  # unclosed fences
+
+        # Strip inline source annotations (fonte: ...) that leak from agent prompts
+        content = re.sub(r'\s*\(fonte:[^)]*\)', '', content, flags=re.IGNORECASE)
 
         # TABLES: Separate markdown table rows that are on a single line
         # NOTE: pipes must be escaped with \| — unescaped | in regex means OR
         content = re.sub(r'\|\s+\|', '|\n|', content)
+
+        # TABLES: Insert missing separator row after header (required by markdown lib)
+        # Matches: header row followed immediately by another data row (no |---|)
+        def _insert_table_separator(m: re.Match) -> str:
+            header = m.group(1)
+            next_row = m.group(2)
+            cols = header.count('|') - 1
+            sep = '|' + '---|' * max(cols, 1)
+            return f'{header}\n{sep}\n{next_row}'
+        content = re.sub(
+            r'(\|[^-\n]+\|)\n(\|[^-\n]+\|)',
+            _insert_table_separator,
+            content
+        )
 
         # Pattern: ### 1. TITLE -> converts to header h3 (removes the number)
         content = re.sub(r'###\s+\d+[\.\)]\s*', '\n\n### ', content)

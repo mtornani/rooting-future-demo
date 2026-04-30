@@ -125,12 +125,15 @@ class OnePagerExporter(BaseExporter):
             # then capture the first full sentence
             vision_match = re.search(r'(?:visione|vision)[^:\n]*[\n:]+\s*([^#\n][^.]+\.)', exec_summary, re.IGNORECASE)
             if vision_match:
-                highlights['vision'] = vision_match.group(1).strip()[:300]
+                v = re.sub(r'\s*\(fonte:[^)]*\)', '', vision_match.group(1), flags=re.IGNORECASE)
+                v = re.sub(r'```[^\n]*\n?', '', v).strip()
+                highlights['vision'] = v[:300]
             # Fallback: prima frase lunga del summary come vision statement
             if not highlights['vision']:
                 sentences = re.findall(r'[A-ZÀ-Ÿ][^.!?]{40,200}[.!?]', exec_summary)
                 if sentences:
-                    highlights['vision'] = sentences[0].strip()[:200]
+                    v = re.sub(r'\s*\(fonte:[^)]*\)', '', sentences[0], flags=re.IGNORECASE).strip()
+                    highlights['vision'] = v[:200]
 
             # Cerca priorità (liste numerate o bold) con eventuale motivazione
             priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
