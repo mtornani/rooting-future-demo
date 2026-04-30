@@ -270,6 +270,8 @@ class PostProductionEditor:
             # NEW STW KEYS (Orchestrator output)
             'stw_sportivi': 'Area Sportiva (STW)',
             'stw_strutturali': 'Infrastrutture & HR (STW)',
+            'stw_struttura_org': 'Struttura Organizzativa (STW)',
+            'stw_relazioni_ist': 'Relazioni Istituzionali (STW)',
             'stw_marketing': 'Marketing & Commerciale (STW)',
             'stw_sociali': 'Sostenibilità Sociale (STW)',
         }

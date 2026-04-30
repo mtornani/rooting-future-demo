@@ -2396,7 +2396,6 @@ def api_export_package(plan_id: str):
                 club_name=review.club_name,
                 category=review.category,
                 metadata=metadata,
-                sources=sources,
             )
             exec_filename = f"{safe_name}_ExecutiveReport.html"
             exec_path = Path(temp_dir) / exec_filename

@@ -1973,22 +1973,28 @@ class MultiAgentOrchestrator:
                 return (role.value, output)
             return task
 
-        # Prepare tasks for parallel execution
+        # Separate core agents (parallel) from supplementary agents (sequential after)
+        SUPPLEMENTARY_ROLES = {AgentRole.STW_STRUTTURA_ORG, AgentRole.STW_RELAZIONI_IST}
+
         tasks = []
         task_names = []
         roles_order = []
+        supplementary_tasks = []
 
         for role, agent in self.agents.items():
-            if role != AgentRole.COORDINATOR:
+            if role == AgentRole.COORDINATOR:
+                continue
+            if role in SUPPLEMENTARY_ROLES:
+                supplementary_tasks.append((role, agent))
+            else:
                 tasks.append(make_agent_task(role, agent))
                 task_names.append(agent.spec.name)
                 roles_order.append(role.value)
 
-        # Execute in TRUE parallel using ThreadPoolExecutor
+        # Execute core agents in parallel
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            # Timeout di 5 minuti (300s) per evitare loop infiniti
             results_list = loop.run_until_complete(
                 self.async_client.execute_parallel(tasks, task_names, timeout=300)
             )
@@ -2014,6 +2020,20 @@ class MultiAgentOrchestrator:
         parallel_time = time.time() - parallel_start
         agent_timings['Parallel_Execution_Time'] = round(parallel_time, 2)
         logger.info(f"Parallel execution completed in {parallel_time:.2f}s")
+
+        # Run supplementary agents sequentially (avoids Gemini quota burst)
+        import time as _time
+        for role, agent in supplementary_tasks:
+            logger.info(f"Running supplementary agent: {agent.spec.name}")
+            _time.sleep(3)  # brief pause after parallel burst
+            try:
+                supp_output = make_agent_task(role, agent)()
+                if not isinstance(supp_output, Exception):
+                    role_value, output = supp_output
+                    agent_results[role_value] = output
+                    logger.info(f"{agent.spec.name} supplementary OK")
+            except Exception as e:
+                logger.error(f"Supplementary agent {agent.spec.name} failed: {e}")
 
         # Warn if all agents returned empty content (quota / timeout)
         empty_agents = [k for k, v in agent_results.items() if not v.get('content', '').strip()]
