@@ -127,19 +127,30 @@ class OnePagerExporter(BaseExporter):
             if vision_match:
                 v = re.sub(r'\s*\(fonte:[^)]*\)', '', vision_match.group(1), flags=re.IGNORECASE)
                 v = re.sub(r'```[^\n]*\n?', '', v).strip()
-                highlights['vision'] = v[:300]
+                # Cut at sentence boundary if possible, else at last word boundary
+                if len(v) > 300:
+                    cut = v[:300].rsplit(' ', 1)[0].rstrip('.,;')
+                    v = cut + '.'
+                highlights['vision'] = v
             # Fallback: prima frase lunga del summary come vision statement
             if not highlights['vision']:
                 sentences = re.findall(r'[A-ZÀ-Ÿ][^.!?]{40,200}[.!?]', exec_summary)
                 if sentences:
                     v = re.sub(r'\s*\(fonte:[^)]*\)', '', sentences[0], flags=re.IGNORECASE).strip()
-                    highlights['vision'] = v[:200]
+                    highlights['vision'] = v
 
             # Cerca priorità (liste numerate o bold) con eventuale motivazione
+            # Skip internal section labels like "SPORTIVI MACRO 1:" or "STW ..."
+            _INTERNAL_LABEL = re.compile(
+                r'^(?:SPORTIVI|STRUTTURALI|MARKETING|SOCIALI|FINANZIARI|STW)\s+MACRO\s*\d+',
+                re.IGNORECASE
+            )
             priorities = re.findall(r'(?:^|\n)\s*\d+\.\s*\*?\*?([^*\n]+)', exec_summary)
+            priorities = [p for p in priorities if not _INTERNAL_LABEL.match(p.strip())]
             if not priorities:
-                priorities = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
-            
+                bold_all = re.findall(r'\*\*([A-ZÀ-Ÿ].{10,80})\*\*', exec_summary)
+                priorities = [p for p in bold_all if not _INTERNAL_LABEL.match(p.strip())]
+
             # Formatta priorità separando eventuale motivazione (cerca " - " o " : ")
             formatted_priorities = []
             for p in priorities[:5]:
