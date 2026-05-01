@@ -64,50 +64,63 @@ REGOLE:
 """
 
 
+def _call_nim(prompt: str) -> str:
+    """NIM fallback via OpenAI-compatible endpoint (google/gemma-3-27b-it)."""
+    import os
+    from openai import OpenAI as _OpenAI
+    from config import NVIDIA_API_KEY
+    nim_key = os.environ.get("NVIDIA_API_KEY") or NVIDIA_API_KEY
+    client = _OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=nim_key)
+    resp = client.chat.completions.create(
+        model="google/gemma-3-27b-it",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1024,
+    )
+    return resp.choices[0].message.content.strip()
+
+
 def research_club(club_name: str, piva: str = "", gemini_client=None) -> Dict:
     """
-    Calls Gemini to research public data about the club.
+    Calls Gemini (with NIM fallback) to research public data about the club.
     Returns dict with field values + sources for human review.
-    Falls back to empty dict on any error.
     """
-    if gemini_client is None:
-        try:
-            import google.generativeai as genai
-            import os
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                logger.warning("No Gemini API key — returning empty research")
-                return _empty_research(club_name)
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-2.0-flash")
-        except Exception as e:
-            logger.error(f"Gemini init failed: {e}")
-            return _empty_research(club_name)
-    else:
-        model = gemini_client
-
     prompt = RESEARCH_PROMPT.format(
         club_name=club_name,
         piva=piva or "non fornita",
     )
 
-    try:
-        response = model.generate_content(prompt)
-        raw = response.text.strip()
+    raw = None
 
-        # Strip markdown code fences if present
+    # Try Gemini first
+    try:
+        import google.generativeai as genai
+        import os
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
+            model = gemini_client or genai.GenerativeModel("gemini-2.0-flash")
+            raw = model.generate_content(prompt).text.strip()
+            logger.info(f"Club research Gemini OK for '{club_name}'")
+    except Exception as e:
+        logger.warning(f"Club research Gemini failed ({e}), trying NIM...")
+
+    # NIM fallback
+    if raw is None:
+        try:
+            raw = _call_nim(prompt)
+            logger.info(f"Club research NIM OK for '{club_name}'")
+        except Exception as e:
+            logger.error(f"Club research NIM also failed: {e}")
+            return _empty_research(club_name)
+
+    try:
         raw = re.sub(r'^```[a-z]*\n?', '', raw)
         raw = re.sub(r'\n?```$', '', raw)
-
         data = json.loads(raw)
-        logger.info(f"Club research OK for '{club_name}'")
         return _normalize(data, club_name)
-
     except json.JSONDecodeError as e:
         logger.error(f"Club research JSON parse error: {e} — raw: {raw[:200]}")
-        return _empty_research(club_name)
-    except Exception as e:
-        logger.error(f"Club research failed: {e}")
         return _empty_research(club_name)
 
 

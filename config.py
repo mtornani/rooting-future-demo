@@ -79,12 +79,12 @@ def load_local_config():
                     loaded_keys.append(config_key)
 
             if loaded_keys:
-                print(f"[CONFIG] ✓ Loaded {len(loaded_keys)} keys: {loaded_keys}")
+                print(f"[CONFIG] OK Loaded {len(loaded_keys)} keys: {loaded_keys}")
             return True
         except Exception as e:
-            print(f"[CONFIG] ✗ Failed to load: {e}")
+            print(f"[CONFIG] FAIL Failed to load: {e}")
 
-    print("[CONFIG] ✗ No config.local.json found")
+    print("[CONFIG] No config.local.json found")
     return False
 
 
