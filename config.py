@@ -104,6 +104,9 @@ BASE_DIR = Path(__file__).parent
 _HF_DATA = Path("/data")
 _PERSISTENT_ROOT = _HF_DATA if _HF_DATA.exists() else BASE_DIR
 
+# True when running on HuggingFace Spaces
+IS_HF_SPACES = _HF_DATA.exists() or bool(os.environ.get("SPACE_ID"))
+
 OUTPUT_DIR = _PERSISTENT_ROOT / "output"
 KNOWLEDGE_DIR = _PERSISTENT_ROOT / "knowledge_base"
 QUESTIONNAIRE_DATA_DIR = _PERSISTENT_ROOT / "questionnaires"

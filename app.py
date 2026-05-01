@@ -93,6 +93,7 @@ from config import (
     FOOTBALL_TIERS,
     validate_config,
     get_missing_config,
+    IS_HF_SPACES,
 )
 
 from agents import MultiAgentOrchestrator, AgentRole, OpenRouterClient
@@ -519,12 +520,15 @@ def index():
     try:
         db_stats = knowledge_manager.store.get_statistics()
         plans_stats = db_stats.get("plans", {})
+        recent_plans, _ = knowledge_manager.store.list_plans(
+            owner_id=current_user.id, limit=5
+        )
         stats = {
             "total_plans": plans_stats.get("total", 0),
             "by_status": plans_stats.get("by_status", {"draft": 0}),
             "sections_needing_review": plans_stats.get("by_status", {}).get("review", 0),
-            "average_credibility": plans_stats.get("avg_credibility", 0),
-            "recent_plans": [],  # TODO: implementare lista piani recenti
+            "average_credibility": round(plans_stats.get("avg_credibility", 0), 1),
+            "recent_plans": recent_plans,
         }
     except Exception as e:
         logger.error(f"Errore caricamento statistiche: {e}")
@@ -535,6 +539,18 @@ def index():
             "average_credibility": 0,
             "recent_plans": [],
         }
+
+    # Questionari completati (conteggio globale)
+    q_filled_count = 0
+    try:
+        if QUESTIONNAIRE_DATA_DIR.exists():
+            for club_dir in QUESTIONNAIRE_DATA_DIR.iterdir():
+                if club_dir.is_dir():
+                    for member_dir in club_dir.iterdir():
+                        if member_dir.is_dir():
+                            q_filled_count += len(list(member_dir.glob("*.json")))
+    except Exception:
+        pass
 
     return render_template(
         "dashboard_hybrid.html",
@@ -547,6 +563,10 @@ def index():
         docx_available=DOCX_AVAILABLE,
         user=current_user,
         license_status={},
+        hf_spaces_mode=IS_HF_SPACES,
+        license_valid=IS_HF_SPACES,  # on HF always "valid" (cloud mode)
+        hwid="HF-Cloud",
+        q_filled_count=q_filled_count,
     )
 
 # =============================================================================

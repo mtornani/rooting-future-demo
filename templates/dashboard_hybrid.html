@@ -3,982 +3,515 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rooting Future - Dashboard Hybrid</title>
+    <title>Rooting Future — Dashboard</title>
     <style>
         :root {
             --primary: #10b981;
             --primary-dark: #059669;
+            --primary-faint: rgba(16,185,129,0.08);
             --secondary: #1e293b;
-            --bg-dark: #0f172a;
-            --bg-card: #1e293b;
-            --bg-input: #334155;
-            --text: #f1f5f9;
-            --text-muted: #94a3b8;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --input: #334155;
             --border: #334155;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
             --success: #22c55e;
             --warning: #f59e0b;
             --error: #ef4444;
             --info: #3b82f6;
         }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin:0; padding:0; box-sizing:border-box; }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-dark);
+            font-family: 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
 
-        /* Header */
+        /* ── Header ── */
         .header {
             background: var(--secondary);
             border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
+            padding: 0.875rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .logo-icon {
-            font-size: 1.5rem;
-        }
-
-        .logo-text {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .logo-version {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-left: 0.5rem;
-        }
-
-        .header-nav {
-            display: flex;
+            position: sticky; top: 0; z-index: 100;
             gap: 1rem;
         }
+        .logo { display:flex; align-items:center; gap:0.625rem; }
+        .logo-icon { font-size:1.4rem; }
+        .logo-text { font-size:1.1rem; font-weight:700; color:var(--primary); }
+        .logo-version { font-size:0.7rem; color:var(--muted); margin-left:0.25rem; }
 
+        .header-nav { display:flex; gap:0.25rem; flex-wrap:wrap; }
         .header-nav a {
-            color: var(--text-muted);
-            text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            transition: all 0.2s;
-            white-space: nowrap;
+            color:var(--muted); text-decoration:none;
+            padding:0.4rem 0.875rem; border-radius:6px; font-size:0.875rem;
+            transition:all 0.15s; white-space:nowrap;
         }
+        .header-nav a:hover { background:var(--input); color:var(--text); }
+        .header-nav a.active { background:var(--primary-faint); color:var(--primary); }
 
-        .header-nav a:hover {
-            background: var(--bg-input);
-            color: var(--text);
+        .header-right { display:flex; align-items:center; gap:0.75rem; flex-shrink:0; }
+        .status-pill {
+            display:flex; align-items:center; gap:0.4rem;
+            padding:0.375rem 0.875rem; background:var(--input);
+            border-radius:20px; font-size:0.8rem; white-space:nowrap;
         }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background: var(--bg-input);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            white-space: nowrap;
-        }
-
         .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success);
-            animation: pulse 2s infinite;
+            width:7px; height:7px; border-radius:50%;
+            background:var(--success); animation:pulse 2s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* ── Layout ── */
+        .main {
+            display:grid;
+            grid-template-columns: 1fr 360px;
+            flex:1;
+            overflow:hidden;
+        }
+        .left { padding:1.75rem 2rem; overflow-y:auto; display:flex; flex-direction:column; gap:1.25rem; }
+        .right {
+            background:#0d1117;
+            border-left:1px solid var(--border);
+            display:flex; flex-direction:column; overflow:hidden;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        /* ── Stats row ── */
+        .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:0.875rem; }
+        .stat {
+            background:var(--card); border:1px solid var(--border);
+            border-radius:12px; padding:1.1rem 1rem; text-align:center;
         }
+        .stat-val { font-size:1.75rem; font-weight:700; color:var(--primary); line-height:1; }
+        .stat-lbl { font-size:0.75rem; color:var(--muted); margin-top:0.3rem; }
 
-        /* Main Layout */
-        .main-container {
-            display: grid;
-            grid-template-columns: 1fr 400px;
-            gap: 0;
-            flex: 1; /* Fill remaining height */
-            overflow: hidden; /* Prevent body scroll, let panels scroll */
+        /* ── Hero CTA ── */
+        .hero {
+            background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%);
+            border:1px solid rgba(16,185,129,0.25);
+            border-radius:16px; padding:1.5rem;
         }
-
-        /* Left Panel - Upload & Actions */
-        .left-panel {
-            padding: 2rem;
-            overflow-y: auto;
-            height: 100%;
+        .hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+        .hero h2 { font-size:1.2rem; font-weight:700; margin-bottom:0.3rem; }
+        .hero p { font-size:0.875rem; color:var(--muted); line-height:1.5; }
+        .hero-badges { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem; }
+        .badge {
+            display:flex; align-items:center; gap:0.3rem;
+            padding:0.25rem 0.75rem; border-radius:20px; font-size:0.75rem; font-weight:600;
         }
+        .badge-green { background:rgba(34,197,94,0.15); color:var(--success); }
+        .badge-blue { background:rgba(59,130,246,0.15); color:var(--info); }
+        .badge-amber { background:rgba(245,158,11,0.15); color:var(--warning); }
 
-        .section-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
+        .hero-actions { display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end; flex-shrink:0; }
 
-        .section-title-icon {
-            font-size: 1.25rem;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.25rem;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .stat-label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-top: 0.25rem;
-        }
-
-        /* Upload Form */
-        .upload-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text);
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text);
-            font-size: 1rem;
-            transition: border-color 0.2s;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .form-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        /* File Drop Zone */
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: var(--bg-input);
-        }
-
-        .drop-zone:hover,
-        .drop-zone.dragover {
-            border-color: var(--primary);
-            background: rgba(16, 185, 129, 0.1);
-        }
-
-        .drop-zone-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .drop-zone-text {
-            font-size: 1rem;
-            color: var(--text-muted);
-        }
-
-        .drop-zone-text strong {
-            color: var(--primary);
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        /* File List */
-        .file-list {
-            margin-top: 1rem;
-        }
-
-        .file-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.75rem 1rem;
-            background: var(--bg-input);
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-        }
-
-        .file-item-name {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .file-item-remove {
-            background: none;
-            border: none;
-            color: var(--error);
-            cursor: pointer;
-            font-size: 1.25rem;
-            padding: 0 0.5rem;
-        }
-
-        /* Buttons */
+        /* ── Buttons ── */
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.875rem 1.5rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
+            display:inline-flex; align-items:center; gap:0.4rem;
+            padding:0.7rem 1.25rem; border-radius:8px; font-size:0.875rem;
+            font-weight:600; cursor:pointer; border:none; text-decoration:none;
+            transition:all 0.15s; white-space:nowrap;
+        }
+        .btn-primary { background:var(--primary); color:#fff; }
+        .btn-primary:hover:not(:disabled) { background:var(--primary-dark); }
+        .btn-primary:disabled { opacity:0.45; cursor:not-allowed; }
+        .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+        .btn-ghost:hover { background:var(--input); color:var(--text); }
+        .btn-sm { padding:0.45rem 0.875rem; font-size:0.8rem; }
+
+        /* ── 2-col grid ── */
+        .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; }
+
+        /* ── Card ── */
+        .card {
+            background:var(--card); border:1px solid var(--border);
+            border-radius:14px; padding:1.25rem;
+        }
+        .card-h {
+            font-size:0.85rem; font-weight:600; color:var(--muted);
+            text-transform:uppercase; letter-spacing:0.5px;
+            margin-bottom:1rem; display:flex; align-items:center; gap:0.4rem;
         }
 
-        .btn-primary {
-            background: var(--primary);
-            color: white;
+        /* Questionnaire progress list */
+        .q-list { display:flex; flex-direction:column; gap:0.4rem; }
+        .q-row {
+            display:flex; align-items:center; gap:0.75rem;
+            padding:0.55rem 0.75rem; border-radius:8px;
+            background:var(--input); font-size:0.8rem;
+        }
+        .q-icon { font-size:1rem; flex-shrink:0; }
+        .q-name { flex:1; color:var(--text); }
+        .q-count { color:var(--muted); font-size:0.75rem; }
+        .q-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .dot-green { background:var(--success); }
+        .dot-amber { background:var(--warning); }
+        .dot-gray { background:var(--border); }
+
+        /* Plans list */
+        .plan-list { display:flex; flex-direction:column; gap:0.4rem; }
+        .plan-row {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:0.65rem 0.875rem; border-radius:8px; background:var(--input);
+        }
+        .plan-row-l h4 { font-size:0.875rem; margin-bottom:0.1rem; }
+        .plan-row-l span { font-size:0.75rem; color:var(--muted); }
+        .plan-chip {
+            padding:0.2rem 0.6rem; border-radius:10px; font-size:0.7rem; font-weight:600;
+        }
+        .chip-draft { background:rgba(245,158,11,0.15); color:var(--warning); }
+        .chip-ok { background:rgba(34,197,94,0.15); color:var(--success); }
+
+        /* Invite box */
+        .invite-row { display:flex; gap:0.5rem; align-items:center; margin-top:0.75rem; }
+        .invite-url {
+            flex:1; background:var(--bg); border:1px solid var(--border);
+            border-radius:6px; padding:0.5rem 0.75rem;
+            font-size:0.75rem; color:var(--muted); font-family:monospace;
+            word-break:break-all;
         }
 
-        .btn-primary:hover:not(:disabled) {
-            background: var(--primary-dark);
+        /* Health strip */
+        .health-strip {
+            display:flex; gap:1.5rem; flex-wrap:wrap;
+            background:var(--card); border:1px solid var(--border);
+            border-radius:12px; padding:0.875rem 1.25rem; align-items:center;
         }
+        .health-item { display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; }
+        .health-dot { width:7px; height:7px; border-radius:50%; background:var(--success); }
+        .health-dot.off { background:var(--error); }
+        .health-label { color:var(--muted); }
+        .health-val { font-weight:600; }
 
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: var(--bg-input);
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: var(--border);
-        }
-
-        .btn-full {
-            width: 100%;
-        }
-
-        /* Right Panel - Live Console */
-        .right-panel {
-            background: #0d1117;
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .console-header {
-            padding: 1rem 1.25rem;
-            background: var(--secondary);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .console-title {
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .console-controls {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .console-btn {
-            background: var(--bg-input);
-            border: none;
-            color: var(--text-muted);
-            padding: 0.4rem 0.75rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-
-        .console-btn:hover {
-            background: var(--border);
-            color: var(--text);
-        }
-
-        .console-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.8rem;
-            line-height: 1.6;
-        }
-
-        .log-entry {
-            padding: 0.25rem 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            word-wrap: break-word;
-        }
-
-        .log-timestamp {
-            color: #6b7280;
-            margin-right: 0.5rem;
-        }
-
-        .log-level {
-            padding: 0.1rem 0.4rem;
-            border-radius: 3px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-right: 0.5rem;
-            display: inline-block;
-        }
-
-        .log-level.INFO { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-        .log-level.WARNING { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-        .log-level.ERROR { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-        .log-level.DEBUG { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
-
-        .log-message {
-            color: #e5e7eb;
-        }
-
-        /* Connection Status */
-        .connection-status {
-            padding: 0.5rem 1rem;
-            background: var(--bg-card);
-            border-top: 1px solid var(--border);
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .connection-status.connected .status-indicator { background: var(--success); }
-        .connection-status.disconnected .status-indicator { background: var(--error); }
-
-        .status-indicator {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-
-        /* Recent Plans */
-        .recent-plans {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.5rem;
-        }
-
-        .plan-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            background: var(--bg-input);
-            border-radius: 8px;
-            margin-bottom: 0.75rem;
-        }
-
-        .plan-item:last-child { margin-bottom: 0; }
-
-        .plan-info h4 { font-size: 1rem; margin-bottom: 0.25rem; }
-        .plan-info span { font-size: 0.8rem; color: var(--text-muted); }
-
-        .plan-status {
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .plan-status.draft { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-        .plan-status.ready { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-
-        /* Progress indicator */
-        .progress-container {
-            display: none;
-            margin-top: 1.5rem;
-        }
-
-        .progress-container.active { display: block; }
-
-        .progress-bar {
-            height: 4px;
-            background: var(--bg-input);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--primary);
-            width: 0%;
-            transition: width 0.3s;
-            animation: progress-indeterminate 1.5s infinite;
-        }
-
-        @keyframes progress-indeterminate {
-            0% { transform: translateX(-100%); width: 30%; }
-            50% { width: 50%; }
-            100% { transform: translateX(400%); width: 30%; }
-        }
-
-        .progress-fill.determinate {
-            animation: none !important;
-            transform: none !important;
-            transition: width 0.5s ease-out;
-        }
-
-        .progress-text {
-            margin-top: 0.5rem;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        /* System Health Card */
-        .health-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .health-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-            margin-top: 0.75rem;
-        }
-
-        .health-item {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .health-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-
-        .health-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success);
-            box-shadow: 0 0 6px var(--success);
-        }
-
-        .health-dot.offline {
-            background: var(--error);
-            box-shadow: 0 0 6px var(--error);
-        }
-
-        .health-label {
-            font-size: 0.7rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .health-value {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-
-        /* License Card */
+        /* License card (local only) */
         .license-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.25rem;
-            margin-bottom: 1.5rem;
+            background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2);
+            border-radius:12px; padding:1rem 1.25rem;
+            display:flex; align-items:center; gap:0.75rem;
         }
+        .license-card p { font-size:0.8rem; color:var(--muted); }
+        .license-card h4 { font-size:0.9rem; font-weight:600; color:var(--warning); }
 
-        .license-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 1rem;
-            border-radius: 10px;
-            margin-top: 0.75rem;
+        /* Legacy upload (collapsed) */
+        details summary {
+            cursor:pointer; color:var(--muted); font-size:0.8rem;
+            padding:0.4rem 0; user-select:none; list-style:none;
+            display:flex; align-items:center; gap:0.4rem;
         }
+        details summary::-webkit-details-marker { display:none; }
+        details summary::before { content:'▶'; font-size:0.6rem; transition:transform 0.15s; }
+        details[open] summary::before { transform:rotate(90deg); }
+        .upload-inner { margin-top:0.75rem; }
 
-        .license-badge.cloud {
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.25);
+        .form-label { display:block; margin-bottom:0.4rem; font-size:0.85rem; font-weight:500; }
+        .form-input {
+            width:100%; padding:0.75rem 1rem;
+            background:var(--input); border:1px solid var(--border);
+            border-radius:8px; color:var(--text); font-size:0.95rem;
         }
+        .form-input:focus { outline:none; border-color:var(--primary); }
+        .form-input::placeholder { color:var(--muted); }
+        .form-group { margin-bottom:1rem; }
 
-        .license-badge.active {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.25);
+        .drop-zone {
+            border:2px dashed var(--border); border-radius:10px;
+            padding:2rem 1rem; text-align:center; cursor:pointer;
+            background:var(--input); transition:all 0.2s;
         }
-
-        .license-badge.inactive {
-            background: rgba(245, 158, 11, 0.1);
-            border: 1px solid rgba(245, 158, 11, 0.25);
+        .drop-zone:hover, .drop-zone.dragover { border-color:var(--primary); background:var(--primary-faint); }
+        .drop-zone-icon { font-size:2.5rem; margin-bottom:0.5rem; }
+        .drop-zone-text { font-size:0.85rem; color:var(--muted); }
+        .drop-zone-text strong { color:var(--primary); }
+        .file-input { display:none; }
+        .file-list { margin-top:0.75rem; display:flex; flex-direction:column; gap:0.35rem; }
+        .file-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:0.5rem 0.875rem; background:var(--input); border-radius:7px; font-size:0.85rem;
         }
+        .file-item-remove { background:none; border:none; color:var(--error); cursor:pointer; font-size:1.1rem; }
 
-        .license-icon { font-size: 1.5rem; }
-
-        .license-status-text {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--text);
+        .progress-wrap { margin-top:1rem; display:none; }
+        .progress-wrap.active { display:block; }
+        .progress-bar { height:4px; background:var(--input); border-radius:2px; overflow:hidden; }
+        .progress-fill {
+            height:100%; background:var(--primary); width:0%;
+            animation:indeterminate 1.5s infinite;
         }
-
-        .license-subtitle {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 0.15rem;
+        .progress-fill.det { animation:none; transition:width 0.4s; }
+        @keyframes indeterminate {
+            0%{transform:translateX(-100%);width:30%}
+            100%{transform:translateX(400%);width:30%}
         }
+        .progress-text { font-size:0.8rem; color:var(--muted); margin-top:0.4rem; }
 
-        .license-details {
-            margin-top: 0.75rem;
-            padding: 0.75rem;
-            background: var(--bg-input);
-            border-radius: 8px;
-            font-size: 0.85rem;
+        /* Empty state */
+        .empty { text-align:center; padding:1.25rem; color:var(--muted); font-size:0.85rem; }
+
+        /* ── Console panel ── */
+        .console-header {
+            padding:0.875rem 1.25rem;
+            background:var(--secondary); border-bottom:1px solid var(--border);
+            display:flex; justify-content:space-between; align-items:center;
         }
-
-        .license-detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.25rem 0;
+        .console-title { font-size:0.875rem; font-weight:600; display:flex; align-items:center; gap:0.4rem; }
+        .console-controls { display:flex; gap:0.4rem; }
+        .console-btn {
+            background:var(--input); border:none; color:var(--muted);
+            padding:0.3rem 0.65rem; border-radius:4px; cursor:pointer; font-size:0.75rem;
         }
-
-        .license-detail-row + .license-detail-row {
-            border-top: 1px solid var(--border);
-            margin-top: 0.25rem;
-            padding-top: 0.5rem;
+        .console-btn:hover { background:var(--border); color:var(--text); }
+        .console-body {
+            flex:1; overflow-y:auto; padding:0.875rem;
+            font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.75rem; line-height:1.6;
         }
-
-        .license-detail-label { color: var(--text-muted); }
-        .license-detail-value { color: var(--text); font-family: monospace; }
-
-        @media (max-width: 768px) {
-            .health-grid { grid-template-columns: repeat(2, 1fr); }
+        .log-entry { padding:0.2rem 0; border-bottom:1px solid rgba(255,255,255,0.04); word-wrap:break-word; }
+        .log-ts { color:#4b5563; margin-right:0.4rem; }
+        .log-lvl {
+            padding:0.1rem 0.35rem; border-radius:3px;
+            font-size:0.65rem; font-weight:700; margin-right:0.4rem; display:inline-block;
         }
-
-        .progress-text {
-            margin-top: 0.75rem;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            text-align: center;
+        .log-lvl.INFO { background:rgba(59,130,246,0.2); color:#60a5fa; }
+        .log-lvl.WARNING { background:rgba(245,158,11,0.2); color:#fbbf24; }
+        .log-lvl.ERROR { background:rgba(239,68,68,0.2); color:#f87171; }
+        .log-lvl.DEBUG { background:rgba(156,163,175,0.15); color:#9ca3af; }
+        .log-msg { color:#d1d5db; }
+        .conn-bar {
+            padding:0.4rem 1rem; background:var(--card);
+            border-top:1px solid var(--border);
+            font-size:0.7rem; color:var(--muted); display:flex; align-items:center; gap:0.4rem;
         }
+        .conn-dot { width:5px; height:5px; border-radius:50%; background:var(--success); }
+        .conn-dot.off { background:var(--error); }
 
-        /* Empty state & Alerts */
-        .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
+        /* ── Alert ── */
+        .alert { padding:0.875rem 1rem; border-radius:8px; margin-bottom:0.75rem; font-size:0.875rem; }
+        .alert-success { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); color:var(--success); }
+        .alert-error { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); color:var(--error); }
+        .alert-warning { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--warning); }
 
-        .alert {
-            padding: 1rem 1.25rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
+        /* ── Responsive ── */
+        @media (max-width:1024px) {
+            .main { grid-template-columns:1fr; }
+            .right { display:none!important; }
+            .left { padding:1.25rem; }
         }
-        .alert-success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; }
-        .alert-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; }
-        .alert-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; }
-
-        /* =================================================================
-           RESPONSIVE / MOBILE STYLES
-           ================================================================= */
-        @media (max-width: 1024px) {
-            .main-container {
-                display: flex;
-                flex-direction: column;
-                height: auto;
-                overflow: visible;
-            }
-
-            .left-panel {
-                padding: 1.5rem;
-                overflow: visible;
-                height: auto;
-            }
-
-            .right-panel {
-                display: none !important;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 640px) {
-            .header {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 1rem;
-                padding: 1rem;
-            }
-
-            .logo {
-                justify-content: center;
-            }
-
-            .header-nav {
-                justify-content: space-around;
-                width: 100%;
-                overflow-x: auto; /* Allow scrolling if many links */
-                padding-bottom: 5px;
-            }
-            
-            .status-badge {
-                display: none; /* Hide status on mobile to save space */
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .stat-value {
-                font-size: 1.75rem;
-            }
-
-            .upload-card {
-                padding: 1.5rem;
-            }
-            
-            .drop-zone {
-                padding: 1.5rem 1rem;
-            }
-            
-            /* Make console text smaller on mobile */
-            .console-body {
-                font-size: 0.7rem;
-            }
-        }
-
-        /* NUCLEAR MOBILE FIX */
-        @media screen and (max-width: 1025px) {
-            .main-container {
-                display: block !important;
-                width: 100% !important;
-            }
-            .right-panel {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                height: 0 !important;
-                width: 0 !important;
-                position: absolute !important;
-            }
-            .left-panel {
-                width: 100% !important;
-                padding: 10px !important;
-            }
+        @media (max-width:640px) {
+            .header { flex-wrap:wrap; padding:0.875rem 1rem; }
+            .header-nav { width:100%; overflow-x:auto; padding-bottom:4px; }
+            .stats-row { grid-template-columns:repeat(2,1fr); }
+            .grid2 { grid-template-columns:1fr; }
+            .hero-top { flex-direction:column; }
+            .hero-actions { align-items:stretch; }
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="logo">
-            <span class="logo-icon">🌱</span>
-            <span class="logo-text">Rooting Future</span>
-            <span class="logo-version">v6.0</span>
-        </div>
-
-        <nav class="header-nav">
-            <a href="{{ url_for('index') }}">Dashboard</a>
-            <a href="{{ url_for('plans_list') }}">Piani</a>
-            <a href="{{ url_for('new_plan') }}">Nuovo Piano</a>
-            <a href="{{ url_for('review_queue') }}">Review</a>
-            <a href="{{ url_for('questionnaire_index') }}">📋 Questionari</a>
-            <a href="{{ url_for('club_profile') }}">🏟️ Profilo Club</a>
-            <a href="#" title="Impostazioni">⚙️</a>
-        </nav>
-
-        <div class="status-badge">
+<header class="header">
+    <div class="logo">
+        <span class="logo-icon">🌱</span>
+        <span class="logo-text">Rooting Future</span>
+        <span class="logo-version">v6.0</span>
+    </div>
+    <nav class="header-nav">
+        <a href="{{ url_for('index') }}" class="active">Dashboard</a>
+        <a href="{{ url_for('plans_list') }}">Piani</a>
+        <a href="{{ url_for('review_queue') }}">Review</a>
+        <a href="{{ url_for('questionnaire_index') }}">📋 Questionari</a>
+        <a href="{{ url_for('club_profile') }}">🏟️ Profilo Club</a>
+        <a href="#" title="Impostazioni">⚙️</a>
+    </nav>
+    <div class="header-right">
+        <div class="status-pill">
             <span class="status-dot"></span>
-            <span id="systemStatus">Sistema Online</span>
+            <span id="systemStatus">Online</span>
         </div>
-    </header>
+    </div>
+</header>
 
-    <div class="main-container">
-        <!-- Left Panel: Upload & Stats -->
-        <div class="left-panel">
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+<div class="main">
+    <!-- ── LEFT PANEL ── -->
+    <div class="left">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                <div class="alert alert-{{ cat }}">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-            <!-- Stats -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.total_plans }}</div>
-                    <div class="stat-label">Piani Totali</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.by_status.get('draft', 0) }}</div>
-                    <div class="stat-label">In Bozza</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.sections_needing_review }}</div>
-                    <div class="stat-label">Da Revisionare</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{{ stats.average_credibility }}%</div>
-                    <div class="stat-label">Credibilita Media</div>
-                </div>
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat">
+                <div class="stat-val">{{ stats.total_plans }}</div>
+                <div class="stat-lbl">Piani Generati</div>
             </div>
-
-            <!-- System Health -->
-            <div class="health-card">
-                <div class="section-title" style="font-size: 0.85rem; font-weight: 600;">
-                    <span>💚</span> System Health
-                </div>
-                <div class="health-grid">
-                    <div class="health-item">
-                        <div class="health-label">Stato</div>
-                        <div class="health-indicator">
-                            <span class="health-dot" id="healthDot"></span>
-                            <span id="healthStatusText">Online</span>
-                        </div>
-                    </div>
-                    <div class="health-item">
-                        <div class="health-label">Clients</div>
-                        <div class="health-value" id="healthClients">0</div>
-                    </div>
-                    <div class="health-item">
-                        <div class="health-label">DOCX Engine</div>
-                        <div class="health-value" id="healthDocx">
-                            {{ '✅ Attivo' if docx_available else '⚠️ N/D' }}
-                        </div>
-                    </div>
-                    <div class="health-item">
-                        <div class="health-label">Piani Draft</div>
-                        <div class="health-value" id="healthDrafts">{{ stats.by_status.get('draft', 0) }}</div>
-                    </div>
-                </div>
+            <div class="stat">
+                <div class="stat-val">{{ stats.by_status.get('draft', 0) }}</div>
+                <div class="stat-lbl">In Bozza</div>
             </div>
-
-            <!-- License & Activation -->
-            <div class="license-card">
-                <div class="section-title" style="font-size: 0.85rem; font-weight: 600;">
-                    <span>🔐</span> Licenza & Attivazione
-                </div>
-
-                {% if hf_spaces_mode %}
-                <div class="license-badge cloud">
-                    <span class="license-icon">☁️</span>
-                    <div>
-                        <div class="license-status-text">Cloud Mode</div>
-                        <div class="license-subtitle">Attivazione non richiesta - Sessioni utente</div>
-                    </div>
-                </div>
-                {% elif license_valid %}
-                <div class="license-badge active">
-                    <span class="license-icon">✅</span>
-                    <div>
-                        <div class="license-status-text">Licenza Attiva</div>
-                        <div class="license-subtitle">
-                            {% if license_status.get('expires_at') %}
-                                Scade: {{ license_status.expires_at[:10] }}
-                            {% else %}
-                                Perpetua
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="license-details">
-                    <div class="license-detail-row">
-                        <span class="license-detail-label">Email</span>
-                        <span class="license-detail-value">{{ license_status.get('email', '-') }}</span>
-                    </div>
-                    <div class="license-detail-row">
-                        <span class="license-detail-label">HWID</span>
-                        <span class="license-detail-value">{{ hwid }}</span>
-                    </div>
-                </div>
-                {% else %}
-                <div class="license-badge inactive">
-                    <span class="license-icon">⚠️</span>
-                    <div>
-                        <div class="license-status-text">Sistema Non Attivato</div>
-                        <div class="license-subtitle">
-                            {% if license_status.get('expired') %}
-                                Licenza scaduta
-                            {% else %}
-                                Attivazione richiesta
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="license-details">
-                    <div class="license-detail-row">
-                        <span class="license-detail-label">Codice Macchina</span>
-                        <span class="license-detail-value">{{ hwid }}</span>
-                    </div>
-                </div>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">
-                    Comunica il codice macchina al referente per ricevere la chiave.
-                </p>
-                <a href="#" class="btn btn-primary" style="display: block; text-align: center; margin-top: 0.75rem; padding: 0.6rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem;">
-                    🔓 Attiva Sistema
-                </a>
-                {% endif %}
+            <div class="stat">
+                <div class="stat-val">{{ q_filled_count }}</div>
+                <div class="stat-lbl">Questionari Compilati</div>
             </div>
+            <div class="stat">
+                <div class="stat-val">{{ stats.average_credibility }}%</div>
+                <div class="stat-lbl">Credibilità Media</div>
+            </div>
+        </div>
 
-            <!-- Club Hub Entry -->
-            <div class="upload-card" style="border-color: #10b981;">
-                <h2 class="section-title">
-                    <span class="section-title-icon">🏟️</span>
-                    Club Hub — Questionari Digitali
-                </h2>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
-                    Raccolta risposte dal board tramite questionari digitali → generazione piano.
-                </p>
-                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
-                    <a href="{{ url_for('questionnaire_index') }}" class="btn btn-secondary" style="flex: 1; justify-content: center; min-width: 140px;">
+        <!-- Hero: Club Hub -->
+        <div class="hero">
+            <div class="hero-top">
+                <div>
+                    <h2>🏟️ Club Hub — Flusso Digitale</h2>
+                    <p>Raccogli le risposte del board tramite questionari digitali, poi genera il piano strategico con un click.</p>
+                    <div class="hero-badges">
+                        <span class="badge badge-green">✓ Questionari digitali</span>
+                        <span class="badge badge-blue">✓ Multi-agente AI</span>
+                        <span class="badge badge-amber">{{ q_filled_count }} risposte raccolte</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <a href="{{ url_for('questionnaire_index') }}" class="btn btn-primary">
                         📋 Vai ai Questionari
                     </a>
-                    <a href="{{ url_for('club_profile') }}" class="btn btn-secondary" style="flex: 1; justify-content: center; min-width: 140px;">
+                    <a href="{{ url_for('club_profile') }}" class="btn btn-ghost btn-sm">
                         🏟️ Profilo Club
                     </a>
+                    {% if stats.recent_plans %}
+                    {% set rp = stats.recent_plans[0] %}
+                    {% set slug = rp.club_name.lower().replace(' ', '-') %}
+                    <a href="/club/{{ slug }}" class="btn btn-ghost btn-sm">
+                        ⚡ Club Hub — {{ rp.club_name[:20] }}
+                    </a>
+                    {% endif %}
                 </div>
-                {% if stats.recent_plans %}
-                {% set latest = stats.recent_plans[0] %}
-                {% set slug = latest.club_name.lower().replace(' ', '-') %}
-                <a href="/club/{{ slug }}" class="btn btn-primary" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">
-                    🚀 Apri Club Hub — {{ latest.club_name }}
-                </a>
-                {% endif %}
+            </div>
+        </div>
+
+        <!-- Grid: questionari status + piani recenti -->
+        <div class="grid2">
+            <!-- Questionari overview -->
+            <div class="card">
+                <div class="card-h">📋 Questionari</div>
+                {% from 'questionnaire_schema' import QUESTIONNAIRES, QUESTIONNAIRE_ORDER ignore missing %}
+                <div class="q-list">
+                    {% set q_icons = [
+                        ('identita', '🏟️', 'Identità Club'),
+                        ('swot', '⚡', 'Analisi SWOT'),
+                        ('obiettivi', '🎯', 'Obiettivi'),
+                        ('risorse', '💰', 'Risorse'),
+                        ('governance', '🏛️', 'Governance'),
+                    ] %}
+                    {% for qid, icon, title in q_icons %}
+                    <div class="q-row">
+                        <span class="q-icon">{{ icon }}</span>
+                        <span class="q-name">{{ title }}</span>
+                        <span class="q-dot dot-gray"></span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div style="margin-top:0.875rem;">
+                    <div class="card-h" style="margin-bottom:0.5rem;">🔗 Link invito board</div>
+                    <div class="invite-row">
+                        <div class="invite-url" id="inviteUrl">{{ request.host_url }}questionnaires</div>
+                        <button class="btn btn-ghost btn-sm" onclick="copyInvite()">📋</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Upload Manuale (legacy) -->
-            <details style="margin-bottom: 1.5rem;">
-            <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0; user-select: none;">
-                📤 Caricamento Manuale (Word doc — legacy)
-            </summary>
-            <div class="upload-card" style="margin-top: 0.75rem;">
-                <h2 class="section-title" style="display: none;">
-                    <span class="section-title-icon">📤</span>
-                    Caricamento Manuale
-                </h2>
+            <!-- Piani recenti -->
+            <div class="card">
+                <div class="card-h">📄 Piani Recenti</div>
+                {% if stats.recent_plans %}
+                <div class="plan-list">
+                    {% for plan in stats.recent_plans %}
+                    <div class="plan-row">
+                        <div class="plan-row-l">
+                            <h4>{{ plan.club_name }}</h4>
+                            <span>{{ plan.created_at[:10] if plan.created_at else '—' }}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <span class="plan-chip {{ 'chip-ok' if plan.status in ('approved','ready') else 'chip-draft' }}">
+                                {{ plan.status }}
+                            </span>
+                            <a href="{{ url_for('plan_detail', plan_id=plan.id) }}" class="btn btn-ghost btn-sm">Apri</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div style="margin-top:0.75rem; text-align:right;">
+                    <a href="{{ url_for('plans_list') }}" class="btn btn-ghost btn-sm">Tutti i piani →</a>
+                </div>
+                {% else %}
+                <div class="empty">Nessun piano ancora generato.<br>Compila i questionari e genera il tuo primo piano.</div>
+                {% endif %}
+            </div>
+        </div>
 
+        <!-- Health strip + License -->
+        <div class="health-strip">
+            <div class="health-item">
+                <span class="health-dot" id="hDot"></span>
+                <span class="health-label">Sistema</span>
+                <span class="health-val" id="hStatus">Online</span>
+            </div>
+            <div class="health-item">
+                <span class="health-label">DOCX</span>
+                <span class="health-val">{{ '✅' if docx_available else '⚠️' }}</span>
+            </div>
+            <div class="health-item">
+                <span class="health-label">Clients</span>
+                <span class="health-val" id="hClients">0</span>
+            </div>
+            {% if hf_spaces_mode %}
+            <div class="health-item" style="margin-left:auto;">
+                <span style="font-size:0.75rem; background:rgba(59,130,246,0.15); color:var(--info); padding:0.2rem 0.75rem; border-radius:20px; font-weight:600;">☁️ Cloud Mode</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if not hf_spaces_mode and not license_valid %}
+        <div class="license-card">
+            <span style="font-size:1.5rem;">⚠️</span>
+            <div>
+                <h4>Sistema Non Attivato</h4>
+                <p>Codice macchina: <code>{{ hwid }}</code> — Comunicalo al referente per ricevere la chiave.</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Legacy upload (collapsible) -->
+        <details>
+            <summary>📤 Caricamento Word (legacy)</summary>
+            <div class="upload-inner card">
                 <form id="uploadForm" enctype="multipart/form-data">
                     <div class="form-group">
-                        <label class="form-label" for="companyName">Nome Club / Azienda *</label>
-                        <input
-                            type="text"
-                            id="companyName"
-                            name="club_name"
-                            class="form-input"
-                            placeholder="Es: AC Riccione 1926"
-                            required
-                        >
+                        <label class="form-label">Nome Club / Azienda *</label>
+                        <input type="text" id="companyName" name="club_name" class="form-input" placeholder="Es: AC Riccione 1926" required>
                     </div>
-
                     <div class="form-group">
                         <label class="form-label">File Word (.docx) *</label>
                         <div class="drop-zone" id="dropZone">
                             <div class="drop-zone-icon">📄</div>
-                            <div class="drop-zone-text">
-                                Trascina qui i file o <strong>clicca per selezionare</strong>
-                            </div>
-                            <div class="drop-zone-text" style="font-size: 0.8rem; margin-top: 0.5rem;">
-                                Formati accettati: .docx (SWOT, PEST, Vision)
-                            </div>
+                            <div class="drop-zone-text">Trascina qui o <strong>clicca per selezionare</strong></div>
                             <input type="file" id="fileInput" name="files[]" class="file-input" multiple accept=".docx">
-                            <input type="file" id="folderInput" name="folder[]" class="file-input" webkitdirectory directory style="display:none">
+                            <input type="file" id="folderInput" name="folder[]" class="file-input" webkitdirectory directory>
                         </div>
-
-                        <!-- Upload buttons OUTSIDE drop zone -->
-                        <div style="display: flex; gap: 12px; margin-top: 16px; justify-content: center;">
-                            <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 20px; border-radius: 8px;">
-                                📄 Seleziona File
-                            </button>
-                            <button type="button" onclick="document.getElementById('folderInput').click()" class="btn-secondary" style="font-size: 0.9rem; padding: 10px 20px; border-radius: 8px;">
-                                📁 Seleziona Cartella
-                            </button>
+                        <div style="display:flex;gap:10px;margin-top:12px;justify-content:center;">
+                            <button type="button" onclick="document.getElementById('fileInput').click()" class="btn btn-ghost btn-sm">📄 File</button>
+                            <button type="button" onclick="document.getElementById('folderInput').click()" class="btn btn-ghost btn-sm">📁 Cartella</button>
                         </div>
-
                         <div class="file-list" id="fileList"></div>
                     </div>
-
                     <div class="form-group">
-                        <label class="form-label" for="category">Categoria (opzionale)</label>
+                        <label class="form-label">Categoria</label>
                         <select id="category" name="category" class="form-input">
                             <option value="">-- Seleziona --</option>
                             {% for cat in categories %}
@@ -986,450 +519,199 @@
                             {% endfor %}
                         </select>
                     </div>
-
-                    <button type="submit" class="btn btn-primary btn-full" id="submitBtn" disabled>
-                        <span>🚀</span>
-                        Genera Piano Strategico
+                    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;" id="submitBtn" disabled>
+                        🚀 Genera Piano Strategico
                     </button>
-
-                    <div class="progress-container" id="progressContainer">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                        </div>
-                        <div class="progress-text" id="progressText">Elaborazione in corso...</div>
+                    <div class="progress-wrap" id="progressWrap">
+                        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                        <div class="progress-text" id="progressText">Elaborazione...</div>
                     </div>
                 </form>
             </div>
-            </details>
-
-            <!-- Recent Plans -->
-            <div class="recent-plans">
-                <h3 class="section-title">
-                    <span class="section-title-icon">📋</span>
-                    Piani Recenti
-                </h3>
-
-                {% if stats.recent_plans %}
-                    {% for plan in stats.recent_plans[:5] %}
-                    <div class="plan-item">
-                        <div class="plan-info">
-                            <h4>{{ plan.club_name }}</h4>
-                            <span>{{ plan.last_modified[:10] if plan.last_modified else 'N/A' }}</span>
-                        </div>
-                        <a href="{{ url_for('plan_detail', plan_id=plan.plan_id) }}" class="btn btn-secondary">
-                            Apri
-                        </a>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state">
-                        <p>Nessun piano generato.</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Right Panel: Live Console -->
-        <div class="right-panel">
-            <div class="console-header">
-                <div class="console-title">
-                    <span>📡</span>
-                    Live Console
-                </div>
-                <div class="console-controls">
-                    <button class="console-btn" onclick="clearLogs()">Clear</button>
-                    <button class="console-btn" onclick="toggleAutoScroll()">Auto-scroll</button>
-                </div>
-            </div>
-
-            <div class="console-body" id="logConsole">
-                <div class="log-entry">
-                    <span class="log-timestamp">--:--:--</span>
-                    <span class="log-level INFO">INFO</span>
-                    <span class="log-message">Connessione al server in corso...</span>
-                </div>
-            </div>
-
-            <div class="connection-status disconnected" id="connectionStatus">
-                <span class="status-indicator"></span>
-                <span id="connectionText">Disconnesso</span>
-            </div>
-        </div>
+        </details>
     </div>
 
-    <script>
-        // =================================================================
-        // VARIABLES
-        // =================================================================
-        let selectedFiles = [];
-        let eventSource = null;
-        let autoScroll = true;
-        const logConsole = document.getElementById('logConsole');
-        const fileList = document.getElementById('fileList');
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const submitBtn = document.getElementById('submitBtn');
-        const uploadForm = document.getElementById('uploadForm');
-        const progressContainer = document.getElementById('progressContainer');
+    <!-- ── RIGHT PANEL: Console ── -->
+    <div class="right">
+        <div class="console-header">
+            <div class="console-title">📡 Live Console</div>
+            <div class="console-controls">
+                <button class="console-btn" onclick="clearLogs()">Clear</button>
+                <button class="console-btn" onclick="toggleScroll()">Scroll</button>
+            </div>
+        </div>
+        <div class="console-body" id="logConsole">
+            <div class="log-entry">
+                <span class="log-ts">--:--:--</span>
+                <span class="log-lvl INFO">INFO</span>
+                <span class="log-msg">Connessione al server...</span>
+            </div>
+        </div>
+        <div class="conn-bar" id="connBar">
+            <span class="conn-dot off" id="connDot"></span>
+            <span id="connText">Disconnesso</span>
+        </div>
+    </div>
+</div>
 
-        // =================================================================
-        // SSE LOG STREAMING
-        // =================================================================
-        let logPollingInterval = null;
-        let lastLogCount = 0;
+<script>
+// ── Invite copy ──
+function copyInvite() {
+    const url = document.getElementById('inviteUrl').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target;
+        const o = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => btn.textContent = o, 2000);
+    });
+}
 
-        function connectSSE() {
-            // Live Console uses polling (SSE was disabled for stability)
-            updateConnectionStatus(true);
-            addLogEntry({
-                timestamp: new Date().toISOString(),
-                level: 'INFO',
-                message: 'Connesso al server - Polling attivo'
-            });
+// ── Upload form ──
+let selectedFiles = [];
+const fileInput = document.getElementById('fileInput');
+const folderInput = document.getElementById('folderInput');
+const dropZone = document.getElementById('dropZone');
+const fileList = document.getElementById('fileList');
+const submitBtn = document.getElementById('submitBtn');
+const uploadForm = document.getElementById('uploadForm');
 
-            // Poll logs every 3 seconds
-            if (logPollingInterval) clearInterval(logPollingInterval);
-            logPollingInterval = setInterval(async () => {
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    const items = e.dataTransfer.items;
+    if (items) { for (let i of items) { const en = i.webkitGetAsEntry(); if (en) scanEntry(en); } }
+    else handleFiles(e.dataTransfer.files);
+});
+async function scanEntry(entry) {
+    if (entry.isFile) entry.file(f => { if (f.name.endsWith('.docx')) addFile(f); });
+    else if (entry.isDirectory) { const r = entry.createReader(); r.readEntries(es => es.forEach(scanEntry)); }
+}
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+folderInput.addEventListener('change', e => handleFiles(e.target.files));
+function handleFiles(files) { for (const f of files) if (f.name.endsWith('.docx')) addFile(f); }
+function addFile(f) {
+    if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) {
+        selectedFiles.push(f); renderFiles(); updateSubmit();
+    }
+}
+function renderFiles() {
+    fileList.innerHTML = selectedFiles.map((f,i) => `
+        <div class="file-item">
+            <span>📄 ${f.name} <span style="color:var(--muted);font-size:0.75rem;">(${(f.size/1024).toFixed(1)} KB)</span></span>
+            <button class="file-item-remove" onclick="removeFile(${i})">×</button>
+        </div>`).join('');
+}
+function removeFile(i) { selectedFiles.splice(i,1); renderFiles(); updateSubmit(); }
+function updateSubmit() {
+    const name = document.getElementById('companyName').value.trim();
+    submitBtn.disabled = !(selectedFiles.length && name);
+}
+document.getElementById('companyName').addEventListener('input', updateSubmit);
+
+uploadForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = document.getElementById('companyName').value.trim();
+    const cat = document.getElementById('category').value;
+    if (!name || !selectedFiles.length) { alert('Nome club e almeno un file .docx richiesti'); return; }
+    const pw = document.getElementById('progressWrap');
+    const pf = document.getElementById('progressFill');
+    const pt = document.getElementById('progressText');
+    pw.classList.add('active'); submitBtn.disabled = true;
+    pt.textContent = 'Caricamento...';
+    const fd = new FormData();
+    fd.append('club_name', name);
+    fd.append('request_mode', 'production');
+    if (cat) fd.append('hard_data', JSON.stringify({category: cat}));
+    selectedFiles.forEach(f => fd.append('files[]', f));
+    try {
+        const res = await fetch('/api/generate-from-docx', { method:'POST', body:fd });
+        if (!res.ok) { const d = await res.json().catch(()=>{}); throw new Error(d?.error || 'HTTP ' + res.status); }
+        const data = await res.json();
+        if (data.success && data.session_id) {
+            pt.textContent = 'Generazione avviata...';
+            pf.classList.add('det'); pf.style.width='2%';
+            const src = new EventSource('/api/progress/' + data.session_id);
+            src.onmessage = ev => {
                 try {
-                    const resp = await fetch('/api/stream/logs');
-                    const data = await resp.json();
-                    if (data.success && data.logs) {
-                        // Only show new logs
-                        const newLogs = data.logs.slice(lastLogCount);
-                        newLogs.forEach(log => addLogEntry(log));
-                        lastLogCount = data.logs.length;
-                        updateConnectionStatus(true);
-                    }
-                } catch (e) {
-                    updateConnectionStatus(false);
-                }
-            }, 3000);
-        }
+                    const d = JSON.parse(ev.data);
+                    pf.style.width = (d.progress||0) + '%';
+                    pt.textContent = (d.message||'Elaborazione...') + ' (' + Math.round(d.progress||0) + '%)';
+                    if (d.status === 'completed' && d.plan_id) { src.close(); pf.style.width='100%'; setTimeout(()=>location.href='/success/'+d.plan_id, 1200); }
+                    else if (d.status === 'failed' || d.status === 'error') { src.close(); pt.innerHTML='<span style="color:var(--error)">❌ '+(d.message||'Errore')+'</span>'; submitBtn.disabled=false; }
+                } catch(x){}
+            };
+            src.onerror = () => { src.close(); pt.innerHTML='<span style="color:var(--error)">❌ Connessione persa</span>'; submitBtn.disabled=false; };
+        } else if (data.success && data.plan_id) {
+            pf.classList.add('det'); pf.style.width='100%';
+            setTimeout(()=>location.href=(data.edit_url||'/success/'+data.plan_id), 1500);
+        } else throw new Error(data.error||'Errore sconosciuto');
+    } catch(err) {
+        pt.innerHTML='<span style="color:var(--error)">❌ '+err.message+'</span>';
+        submitBtn.disabled=false;
+    }
+});
 
-        function updateConnectionStatus(connected) {
-            const statusEl = document.getElementById('connectionStatus');
-            const textEl = document.getElementById('connectionText');
+// ── Console ──
+let autoScroll = true;
+let lastLogCount = 0;
+const logConsole = document.getElementById('logConsole');
 
-            if (connected) {
-                statusEl.className = 'connection-status connected';
-                textEl.textContent = 'Connesso - Streaming attivo';
-            } else {
-                statusEl.className = 'connection-status disconnected';
-                textEl.textContent = 'Disconnesso - Riconnessione...';
+function connectConsole() {
+    setConnected(true);
+    addLog({timestamp:new Date().toISOString(), level:'INFO', message:'Polling attivo'});
+    setInterval(async () => {
+        try {
+            const r = await fetch('/api/stream/logs');
+            const d = await r.json();
+            if (d.success && d.logs) {
+                d.logs.slice(lastLogCount).forEach(addLog);
+                lastLogCount = d.logs.length;
+                setConnected(true);
             }
+        } catch(e) { setConnected(false); }
+    }, 3000);
+}
+
+function setConnected(ok) {
+    document.getElementById('connDot').className = 'conn-dot' + (ok ? '' : ' off');
+    document.getElementById('connText').textContent = ok ? 'Connesso' : 'Disconnesso';
+}
+
+function addLog(e) {
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    const t = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '--:--:--';
+    const lvl = e.level || 'INFO';
+    div.innerHTML = `<span class="log-ts">${t}</span><span class="log-lvl ${lvl}">${lvl}</span><span class="log-msg">${esc(e.message)}</span>`;
+    logConsole.appendChild(div);
+    while (logConsole.children.length > 200) logConsole.removeChild(logConsole.firstChild);
+    if (autoScroll) logConsole.scrollTop = logConsole.scrollHeight;
+}
+
+function clearLogs() { logConsole.innerHTML=''; addLog({timestamp:new Date().toISOString(),level:'INFO',message:'Console svuotata'}); }
+function toggleScroll() { autoScroll = !autoScroll; }
+function esc(t) { const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+
+// ── System health polling ──
+setInterval(async () => {
+    try {
+        const r = await fetch('/api/system/status');
+        const d = await r.json();
+        if (d.success) {
+            document.getElementById('systemStatus').textContent = `Online | ${d.connected_clients||0} client`;
+            document.getElementById('hStatus').textContent = 'Online';
+            document.getElementById('hDot').className = 'health-dot';
+            document.getElementById('hClients').textContent = d.connected_clients||0;
         }
+    } catch(e) {
+        document.getElementById('systemStatus').textContent = 'Offline';
+        document.getElementById('hStatus').textContent = 'Offline';
+        document.getElementById('hDot').className = 'health-dot off';
+    }
+}, 10000);
 
-        function addLogEntry(entry) {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-
-            const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '--:--:--';
-
-            div.innerHTML = `
-                <span class="log-timestamp">${time}</span>
-                <span class="log-level ${entry.level}">${entry.level}</span>
-                <span class="log-message">${escapeHtml(entry.message)}</span>
-            `;
-
-            logConsole.appendChild(div);
-
-            // Limite log visualizzati
-            while (logConsole.children.length > 200) {
-                logConsole.removeChild(logConsole.firstChild);
-            }
-
-            // Auto-scroll
-            if (autoScroll) {
-                logConsole.scrollTop = logConsole.scrollHeight;
-            }
-        }
-
-        function clearLogs() {
-            logConsole.innerHTML = '';
-            addLogEntry({
-                timestamp: new Date().toISOString(),
-                level: 'INFO',
-                message: 'Console svuotata'
-            });
-        }
-
-        function toggleAutoScroll() {
-            autoScroll = !autoScroll;
-            addLogEntry({
-                timestamp: new Date().toISOString(),
-                level: 'INFO',
-                message: `Auto-scroll ${autoScroll ? 'attivato' : 'disattivato'}`
-            });
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // =================================================================
-        // FILE UPLOAD
-        // =================================================================
-        // Click on drop zone opens file selector (NOT folder)
-        // Use explicit buttons for file vs folder selection
-        // dropZone.addEventListener('click', () => fileInput.click());
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            
-            const items = e.dataTransfer.items;
-            if (items) {
-                for (let i = 0; i < items.length; i++) {
-                    const entry = items[i].webkitGetAsEntry();
-                    if (entry) {
-                        scanFiles(entry);
-                    }
-                }
-            } else {
-                handleFiles(e.dataTransfer.files);
-            }
-        });
-
-        async function scanFiles(entry) {
-            if (entry.isFile) {
-                entry.file(file => {
-                    if (file.name.endsWith('.docx')) {
-                        addFileIfNew(file);
-                    }
-                });
-            } else if (entry.isDirectory) {
-                const reader = entry.createReader();
-                reader.readEntries(entries => {
-                    for (const childEntry of entries) {
-                        scanFiles(childEntry);
-                    }
-                });
-            }
-        }
-
-        function addFileIfNew(file) {
-            if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                selectedFiles.push(file);
-                renderFileList();
-                updateSubmitButton();
-            }
-        }
-
-        fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
-        });
-
-        // Folder input listener (webkitdirectory enabled)
-        const folderInput = document.getElementById('folderInput');
-        folderInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);  // Same handler - FileList includes all files recursively
-        });
-
-        function handleFiles(files) {
-            for (const file of files) {
-                if (file.name.endsWith('.docx')) {
-                    addFileIfNew(file);
-                }
-            }
-        }
-
-        function renderFileList() {
-            fileList.innerHTML = selectedFiles.map((file, idx) => `
-                <div class="file-item">
-                    <div class="file-item-name">
-                        <span>📄</span>
-                        <span>${file.name}</span>
-                        <span style="color: var(--text-muted); font-size: 0.8rem;">
-                            (${(file.size / 1024).toFixed(1)} KB)
-                        </span>
-                    </div>
-                    <button class="file-item-remove" onclick="removeFile(${idx})">×</button>
-                </div>
-            `).join('');
-        }
-
-        function removeFile(idx) {
-            selectedFiles.splice(idx, 1);
-            renderFileList();
-            updateSubmitButton();
-        }
-
-        function updateSubmitButton() {
-            const companyName = document.getElementById('companyName').value.trim();
-            submitBtn.disabled = !(selectedFiles.length > 0 && companyName);
-        }
-
-        document.getElementById('companyName').addEventListener('input', updateSubmitButton);
-
-        // =================================================================
-        // FORM SUBMISSION
-        // =================================================================
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const companyName = document.getElementById('companyName').value.trim();
-            const category = document.getElementById('category').value;
-
-            if (!companyName || selectedFiles.length === 0) {
-                alert('Inserisci il nome del club e almeno un file .docx');
-                return;
-            }
-
-            // Show progress
-            const progressFill = document.querySelector('.progress-fill');
-            const progressText = document.getElementById('progressText');
-            progressContainer.classList.add('active');
-            submitBtn.disabled = true;
-            progressText.textContent = 'Caricamento file...';
-
-            // Build FormData
-            const formData = new FormData();
-            formData.append('club_name', companyName);
-            formData.append('request_mode', 'production');
-
-            if (category) {
-                formData.append('hard_data', JSON.stringify({ category: category }));
-            }
-
-            selectedFiles.forEach(file => {
-                formData.append('files[]', file);
-            });
-
-            try {
-                progressText.textContent = 'Invio file al server...';
-                console.log('[UPLOAD] Sending', selectedFiles.length, 'files for', companyName);
-
-                const response = await fetch('/api/generate-from-docx', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                console.log('[UPLOAD] Response status:', response.status);
-
-                if (!response.ok) {
-                    // Handle non-200 responses (401, 500, etc.)
-                    let errMsg = 'Errore server (HTTP ' + response.status + ')';
-                    try {
-                        const errData = await response.json();
-                        console.log('[UPLOAD] Error response body:', errData);
-                        errMsg = errData.error || errData.message || errData.user_message || errMsg;
-                    } catch (e) { /* response wasn't JSON */ }
-                    throw new Error(errMsg);
-                }
-
-                const result = await response.json();
-                console.log('[UPLOAD] API Response:', result);
-
-                if (result.success && result.session_id) {
-                    // Async mode: connect to SSE progress stream
-                    const sessionId = result.session_id;
-                    progressText.textContent = 'Generazione avviata...';
-                    progressFill.classList.add('determinate');
-                    progressFill.style.width = '2%';
-
-                    const progressSource = new EventSource('/api/progress/' + sessionId);
-
-                    progressSource.onmessage = function(event) {
-                        try {
-                            const data = JSON.parse(event.data);
-                            console.log('[Progress]', data);
-
-                            const percent = Math.round(data.progress || 0);
-                            progressFill.style.width = percent + '%';
-                            progressText.textContent = (data.message || 'Elaborazione...') + ' (' + percent + '%)';
-
-                            if (data.status === 'completed' && data.plan_id) {
-                                progressSource.close();
-                                progressFill.style.width = '100%';
-                                progressText.textContent = '✅ Piano generato con successo!';
-                                setTimeout(() => {
-                                    window.location.href = '/success/' + data.plan_id;
-                                }, 1500);
-                            } else if (data.status === 'failed' || data.status === 'error') {
-                                progressSource.close();
-                                progressText.innerHTML = '<span style="color:var(--error)">❌ ' + (data.message || 'Generazione fallita') + '</span>';
-                                submitBtn.disabled = false;
-                            }
-                        } catch (parseErr) {
-                            console.error('SSE parse error:', parseErr);
-                        }
-                    };
-
-                    progressSource.onerror = function() {
-                        console.error('SSE connection error');
-                        progressSource.close();
-                        progressText.innerHTML = '<span style="color:var(--error)">❌ Connessione persa. Controlla la lista piani.</span>';
-                        submitBtn.disabled = false;
-                    };
-
-                } else if (result.success && result.plan_id) {
-                    // Sync fallback (legacy): direct plan_id response
-                    progressFill.classList.add('determinate');
-                    progressFill.style.width = '100%';
-                    progressText.textContent = '✅ Piano generato con successo!';
-                    const redirectUrl = result.edit_url || '/success/' + result.plan_id;
-                    setTimeout(() => { window.location.href = redirectUrl; }, 2000);
-
-                } else {
-                    throw new Error(result.error || 'Errore sconosciuto');
-                }
-
-            } catch (error) {
-                console.error('[UPLOAD] Error:', error);
-                progressText.innerHTML = '<span style="color:var(--error)">❌ Errore: ' + error.message + '</span>';
-                // Keep progress container visible to show error, re-enable button
-                submitBtn.disabled = false;
-                alert('Errore: ' + error.message);
-            }
-        });
-
-        // =================================================================
-        // INIT
-        // =================================================================
-        document.addEventListener('DOMContentLoaded', () => {
-            connectSSE();
-
-            // Update system status + health widget periodically
-            setInterval(async () => {
-                try {
-                    const resp = await fetch('/api/system/status');
-                    const data = await resp.json();
-                    if (data.success) {
-                        // Header badge
-                        document.getElementById('systemStatus').textContent =
-                            `Online | ${data.connected_clients || 0} client`;
-                        // Health widget
-                        document.getElementById('healthStatusText').textContent = 'Online';
-                        document.getElementById('healthDot').classList.remove('offline');
-                        document.getElementById('healthClients').textContent = data.connected_clients || 0;
-                        if (data.stats) {
-                            document.getElementById('healthDrafts').textContent = data.stats.draft_plans || 0;
-                        }
-                    }
-                } catch (e) {
-                    document.getElementById('systemStatus').textContent = 'Errore connessione';
-                    document.getElementById('healthStatusText').textContent = 'Offline';
-                    document.getElementById('healthDot').classList.add('offline');
-                }
-            }, 10000);
-        });
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (eventSource) { eventSource.close(); }
-            if (logPollingInterval) { clearInterval(logPollingInterval); }
-        });
-    </script>
+document.addEventListener('DOMContentLoaded', connectConsole);
+</script>
 </body>
 </html>
