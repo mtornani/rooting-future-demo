@@ -680,6 +680,99 @@ def club_profile_save():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/club/<club_slug>")
+@login_required
+def club_hub(club_slug):
+    """Club Hub: stato questionari, invito board, generazione piano."""
+    from questionnaire_schema import QUESTIONNAIRES, QUESTIONNAIRE_ORDER
+
+    club_display_name = club_slug.replace("-", " ").title()
+
+    # Completion matrix: {q_id: {icon, title, members: {member_name: status}}}
+    members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+    completion_matrix = {}
+    for q_id in QUESTIONNAIRE_ORDER:
+        q = QUESTIONNAIRES[q_id]
+        completion_matrix[q_id] = {
+            "icon": q.get("icon", "📋"),
+            "title": q.get("title", q_id),
+            "members": {},
+        }
+
+    member_count = 0
+    total_q_filled = 0
+    total_q_possible = 0
+
+    if members_dir.exists():
+        for member_dir in sorted(members_dir.iterdir()):
+            if not member_dir.is_dir():
+                continue
+            member_count += 1
+            total_q_possible += len(QUESTIONNAIRE_ORDER)
+            for q_id in QUESTIONNAIRE_ORDER:
+                q_file = member_dir / f"{q_id}.json"
+                if q_file.exists():
+                    try:
+                        rec = json.loads(q_file.read_text(encoding="utf-8"))
+                        display_name = rec.get("display_name", member_dir.name.replace("-", " ").title())
+                        data = rec.get("data", {})
+                        # Quick completion check: at least 1 non-empty section
+                        has_data = any(
+                            (isinstance(v, dict) and any(vv for vv in v.values())) or
+                            (isinstance(v, list) and len(v) > 0)
+                            for v in data.values()
+                        )
+                        status = "completed" if has_data else "partial"
+                        if has_data:
+                            total_q_filled += 1
+                        completion_matrix[q_id]["members"][display_name] = status
+                    except Exception:
+                        pass
+
+    # Piani del club (match by club_name containing slug words)
+    all_plans, _ = knowledge_manager.store.list_plans(owner_id=current_user.id, limit=50)
+    slug_words = set(club_slug.split("-"))
+    club_plans = [
+        p for p in all_plans
+        if any(w in (p.club_name or "").lower() for w in slug_words if len(w) > 3)
+    ][:5]
+
+    # Club profile
+    profiles = knowledge_manager.store.get_club_profile_by_owner(current_user.id)
+    profile = profiles[0] if profiles else None
+
+    # Invite URL
+    invite_url = request.host_url.rstrip("/") + f"/questionnaires?club={club_slug}"
+
+    return render_template(
+        "club_hub.html",
+        club_slug=club_slug,
+        club_display_name=club_display_name,
+        completion_matrix=completion_matrix,
+        member_count=member_count,
+        total_q_filled=total_q_filled,
+        total_q_possible=max(total_q_possible, len(QUESTIONNAIRE_ORDER)),
+        plans=club_plans,
+        profile=profile,
+        invite_url=invite_url,
+    )
+
+
+@app.route("/api/questionnaire-complete-hook", methods=["POST"])
+def api_questionnaire_complete_hook():
+    """
+    Chiamato da saveAndFinish() nel questionnaire_form.
+    Registra il completamento e (futuro) notifica il manager.
+    """
+    data = request.get_json() or {}
+    club_slug = data.get("club_slug", "")
+    member = data.get("member", "")
+    q_id = data.get("q_id", "")
+    logger.info(f"Questionnaire complete: club={club_slug} member={member} q_id={q_id}")
+    # Placeholder: in futuro invia email/push al manager
+    return jsonify({"success": True})
+
+
 @app.route("/plans")
 @login_required
 def plans_list():

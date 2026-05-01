@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ club_display_name }} — Club Hub</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --secondary: #1e293b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+        .logo-icon { font-size: 1.5rem; }
+        .logo-text { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+        .header-nav { display: flex; gap: 1rem; }
+        .header-nav a {
+            color: var(--text-muted); text-decoration: none;
+            padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.2s;
+        }
+        .header-nav a:hover, .header-nav a.active {
+            background: var(--bg-input); color: var(--text);
+        }
+
+        /* Main */
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        /* Club header */
+        .club-header {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1.5rem;
+        }
+        .club-title h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .club-slug { color: var(--text-muted); font-size: 0.85rem; font-family: monospace; }
+        .club-meta { display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap; }
+        .club-meta-item {
+            display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.85rem; color: var(--text-muted);
+        }
+        .club-actions { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-end; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 0.9rem;
+            font-weight: 600; cursor: pointer; border: none; text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-sm { padding: 0.5rem 0.875rem; font-size: 0.8rem; }
+
+        /* Sections layout */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        /* Section card */
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+        .section-card h2 {
+            font-size: 1rem; font-weight: 600; margin-bottom: 1rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        /* Questionnaire matrix */
+        .q-matrix { display: flex; flex-direction: column; gap: 0.5rem; }
+        .q-row {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.6rem 0.75rem; border-radius: 8px;
+            background: var(--bg-input);
+        }
+        .q-icon { font-size: 1.1rem; flex-shrink: 0; }
+        .q-title { flex: 1; font-size: 0.875rem; }
+        .q-members { display: flex; gap: 4px; flex-wrap: wrap; }
+        .member-chip {
+            padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;
+        }
+        .chip-done { background: rgba(34,197,94,0.2); color: var(--success); }
+        .chip-partial { background: rgba(245,158,11,0.2); color: var(--warning); }
+        .chip-none { background: rgba(148,163,184,0.1); color: var(--text-muted); }
+
+        /* Invite section */
+        .invite-box {
+            background: var(--bg-input); border-radius: 10px; padding: 1rem;
+            margin-top: 0.75rem;
+        }
+        .invite-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+        .invite-link-row { display: flex; gap: 0.5rem; align-items: center; }
+        .invite-link {
+            flex: 1; background: var(--bg-dark); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem;
+            color: var(--text-muted); font-family: monospace; word-break: break-all;
+        }
+
+        /* Plans list */
+        .plan-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .plan-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.75rem 1rem; border-radius: 8px; background: var(--bg-input);
+        }
+        .plan-row-info h4 { font-size: 0.875rem; margin-bottom: 0.15rem; }
+        .plan-row-info span { font-size: 0.75rem; color: var(--text-muted); }
+        .plan-badge {
+            padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-draft { background: rgba(245,158,11,0.2); color: var(--warning); }
+        .badge-ready { background: rgba(34,197,94,0.2); color: var(--success); }
+
+        /* Completion gauge */
+        .gauge { margin-bottom: 1rem; }
+        .gauge-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+        .gauge-bar { height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden; }
+        .gauge-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.4s; }
+
+        /* Generate bar */
+        .generate-bar {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 1.5rem;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.5rem; gap: 1rem;
+        }
+        .generate-bar-info h3 { font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .generate-bar-info p { font-size: 0.85rem; color: var(--text-muted); }
+        .progress-bar-wrap { margin-top: 0.75rem; display: none; }
+        .progress-bar-wrap.active { display: block; }
+        .progress-bar { height: 4px; background: var(--bg-dark); border-radius: 2px; overflow: hidden; }
+        .progress-fill {
+            height: 100%; background: var(--primary); width: 0%;
+            animation: indeterminate 1.5s infinite;
+        }
+        @keyframes indeterminate {
+            0% { transform: translateX(-100%); width: 30%; }
+            100% { transform: translateX(400%); width: 30%; }
+        }
+        .progress-text { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+        .empty-state { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.875rem; }
+
+        /* Alert */
+        .alert { padding: 0.875rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--success); }
+        .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--error); }
+        .alert-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--warning); }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">🌱</span>
+            <span class="logo-text">Rooting Future</span>
+        </div>
+        <nav class="header-nav">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('plans_list') }}">Piani</a>
+            <a href="{{ url_for('questionnaire_index') }}">📋 Questionari</a>
+            <a href="{{ url_for('club_profile') }}">🏟️ Profilo Club</a>
+            <a href="{{ url_for('review_queue') }}">Review</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Club header -->
+        <div class="club-header">
+            <div class="club-title">
+                <h1>🏟️ {{ club_display_name }}</h1>
+                <div class="club-slug">{{ club_slug }}</div>
+                <div class="club-meta">
+                    {% if profile and profile.categoria %}
+                    <span class="club-meta-item">🏆 {{ profile.categoria }}</span>
+                    {% endif %}
+                    {% if profile and profile.sede %}
+                    <span class="club-meta-item">📍 {{ profile.sede }}</span>
+                    {% endif %}
+                    <span class="club-meta-item">👥 {{ member_count }} membro/i nel board</span>
+                    <span class="club-meta-item">📝 {{ total_q_filled }}/{{ total_q_possible }} questionari completati</span>
+                </div>
+            </div>
+            <div class="club-actions">
+                <a href="{{ url_for('club_profile') }}" class="btn btn-secondary btn-sm">
+                    ✏️ Modifica Profilo Club
+                </a>
+            </div>
+        </div>
+
+        <!-- Generate bar -->
+        <div class="generate-bar">
+            <div class="generate-bar-info">
+                <h3>🚀 Genera Piano Strategico</h3>
+                <p>
+                    {% if total_q_filled == 0 %}
+                    Nessun questionario completato. Invita i membri del board.
+                    {% elif total_q_filled < 3 %}
+                    {{ total_q_filled }} questionari compilati — puoi già generare o raccogliere più risposte.
+                    {% else %}
+                    {{ total_q_filled }} questionari completati — pronto per la generazione.
+                    {% endif %}
+                </p>
+                <div class="progress-bar-wrap" id="genProgressWrap">
+                    <div class="progress-bar"><div class="progress-fill" id="genProgressFill"></div></div>
+                    <div class="progress-text" id="genProgressText">Avvio generazione...</div>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="btnGenerate"
+                    onclick="generatePlan()"
+                    {% if total_q_filled == 0 %}disabled{% endif %}>
+                ⚡ Genera Piano
+            </button>
+        </div>
+
+        <div class="grid-2">
+            <!-- Questionnaire matrix -->
+            <div class="section-card">
+                <h2>📋 Stato Questionari</h2>
+
+                {% if completion_matrix %}
+                <div class="gauge">
+                    {% set pct = (total_q_filled / total_q_possible * 100) | int if total_q_possible > 0 else 0 %}
+                    <div class="gauge-label">
+                        <span>Completamento board</span>
+                        <span>{{ pct }}%</span>
+                    </div>
+                    <div class="gauge-bar"><div class="gauge-fill" style="width: {{ pct }}%"></div></div>
+                </div>
+
+                <div class="q-matrix">
+                    {% for q_id, q_info in completion_matrix.items() %}
+                    <div class="q-row">
+                        <span class="q-icon">{{ q_info.icon }}</span>
+                        <span class="q-title">{{ q_info.title }}</span>
+                        <div class="q-members">
+                            {% for member, status in q_info.members.items() %}
+                            <span class="member-chip {{ 'chip-done' if status == 'completed' else 'chip-partial' if status == 'partial' else 'chip-none' }}"
+                                  title="{{ member }}">
+                                {{ member[:8] }}
+                            </span>
+                            {% endfor %}
+                            {% if not q_info.members %}
+                            <span class="member-chip chip-none">nessuno</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">Nessun questionario compilato per questo club.</div>
+                {% endif %}
+            </div>
+
+            <!-- Invite + Plans -->
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Invite -->
+                <div class="section-card">
+                    <h2>🔗 Link Invito Board</h2>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                        Condividi con i membri del board per raccogliere le loro risposte ai questionari.
+                    </p>
+                    <div class="invite-box">
+                        <div class="invite-label">Link questionari</div>
+                        <div class="invite-link-row">
+                            <div class="invite-link" id="inviteLink">{{ invite_url }}</div>
+                            <button class="btn btn-secondary btn-sm" onclick="copyInvite()">📋 Copia</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent plans -->
+                <div class="section-card">
+                    <h2>📄 Piani Generati</h2>
+                    {% if plans %}
+                    <div class="plan-list">
+                        {% for plan in plans %}
+                        <div class="plan-row">
+                            <div class="plan-row-info">
+                                <h4>{{ plan.club_name }}</h4>
+                                <span>{{ plan.created_at[:10] if plan.created_at else 'N/A' }}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="plan-badge {{ 'badge-ready' if plan.status in ('approved', 'ready') else 'badge-draft' }}">
+                                    {{ plan.status }}
+                                </span>
+                                <a href="{{ url_for('plan_detail', plan_id=plan.id) }}" class="btn btn-secondary btn-sm">
+                                    Apri
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">Nessun piano ancora generato.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const CLUB_SLUG = '{{ club_slug }}';
+
+    function copyInvite() {
+        const url = document.getElementById('inviteLink').textContent;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = event.target;
+            const orig = btn.textContent;
+            btn.textContent = '✓ Copiato!';
+            setTimeout(() => { btn.textContent = orig; }, 2000);
+        });
+    }
+
+    async function generatePlan() {
+        const btn = document.getElementById('btnGenerate');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Generazione...';
+
+        const wrap = document.getElementById('genProgressWrap');
+        const text = document.getElementById('genProgressText');
+        wrap.classList.add('active');
+        text.textContent = 'Avvio generazione...';
+
+        try {
+            const res = await fetch('/api/generate-from-questionnaires', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({club_slug: CLUB_SLUG})
+            });
+            const data = await res.json();
+
+            if (data.success && data.session_id) {
+                text.textContent = 'Generazione avviata...';
+                const src = new EventSource('/api/progress/' + data.session_id);
+                const fill = document.getElementById('genProgressFill');
+                fill.style.animation = 'none';
+                src.onmessage = function(ev) {
+                    try {
+                        const d = JSON.parse(ev.data);
+                        const pct = Math.round(d.progress || 0);
+                        fill.style.width = pct + '%';
+                        text.textContent = (d.message || 'Elaborazione...') + ' (' + pct + '%)';
+                        if (d.status === 'completed' && d.plan_id) {
+                            src.close();
+                            fill.style.width = '100%';
+                            text.textContent = 'Piano generato!';
+                            setTimeout(() => {
+                                window.location.href = '/success/' + d.plan_id;
+                            }, 1000);
+                        } else if (d.status === 'failed' || d.status === 'error') {
+                            src.close();
+                            text.innerHTML = '<span style="color:var(--error)">Errore: ' + (d.message || 'generazione fallita') + '</span>';
+                            btn.disabled = false;
+                            btn.innerHTML = '⚡ Genera Piano';
+                        }
+                    } catch(e) {}
+                };
+                src.onerror = function() {
+                    src.close();
+                    text.innerHTML = '<span style="color:var(--error)">Connessione persa. Controlla lista piani.</span>';
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Genera Piano';
+                };
+            } else if (data.success && data.plan_id) {
+                fill.style.width = '100%';
+                text.textContent = 'Piano generato!';
+                setTimeout(() => { window.location.href = '/success/' + data.plan_id; }, 1000);
+            } else {
+                throw new Error(data.error || 'Errore sconosciuto');
+            }
+        } catch(e) {
+            text.innerHTML = '<span style="color:var(--error)">Errore: ' + e.message + '</span>';
+            btn.disabled = false;
+            btn.innerHTML = '⚡ Genera Piano';
+        }
+    }
+    </script>
+</body>
+</html>

@@ -377,6 +377,12 @@
 
     async function saveAndFinish() {
         await save();
+        // Notify completion hook (fire-and-forget)
+        fetch('/api/questionnaire-complete-hook', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({club_slug: CLUB, member: MEMBER, q_id: QID})
+        }).catch(() => {});
         window.location.href = `/questionnaires?club=${CLUB}&member=${MEMBER}`;
     }
 

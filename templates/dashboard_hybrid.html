@@ -900,9 +900,39 @@
                 {% endif %}
             </div>
 
-            <!-- Upload Form -->
-            <div class="upload-card">
+            <!-- Club Hub Entry -->
+            <div class="upload-card" style="border-color: #10b981;">
                 <h2 class="section-title">
+                    <span class="section-title-icon">🏟️</span>
+                    Club Hub — Questionari Digitali
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Raccolta risposte dal board tramite questionari digitali → generazione piano.
+                </p>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem;">
+                    <a href="{{ url_for('questionnaire_index') }}" class="btn btn-secondary" style="flex: 1; justify-content: center; min-width: 140px;">
+                        📋 Vai ai Questionari
+                    </a>
+                    <a href="{{ url_for('club_profile') }}" class="btn btn-secondary" style="flex: 1; justify-content: center; min-width: 140px;">
+                        🏟️ Profilo Club
+                    </a>
+                </div>
+                {% if stats.recent_plans %}
+                {% set latest = stats.recent_plans[0] %}
+                {% set slug = latest.club_name.lower().replace(' ', '-') %}
+                <a href="/club/{{ slug }}" class="btn btn-primary" style="width: 100%; justify-content: center; margin-bottom: 0.5rem;">
+                    🚀 Apri Club Hub — {{ latest.club_name }}
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Upload Manuale (legacy) -->
+            <details style="margin-bottom: 1.5rem;">
+            <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0; user-select: none;">
+                📤 Caricamento Manuale (Word doc — legacy)
+            </summary>
+            <div class="upload-card" style="margin-top: 0.75rem;">
+                <h2 class="section-title" style="display: none;">
                     <span class="section-title-icon">📤</span>
                     Caricamento Manuale
                 </h2>
@@ -970,6 +1000,7 @@
                     </div>
                 </form>
             </div>
+            </details>
 
             <!-- Recent Plans -->
             <div class="recent-plans">
