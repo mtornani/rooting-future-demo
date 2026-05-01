@@ -331,6 +331,32 @@ class SQLiteKnowledgeStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_licenses_email ON licenses(email)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_licenses_status ON licenses(status)")
 
+            # Club profiles (Step 4 - onboarding)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS club_profiles (
+                    id TEXT PRIMARY KEY,
+                    club_name TEXT NOT NULL,
+                    ragione_sociale TEXT,
+                    piva TEXT,
+                    categoria TEXT,
+                    anno_fondazione INTEGER,
+                    sede TEXT,
+                    regione TEXT,
+                    fatturato_stimato TEXT,
+                    n_atleti INTEGER,
+                    presidente TEXT,
+                    website TEXT,
+                    field_sources TEXT,
+                    field_confirmed TEXT,
+                    raw_research TEXT,
+                    credibility_score REAL DEFAULT 0.0,
+                    owner_id INTEGER,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_owner ON club_profiles(owner_id)")
+
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
@@ -562,6 +588,77 @@ class SQLiteKnowledgeStore:
                 ORDER BY d.created_at DESC
             """, (plan_id,)).fetchall()
             return [dict(row) for row in rows]
+
+    # -------------------------------------------------------------------------
+    # CLUB PROFILES
+    # -------------------------------------------------------------------------
+
+    def save_club_profile(self, profile: Dict) -> str:
+        """Salva o aggiorna il profilo club."""
+        now = datetime.now().isoformat()
+        club_id = profile.get('id') or profile['club_name'].lower().replace(' ', '_')
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO club_profiles
+                (id, club_name, ragione_sociale, piva, categoria, anno_fondazione,
+                 sede, regione, fatturato_stimato, n_atleti, presidente, website,
+                 field_sources, field_confirmed, raw_research, credibility_score,
+                 owner_id, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                    COALESCE((SELECT created_at FROM club_profiles WHERE id=?), ?), ?)
+            """, (
+                club_id,
+                profile.get('club_name', ''),
+                profile.get('ragione_sociale', ''),
+                profile.get('piva', ''),
+                profile.get('categoria', ''),
+                profile.get('anno_fondazione'),
+                profile.get('sede', ''),
+                profile.get('regione', ''),
+                profile.get('fatturato_stimato', ''),
+                profile.get('n_atleti'),
+                profile.get('presidente', ''),
+                profile.get('website', ''),
+                json.dumps(profile.get('field_sources', {})),
+                json.dumps(profile.get('field_confirmed', {})),
+                profile.get('raw_research', ''),
+                profile.get('credibility_score', 0.0),
+                profile.get('owner_id'),
+                club_id, now,  # for COALESCE
+                now,
+            ))
+            conn.commit()
+        return club_id
+
+    def get_club_profile(self, club_id: str) -> Optional[Dict]:
+        """Recupera profilo club per ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM club_profiles WHERE id = ?", (club_id,)
+            ).fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            d['field_sources'] = json.loads(d['field_sources'] or '{}')
+            d['field_confirmed'] = json.loads(d['field_confirmed'] or '{}')
+            return d
+
+    def get_club_profile_by_owner(self, owner_id: int) -> List[Dict]:
+        """Recupera tutti i profili club di un utente."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM club_profiles WHERE owner_id = ? ORDER BY updated_at DESC",
+                (owner_id,)
+            ).fetchall()
+            result = []
+            for row in rows:
+                d = dict(row)
+                d['field_sources'] = json.loads(d['field_sources'] or '{}')
+                d['field_confirmed'] = json.loads(d['field_confirmed'] or '{}')
+                result.append(d)
+            return result
 
     # -------------------------------------------------------------------------
     # SYSTEM SETTINGS & KILLSWITCH

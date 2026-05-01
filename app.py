@@ -615,6 +615,71 @@ def admin_clear_cache():
     return jsonify({"success": True, "deleted": deleted})
 
 
+@app.route("/club/profile", methods=["GET"])
+@login_required
+def club_profile():
+    """Mostra il profilo club dell'utente corrente (o form vuoto)."""
+    profiles = knowledge_manager.store.get_club_profile_by_owner(current_user.id)
+    profile = profiles[0] if profiles else None
+    return render_template("club_profile.html", profile=profile)
+
+
+@app.route("/club/profile/research", methods=["POST"])
+@login_required
+def club_profile_research():
+    """Lancia ricerca AI sul club e restituisce dati pre-compilati per review."""
+    from club_researcher import research_club
+    data = request.get_json() or {}
+    club_name = data.get("club_name", "").strip()
+    piva = data.get("piva", "").strip()
+    if not club_name:
+        return jsonify({"success": False, "error": "club_name obbligatorio"}), 400
+    try:
+        result = research_club(club_name, piva)
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        logger.error(f"Club research error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/club/profile/save", methods=["POST"])
+@login_required
+def club_profile_save():
+    """Salva il profilo club confermato dall'utente."""
+    from club_researcher import compute_credibility_score
+    data = request.get_json() or {}
+
+    field_confirmed = data.get("field_confirmed", {})
+    field_sources = data.get("field_sources", {})
+    score = compute_credibility_score(field_confirmed, field_sources)
+
+    profile = {
+        "club_name": data.get("club_name", ""),
+        "ragione_sociale": data.get("ragione_sociale") or None,
+        "piva": data.get("piva") or None,
+        "categoria": data.get("categoria") or None,
+        "anno_fondazione": data.get("anno_fondazione") or None,
+        "sede": data.get("sede") or None,
+        "regione": data.get("regione") or None,
+        "fatturato_stimato": data.get("fatturato_stimato") or None,
+        "n_atleti": data.get("n_atleti") or None,
+        "presidente": data.get("presidente") or None,
+        "website": data.get("website") or None,
+        "field_sources": field_sources,
+        "field_confirmed": field_confirmed,
+        "raw_research": data.get("raw_research", ""),
+        "credibility_score": score,
+        "owner_id": current_user.id,
+    }
+
+    try:
+        club_id = knowledge_manager.store.save_club_profile(profile)
+        return jsonify({"success": True, "club_id": club_id, "credibility_score": score})
+    except Exception as e:
+        logger.error(f"Club profile save error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/plans")
 @login_required
 def plans_list():
@@ -861,6 +926,19 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
             club_name, data.get("category", "")
         )
         enriched_data = {**technical_data, **data}
+
+        # Inject club profile if available (Step 4 - onboarding)
+        club_profiles = knowledge_manager.store.get_club_profile_by_owner(user_id)
+        if club_profiles:
+            cp = club_profiles[0]
+            # Overwrite with confirmed profile fields only
+            confirmed = cp.get("field_confirmed", {})
+            for field in ["categoria", "sede", "regione", "fatturato_stimato", "n_atleti", "presidente"]:
+                if confirmed.get(field) and cp.get(field):
+                    enriched_data[field] = cp[field]
+            if confirmed.get("categoria") and cp.get("categoria"):
+                enriched_data["category"] = cp["categoria"]
+            enriched_data["club_profile_credibility"] = cp.get("credibility_score", 0)
 
         # 2. Web Research
         research_data = {}
