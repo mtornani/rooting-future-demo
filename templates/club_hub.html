@@ -377,9 +377,10 @@
             });
             const data = await res.json();
 
-            if (data.success && data.session_id) {
+            if (data.success && (data.session_id || data.project_id)) {
                 text.textContent = 'Generazione avviata...';
-                const src = new EventSource('/api/progress/' + data.session_id);
+                const pid = data.session_id || data.project_id;
+                const src = new EventSource('/api/progress/' + pid);
                 const fill = document.getElementById('genProgressFill');
                 fill.style.animation = 'none';
                 src.onmessage = function(ev) {
