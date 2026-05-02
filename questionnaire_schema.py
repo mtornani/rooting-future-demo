@@ -1,6 +1,6 @@
 """
 Schema questionari Rooting Future.
-Struttura dati per i form digitali compilati dal Board.
+Struttura dati per i form digitali compilati dal Direttivo.
 Ogni questionario corrisponde a un DOCX originale.
 """
 

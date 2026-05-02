@@ -370,11 +370,11 @@
             <div class="hero-top">
                 <div>
                     <h2>🏟️ Club Hub — Flusso Digitale</h2>
-                    <p>Raccogli le risposte del board tramite questionari digitali, poi genera il piano strategico con un click.</p>
+                    <p>Raccogli le risposte del direttivo tramite questionari digitali, poi genera il piano strategico con un click.</p>
                     <div class="hero-badges">
                         <span class="badge badge-green">✓ Questionari digitali</span>
                         <span class="badge badge-blue">✓ Multi-agente AI</span>
-                        <span class="badge badge-amber">{{ q_filled_count }} risposte raccolte</span>
+                        <span class="badge badge-amber">{{ q_filled_count }} questionari compilati</span>
                     </div>
                 </div>
                 <div class="hero-actions">
@@ -399,7 +399,7 @@
         <div class="grid2">
             <!-- Questionari overview -->
             <div class="card">
-                <div class="card-h">📋 Questionari</div>
+                <div class="card-h">📋 Questionari Direttivo</div>
                 <div class="q-list">
                     {% set q_icons = [
                         ('identita', '🏟️', 'Identità Club'),
@@ -417,7 +417,7 @@
                     {% endfor %}
                 </div>
                 <div style="margin-top:0.875rem;">
-                    <div class="card-h" style="margin-bottom:0.5rem;">🔗 Link invito board</div>
+                    <div class="card-h" style="margin-bottom:0.5rem;">🔗 Link invito direttivo</div>
                     <div class="invite-row">
                         <div class="invite-url" id="inviteUrl">{{ request.host_url }}questionnaires</div>
                         <button class="btn btn-ghost btn-sm" onclick="copyInvite()">📋</button>

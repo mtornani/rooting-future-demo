@@ -224,7 +224,7 @@
                     {% if profile and profile.sede %}
                     <span class="club-meta-item">📍 {{ profile.sede }}</span>
                     {% endif %}
-                    <span class="club-meta-item">👥 {{ member_count }} membro/i nel board</span>
+                    <span class="club-meta-item">👥 {{ member_count }} membro/i nel direttivo</span>
                     <span class="club-meta-item">📝 {{ total_q_filled }}/{{ total_q_possible }} questionari completati</span>
                 </div>
             </div>
@@ -241,7 +241,7 @@
                 <h3>🚀 Genera Piano Strategico</h3>
                 <p>
                     {% if total_q_filled == 0 %}
-                    Nessun questionario completato. Invita i membri del board.
+                    Nessun questionario completato. Invita i dirigenti del club.
                     {% elif total_q_filled < 3 %}
                     {{ total_q_filled }} questionari compilati — puoi già generare o raccogliere più risposte.
                     {% else %}
@@ -269,7 +269,7 @@
                 <div class="gauge">
                     {% set pct = (total_q_filled / total_q_possible * 100) | int if total_q_possible > 0 else 0 %}
                     <div class="gauge-label">
-                        <span>Completamento board</span>
+                        <span>Completamento direttivo</span>
                         <span>{{ pct }}%</span>
                     </div>
                     <div class="gauge-bar"><div class="gauge-fill" style="width: {{ pct }}%"></div></div>
@@ -303,9 +303,9 @@
             <div style="display: flex; flex-direction: column; gap: 1rem;">
                 <!-- Invite -->
                 <div class="section-card">
-                    <h2>🔗 Link Invito Board</h2>
+                    <h2>🔗 Link Invito Direttivo</h2>
                     <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
-                        Condividi con i membri del board per raccogliere le loro risposte ai questionari.
+                        Condividi con i dirigenti del club per raccogliere le loro risposte ai questionari.
                     </p>
                     <div class="invite-box">
                         <div class="invite-label">Link questionari</div>

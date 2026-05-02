@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Questionari Board - Rooting Future</title>
+    <title>Questionari Direttivo - Rooting Future</title>
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#1a365d">
     <style>
@@ -83,7 +83,7 @@
 <body>
     <div class="header">
         <h1>🌱 Rooting Future</h1>
-        <p>Questionari Strategici per il Board</p>
+        <p>Questionari Strategici per il Direttivo</p>
         <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
             <a href="{{ url_for('index') }}" style="color:rgba(255,255,255,0.7); font-size:0.8rem; text-decoration:none; padding:4px 12px; border:1px solid rgba(255,255,255,0.3); border-radius:16px;">Dashboard</a>
             <a href="{{ url_for('club_profile') }}" style="color:rgba(255,255,255,0.7); font-size:0.8rem; text-decoration:none; padding:4px 12px; border:1px solid rgba(255,255,255,0.3); border-radius:16px;">🏟️ Profilo Club</a>
@@ -98,7 +98,7 @@
         <div class="field">
             <label>Ruolo</label>
             <select id="memberRole">
-                <option value="board" {% if member_role == 'board' %}selected{% endif %}>Board</option>
+                <option value="board" {% if member_role == 'board' %}selected{% endif %}>Direttivo</option>
                 <option value="collaboratore" {% if member_role == 'collaboratore' %}selected{% endif %}>Collaboratore</option>
             </select>
         </div>
