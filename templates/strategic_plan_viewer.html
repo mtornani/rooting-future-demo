@@ -97,7 +97,7 @@
                 </button>
             </div>
             <div id="technical-sporting-content" class="section-content">
-                {{ plan.get('technical_sporting', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('technical_sporting') or plan.get('stw_sportivi') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -110,7 +110,7 @@
                 </button>
             </div>
             <div id="youth-development-content" class="section-content">
-                {{ plan.get('youth_development', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('youth_development') or plan.get('stw_struttura_org') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -123,7 +123,7 @@
                 </button>
             </div>
             <div id="infrastructure-content" class="section-content">
-                {{ plan.get('infrastructure', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('infrastructure') or plan.get('stw_strutturali') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -136,7 +136,7 @@
                 </button>
             </div>
             <div id="marketing-commercial-content" class="section-content">
-                {{ plan.get('marketing_commercial', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('marketing_commercial') or plan.get('stw_marketing') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -149,7 +149,7 @@
                 </button>
             </div>
             <div id="financial-content" class="section-content">
-                {{ plan.get('financial', plan.get('financial_projections', '<p class="empty-section">Sezione non disponibile</p>'))|safe }}
+                {{ (plan.get('financial') or plan.get('financial_projections') or plan.get('financial_plan') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -162,7 +162,7 @@
                 </button>
             </div>
             <div id="governance-content" class="section-content">
-                {{ plan.get('governance', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('governance') or plan.get('stw_relazioni_ist') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
@@ -175,11 +175,14 @@
                 </button>
             </div>
             <div id="social-sustainability-content" class="section-content">
-                {{ plan.get('social_sustainability', '<p class="empty-section">Sezione non disponibile</p>')|safe }}
+                {{ (plan.get('social_sustainability') or plan.get('stw_sociali') or '<p class="empty-section">Sezione non disponibile</p>')|safe }}
             </div>
         </section>
 
-        <!-- Coordinator Summary (if available) -->
+        <!-- Sintesi Strategica — solo se diversa dall'executive summary -->
+        {% set _coord = plan.get('coordinator_summary') or plan.get('synthesis') %}
+        {% set _exec = plan.get('executive_summary') or plan.get('summary') %}
+        {% if _coord and _coord != _exec %}
         <section id="coordinator-summary" class="plan-section">
             <div class="section-header">
                 <h1>🎯 Sintesi Strategica</h1>
@@ -188,9 +191,10 @@
                 </button>
             </div>
             <div id="coordinator-summary-content" class="section-content">
-                {{ plan.get('coordinator_summary', plan.get('synthesis', '<p class="empty-section">Sezione non disponibile</p>'))|safe }}
+                {{ _coord|safe }}
             </div>
         </section>
+        {% endif %}
 
     </main>
 

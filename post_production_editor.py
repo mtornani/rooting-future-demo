@@ -281,6 +281,13 @@ class PostProductionEditor:
             if section_id not in section_titles:
                 continue
 
+            # Fix: rimuovi emoji duplicate consecutive (es. "⚽ ⚽" → "⚽")
+            import re as _re
+            content = _re.sub(
+                r'([\U00010000-\U0010ffff\U00002600-\U000027BF])\s+\1',
+                r'\1', content
+            )
+
             # Conta fonti per questa sezione
             section_sources = [s for s in (sources or []) if section_id in str(s)]
 
