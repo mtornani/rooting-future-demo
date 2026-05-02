@@ -383,14 +383,14 @@
                     btn.innerHTML = '⚡ Genera Piano';
                 } else if (attempts >= MAX) {
                     clearInterval(interval);
-                    text.innerHTML = 'Timeout — <a href="{{ url_for(\'plans_list\') }}" style="color:var(--primary)">controlla lista piani</a>';
+                    text.innerHTML = 'Timeout — <a href="/plans" style="color:var(--primary)">controlla lista piani</a>';
                     btn.disabled = false;
                     btn.innerHTML = '⚡ Genera Piano';
                 }
             } catch(e) {
                 if (attempts >= MAX) {
                     clearInterval(interval);
-                    text.innerHTML = '<a href="{{ url_for(\'plans_list\') }}" style="color:var(--primary)">Controlla lista piani →</a>';
+                    text.innerHTML = '<a href="/plans" style="color:var(--primary)">Controlla lista piani →</a>';
                     btn.disabled = false;
                     btn.innerHTML = '⚡ Genera Piano';
                 }
