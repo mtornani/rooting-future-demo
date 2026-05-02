@@ -359,6 +359,45 @@
         });
     }
 
+    async function pollProgress(pid, fill, text, btn) {
+        let attempts = 0;
+        const MAX = 120; // 2 min @ 1s interval
+        const interval = setInterval(async () => {
+            attempts++;
+            try {
+                const r = await fetch('/api/project-status/' + pid);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                const pct = Math.round(d.progress || 0);
+                fill.style.width = pct + '%';
+                text.textContent = (d.message || 'Elaborazione...') + ' (' + pct + '%)';
+                if (d.status === 'completed' && d.plan_id) {
+                    clearInterval(interval);
+                    fill.style.width = '100%';
+                    text.textContent = 'Piano generato!';
+                    setTimeout(() => { window.location.href = '/success/' + d.plan_id; }, 1000);
+                } else if (d.status === 'failed' || d.status === 'error') {
+                    clearInterval(interval);
+                    text.innerHTML = '<span style="color:var(--error)">Errore: ' + (d.message || 'generazione fallita') + '</span>';
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Genera Piano';
+                } else if (attempts >= MAX) {
+                    clearInterval(interval);
+                    text.innerHTML = 'Timeout — <a href="{{ url_for(\'plans_list\') }}" style="color:var(--primary)">controlla lista piani</a>';
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Genera Piano';
+                }
+            } catch(e) {
+                if (attempts >= MAX) {
+                    clearInterval(interval);
+                    text.innerHTML = '<a href="{{ url_for(\'plans_list\') }}" style="color:var(--primary)">Controlla lista piani →</a>';
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Genera Piano';
+                }
+            }
+        }, 1000);
+    }
+
     async function generatePlan() {
         const btn = document.getElementById('btnGenerate');
         btn.disabled = true;
@@ -406,9 +445,8 @@
                 };
                 src.onerror = function() {
                     src.close();
-                    text.innerHTML = '<span style="color:var(--error)">Connessione persa. Controlla lista piani.</span>';
-                    btn.disabled = false;
-                    btn.innerHTML = '⚡ Genera Piano';
+                    text.textContent = 'Connessione SSE persa — polling in corso...';
+                    pollProgress(pid, fill, text, btn);
                 };
             } else if (data.success && data.plan_id) {
                 fill.style.width = '100%';

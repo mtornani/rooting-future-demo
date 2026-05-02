@@ -1205,6 +1205,23 @@ def api_progress_stream(session_id):
             
     return Response(generate(), mimetype="text/event-stream")
 
+@app.route("/api/project-status/<project_id>")
+def api_project_status(project_id):
+    """GET polling endpoint per project_progress (usato come fallback quando SSE cade)."""
+    state = project_progress.get(project_id)
+    if not state:
+        return jsonify({"status": "not_found", "progress": 0, "message": "Progetto non trovato"}), 404
+    payload = {
+        "status": state.get("status", "processing"),
+        "progress": state.get("progress", 0),
+        "message": state.get("message", ""),
+    }
+    data = state.get("data") or {}
+    if data.get("plan_id"):
+        payload["plan_id"] = data["plan_id"]
+    return jsonify(payload)
+
+
 @app.route("/api/generate", methods=["POST"])
 @login_required
 @route_error_handler
