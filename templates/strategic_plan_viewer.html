@@ -53,6 +53,10 @@
             <a href="#coordinator-summary" class="nav-link">
                 <span class="icon">🎯</span> Sintesi Strategica
             </a>
+            <a href="#piano-azione" class="nav-link">
+                <span class="icon">📋</span> Piano d'Azione
+                <span class="overdue-badge" id="navOverdueBadge" style="display:none; background:#ef4444; color:#fff; border-radius:9999px; font-size:11px; padding:1px 7px; margin-left:6px; font-weight:700;"></span>
+            </a>
         </nav>
 
         <!-- Export Actions -->
@@ -196,7 +200,96 @@
         </section>
         {% endif %}
 
+        <!-- Piano d'Azione -->
+        <section id="piano-azione" class="plan-section">
+            <div class="section-header">
+                <h1>📋 Piano d'Azione</h1>
+                <button class="collapse-btn" data-target="piano-azione-content">
+                    <span class="icon">▼</span>
+                </button>
+            </div>
+            <div id="piano-azione-content" class="section-content">
+
+                <!-- Toolbar -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" style="font-size:13px; padding:6px 14px;" onclick="openAddTaskModal()">＋ Nuovo Task</button>
+                        <select id="filterTaskStatus" onchange="renderTasks()" style="font-size:13px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:6px; background:#fff;">
+                            <option value="">Tutti gli stati</option>
+                            <option value="in_corso">🟢 In corso</option>
+                            <option value="a_rischio">🟠 A rischio</option>
+                            <option value="bloccato">🔴 Bloccato</option>
+                            <option value="fatto">✅ Fatto</option>
+                        </select>
+                    </div>
+                    <span id="tasksOverdueAlert" style="color:#ef4444; font-size:13px; font-weight:600; display:none;"></span>
+                </div>
+
+                <!-- Task Table -->
+                <div id="tasksTableWrap" style="overflow-x:auto;">
+                    <table id="tasksTable" style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <thead>
+                            <tr style="background:#f8fafc; border-bottom:2px solid #e5e7eb;">
+                                <th style="text-align:left; padding:10px 12px; font-weight:600; color:#374151;">Area</th>
+                                <th style="text-align:left; padding:10px 12px; font-weight:600; color:#374151;">Macro-obiettivo</th>
+                                <th style="text-align:left; padding:10px 12px; font-weight:600; color:#374151;">Responsabile</th>
+                                <th style="text-align:left; padding:10px 12px; font-weight:600; color:#374151;">Scadenza</th>
+                                <th style="text-align:center; padding:10px 12px; font-weight:600; color:#374151;">Stato</th>
+                                <th style="text-align:center; padding:10px 12px; font-weight:600; color:#374151;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasksBody">
+                            <tr><td colspan="6" style="text-align:center; padding:32px; color:#9ca3af;">Caricamento task...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
     </main>
+
+    <!-- Add/Edit Task Modal -->
+    <div id="taskModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="max-width:520px;">
+            <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+            <h3 id="taskModalTitle">Nuovo Task</h3>
+            <form id="taskForm" style="margin-top:16px;">
+                <input type="hidden" id="taskId">
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Area</label>
+                    <input type="text" id="taskArea" class="form-control" placeholder="es. Sportivi, Marketing...">
+                </div>
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Macro-obiettivo *</label>
+                    <input type="text" id="taskTitle" class="form-control" placeholder="Titolo del task" required>
+                </div>
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Descrizione</label>
+                    <textarea id="taskDescription" class="form-control" rows="3" placeholder="Dettagli opzionali..."></textarea>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                    <div class="form-group">
+                        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Responsabile</label>
+                        <input type="text" id="taskResponsabile" class="form-control" placeholder="Nome / ruolo">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Scadenza</label>
+                        <input type="date" id="taskScadenza" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:20px;">
+                    <label style="font-size:13px; font-weight:600; display:block; margin-bottom:4px;">Stato</label>
+                    <select id="taskStatus" class="form-control">
+                        <option value="in_corso">🟢 In corso</option>
+                        <option value="a_rischio">🟠 A rischio</option>
+                        <option value="bloccato">🔴 Bloccato</option>
+                        <option value="fatto">✅ Fatto</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">💾 Salva Task</button>
+            </form>
+        </div>
+    </div>
 
     <!-- Export Loading Modal -->
     <div id="exportModal" class="modal-overlay" style="display: none;">
@@ -268,5 +361,176 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/plan_viewer.js') }}"></script>
+    <script>
+    // ─── Piano d'Azione ────────────────────────────────────────────────────
+    const PLAN_ID = document.body.dataset.planId;
+    let allTasks = [];
+
+    const STATUS_META = {
+        in_corso:  { label: '🟢 In corso',  cls: 'status-in-corso'  },
+        a_rischio: { label: '🟠 A rischio', cls: 'status-a-rischio' },
+        bloccato:  { label: '🔴 Bloccato',  cls: 'status-bloccato'  },
+        fatto:     { label: '✅ Fatto',      cls: 'status-fatto'     },
+    };
+
+    async function loadTasks() {
+        try {
+            const r = await fetch('/api/plans/' + PLAN_ID + '/tasks');
+            const d = await r.json();
+            allTasks = d.tasks || [];
+            renderTasks();
+            updateOverdueBadge();
+        } catch(e) {
+            document.getElementById('tasksBody').innerHTML =
+                '<tr><td colspan="6" style="text-align:center;padding:24px;color:#ef4444;">Errore caricamento task.</td></tr>';
+        }
+    }
+
+    function isOverdue(task) {
+        if (!task.scadenza || task.status === 'fatto') return false;
+        return task.scadenza < new Date().toISOString().slice(0,10);
+    }
+
+    function renderTasks() {
+        const filter = document.getElementById('filterTaskStatus').value;
+        const tbody = document.getElementById('tasksBody');
+        const tasks = allTasks.filter(t => !filter || t.status === filter);
+        if (!tasks.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:#9ca3af;">Nessun task trovato.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = tasks.map(t => {
+            const meta = STATUS_META[t.status] || STATUS_META['in_corso'];
+            const overdue = isOverdue(t);
+            const rowStyle = overdue ? 'background:#fff7f7;' : '';
+            const scadenzaDisplay = t.scadenza
+                ? (overdue ? '<span style="color:#ef4444;font-weight:600;">' + t.scadenza + ' ⚠️</span>' : t.scadenza)
+                : '<span style="color:#9ca3af;">—</span>';
+            return '<tr style="border-bottom:1px solid #f3f4f6;' + rowStyle + '">' +
+                '<td style="padding:10px 12px;color:#6b7280;font-size:13px;">' + (t.area || '—') + '</td>' +
+                '<td style="padding:10px 12px;font-weight:500;max-width:300px;">' + escHtml(t.title) + '</td>' +
+                '<td style="padding:10px 12px;color:#374151;">' + (t.responsabile ? escHtml(t.responsabile) : '<span style="color:#9ca3af;">—</span>') + '</td>' +
+                '<td style="padding:10px 12px;">' + scadenzaDisplay + '</td>' +
+                '<td style="padding:10px 12px;text-align:center;">' +
+                    '<select onchange="quickStatusChange(' + t.id + ', this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;cursor:pointer;">' +
+                        Object.entries(STATUS_META).map(([val, m]) =>
+                            '<option value="' + val + '"' + (t.status === val ? ' selected' : '') + '>' + m.label + '</option>'
+                        ).join('') +
+                    '</select>' +
+                '</td>' +
+                '<td style="padding:10px 12px;text-align:center;">' +
+                    '<button onclick="editTask(' + t.id + ')" style="background:none;border:none;cursor:pointer;font-size:16px;" title="Modifica">✏️</button>' +
+                    '<button onclick="deleteTask(' + t.id + ')" style="background:none;border:none;cursor:pointer;font-size:16px;" title="Elimina">🗑️</button>' +
+                '</td>' +
+            '</tr>';
+        }).join('');
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function updateOverdueBadge() {
+        const count = allTasks.filter(isOverdue).length;
+        const badge = document.getElementById('navOverdueBadge');
+        const alert = document.getElementById('tasksOverdueAlert');
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline';
+            alert.textContent = count + ' task scadut' + (count === 1 ? 'o' : 'i') + '!';
+            alert.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+            alert.style.display = 'none';
+        }
+    }
+
+    async function quickStatusChange(taskId, newStatus) {
+        const task = allTasks.find(t => t.id === taskId);
+        if (!task) return;
+        task.status = newStatus;
+        await fetch('/api/plans/' + PLAN_ID + '/tasks/' + taskId, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status: newStatus}),
+        });
+        renderTasks();
+        updateOverdueBadge();
+    }
+
+    function openAddTaskModal() {
+        document.getElementById('taskModalTitle').textContent = 'Nuovo Task';
+        document.getElementById('taskId').value = '';
+        document.getElementById('taskArea').value = '';
+        document.getElementById('taskTitle').value = '';
+        document.getElementById('taskDescription').value = '';
+        document.getElementById('taskResponsabile').value = '';
+        document.getElementById('taskScadenza').value = '';
+        document.getElementById('taskStatus').value = 'in_corso';
+        document.getElementById('taskModal').style.display = 'flex';
+    }
+
+    function editTask(taskId) {
+        const t = allTasks.find(x => x.id === taskId);
+        if (!t) return;
+        document.getElementById('taskModalTitle').textContent = 'Modifica Task';
+        document.getElementById('taskId').value = t.id;
+        document.getElementById('taskArea').value = t.area || '';
+        document.getElementById('taskTitle').value = t.title || '';
+        document.getElementById('taskDescription').value = t.description || '';
+        document.getElementById('taskResponsabile').value = t.responsabile || '';
+        document.getElementById('taskScadenza').value = t.scadenza || '';
+        document.getElementById('taskStatus').value = t.status || 'in_corso';
+        document.getElementById('taskModal').style.display = 'flex';
+    }
+
+    function closeTaskModal() {
+        document.getElementById('taskModal').style.display = 'none';
+    }
+
+    document.getElementById('taskForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const tid = document.getElementById('taskId').value;
+        const payload = {
+            area: document.getElementById('taskArea').value,
+            title: document.getElementById('taskTitle').value,
+            description: document.getElementById('taskDescription').value,
+            responsabile: document.getElementById('taskResponsabile').value,
+            scadenza: document.getElementById('taskScadenza').value,
+            status: document.getElementById('taskStatus').value,
+        };
+        if (tid) {
+            await fetch('/api/plans/' + PLAN_ID + '/tasks/' + tid, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+        } else {
+            await fetch('/api/plans/' + PLAN_ID + '/tasks', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload),
+            });
+        }
+        closeTaskModal();
+        loadTasks();
+    });
+
+    async function deleteTask(taskId) {
+        if (!confirm('Eliminare questo task?')) return;
+        await fetch('/api/plans/' + PLAN_ID + '/tasks/' + taskId, {method: 'DELETE'});
+        allTasks = allTasks.filter(t => t.id !== taskId);
+        renderTasks();
+        updateOverdueBadge();
+    }
+
+    // Close modal on overlay click
+    document.getElementById('taskModal').addEventListener('click', function(e) {
+        if (e.target === this) closeTaskModal();
+    });
+
+    // Load tasks on page load
+    document.addEventListener('DOMContentLoaded', loadTasks);
+    </script>
 </body>
 </html>

@@ -87,6 +87,8 @@
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const planId = "{{ plan_id }}";
+            let attempts = 0;
+            const MAX_ATTEMPTS = 10; // 30 secondi totali
 
             function checkExports() {
                 fetch(`/api/plan-export-status/${planId}`)
@@ -95,32 +97,56 @@
                         updateCard('card-onepager', status.onepager, status.filenames ? status.filenames.onepager : null);
                         updateCard('card-executive', status.executive, status.filenames ? status.filenames.executive : null);
 
-                        // Se non tutto è pronto, riprova
-                        if (!status.onepager || !status.executive) {
+                        attempts++;
+                        const allReady = status.onepager && status.executive;
+                        if (!allReady && attempts < MAX_ATTEMPTS) {
                             setTimeout(checkExports, 3000);
+                        } else if (!allReady) {
+                            // Timeout: i file non sono stati generati
+                            if (!status.onepager) markUnavailable('card-onepager');
+                            if (!status.executive) markUnavailable('card-executive');
                         }
                     })
                     .catch(err => {
                         console.error("Status check failed", err);
-                        setTimeout(checkExports, 5000);
+                        attempts++;
+                        if (attempts < MAX_ATTEMPTS) {
+                            setTimeout(checkExports, 5000);
+                        } else {
+                            markUnavailable('card-onepager');
+                            markUnavailable('card-executive');
+                        }
                     });
             }
 
             function updateCard(cardId, isReady, filename) {
                 const card = document.getElementById(cardId);
-                if (!card) return;
-
-                if (isReady && !card.classList.contains('ready')) {
-                    if (filename) {
-                        card.href = `/download/${filename}`;
-                    }
+                if (!card || card.dataset.settled) return;
+                if (isReady) {
+                    if (filename) card.href = `/download/${filename}`;
                     card.classList.add('ready');
                     card.querySelector('.loading').classList.remove('loading');
                     const spinner = card.querySelector('.spinner');
-                    if(spinner) spinner.style.display = 'none';
+                    if (spinner) spinner.style.display = 'none';
                     card.querySelector('.label').textContent = 'SCARICA ORA';
-                    card.onclick = null; 
+                    card.onclick = null;
+                    card.dataset.settled = '1';
                 }
+            }
+
+            function markUnavailable(cardId) {
+                const card = document.getElementById(cardId);
+                if (!card || card.dataset.settled) return;
+                const btn = card.querySelector('.btn-dl');
+                if (btn) {
+                    btn.classList.remove('loading');
+                    const spinner = btn.querySelector('.spinner');
+                    if (spinner) spinner.style.display = 'none';
+                    btn.querySelector('.label').textContent = 'Non disponibile';
+                    btn.style.background = '#1e293b';
+                    btn.style.color = '#64748b';
+                }
+                card.dataset.settled = '1';
             }
 
             // Avvia loop

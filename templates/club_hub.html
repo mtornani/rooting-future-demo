@@ -348,6 +348,7 @@
 
     <script>
     const CLUB_SLUG = '{{ club_slug }}';
+    const CLUB_CATEGORY = '{{ profile.categoria if profile and profile.categoria else "" }}';
 
     function copyInvite() {
         const url = document.getElementById('inviteLink').textContent;
@@ -412,7 +413,7 @@
             const res = await fetch('/api/generate-from-questionnaires', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({club_slug: CLUB_SLUG})
+                body: JSON.stringify({club_slug: CLUB_SLUG, category: CLUB_CATEGORY})
             });
             const data = await res.json();
 

@@ -1222,6 +1222,105 @@ def api_project_status(project_id):
     return jsonify(payload)
 
 
+# =============================================================================
+# PIANO D'AZIONE TASKS (Step 5)
+# =============================================================================
+
+def _extract_macros_from_plan(plan_data: dict, plan_id: str) -> list:
+    """Estrae automaticamente macro-obiettivi dall'HTML del piano."""
+    import re as _re
+    area_map = {
+        "stw_sportivi": "Sportivi",
+        "technical_sporting": "Sportivi",
+        "stw_struttura_org": "Settore Giovanile",
+        "youth_development": "Settore Giovanile",
+        "stw_strutturali": "Infrastrutture",
+        "infrastructure": "Infrastrutture",
+        "stw_marketing": "Marketing",
+        "marketing_commercial": "Marketing",
+        "financial": "Finanziario",
+        "financial_projections": "Finanziario",
+        "stw_relazioni_ist": "Governance",
+        "governance": "Governance",
+        "stw_sociali": "Sostenibilità Sociale",
+        "social_sustainability": "Sostenibilità Sociale",
+    }
+    tasks = []
+    seen_titles = set()
+    for key, area_label in area_map.items():
+        html = plan_data.get(key, "") or ""
+        if not html:
+            continue
+        # Trova tutti gli h3 con "MACRO" nel testo
+        for m in _re.finditer(r"<h[23][^>]*>(.*?)</h[23]>", html, _re.DOTALL | _re.IGNORECASE):
+            raw = m.group(1)
+            title = _re.sub(r"<[^>]+>", "", raw).strip()
+            title = _re.sub(r"\s+", " ", title)
+            if not title or title in seen_titles:
+                continue
+            if "MACRO" not in title.upper() and len(title) > 120:
+                continue
+            seen_titles.add(title)
+            tasks.append({
+                "plan_id": plan_id,
+                "area": area_label,
+                "title": title[:200],
+                "description": "",
+                "status": "in_corso",
+                "responsabile": "",
+                "scadenza": "",
+            })
+    return tasks
+
+
+@app.route("/api/plans/<plan_id>/tasks", methods=["GET"])
+@login_required
+def api_get_plan_tasks(plan_id):
+    tasks = knowledge_manager.store.get_plan_tasks(plan_id)
+    # Auto-seed se primo accesso e piano esiste
+    if not tasks:
+        plan = knowledge_manager.store.get_plan(plan_id)
+        if plan and plan.plan_data:
+            macros = _extract_macros_from_plan(plan.plan_data, plan_id)
+            for t in macros:
+                knowledge_manager.store.upsert_plan_task(t)
+            tasks = knowledge_manager.store.get_plan_tasks(plan_id)
+    return jsonify({"tasks": tasks})
+
+
+@app.route("/api/plans/<plan_id>/tasks", methods=["POST"])
+@login_required
+def api_create_plan_task(plan_id):
+    body = request.get_json(silent=True) or {}
+    body["plan_id"] = plan_id
+    task_id = knowledge_manager.store.upsert_plan_task(body)
+    return jsonify({"id": task_id, "ok": True})
+
+
+@app.route("/api/plans/<plan_id>/tasks/<int:task_id>", methods=["PATCH"])
+@login_required
+def api_update_plan_task(plan_id, task_id):
+    body = request.get_json(silent=True) or {}
+    body["id"] = task_id
+    body["plan_id"] = plan_id
+    knowledge_manager.store.upsert_plan_task(body)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/plans/<plan_id>/tasks/<int:task_id>", methods=["DELETE"])
+@login_required
+def api_delete_plan_task(plan_id, task_id):
+    knowledge_manager.store.delete_plan_task(task_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/tasks/overdue-count")
+@login_required
+def api_overdue_tasks_count():
+    count = knowledge_manager.store.get_overdue_tasks_count(int(current_user.id))
+    return jsonify({"count": count})
+
+
 @app.route("/api/generate", methods=["POST"])
 @login_required
 @route_error_handler
@@ -2679,6 +2778,45 @@ def api_export_package(plan_id: str):
             except:
                 pass
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/export/<plan_id>/pdf", methods=["GET"])
+@login_required
+@route_error_handler
+def api_export_plan_pdf(plan_id: str):
+    """
+    Genera e scarica il PDF del piano strategico.
+    Usato da plan_viewer.js exportPDF() e boardroom.html.
+    """
+    review = _get_or_load_review(plan_id)
+
+    plan_data = editor.export_plan_for_final(plan_id) or {}
+    club_identity = get_club_identity(review.club_name)
+    metadata = {
+        "category": review.category,
+        "primary_color": club_identity.get("primary", "#1a365d"),
+        "secondary_color": club_identity.get("secondary", "#ffffff"),
+        "credibility_score": (
+            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
+            if review.sections else 0
+        ),
+    }
+
+    from export_pdf_server import PdfServerExporter
+    pdf_exp = PdfServerExporter()
+    pdf_path = pdf_exp.export(
+        plan_data=plan_data,
+        club_name=review.club_name,
+        sources=[],
+        metadata=metadata,
+    )
+
+    return send_file(
+        pdf_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=pdf_path.name,
+    )
+
 
 @app.route("/api/export/<plan_id>/html", methods=["GET"])
 @route_error_handler
@@ -4908,11 +5046,23 @@ def api_generate_from_questionnaires():
 
         # Costruisci club_data nel formato atteso dall'orchestratore
         club_name = club_slug.replace("-", " ").title()
+
+        # Recupera categoria reale dal profilo club (evita default hardcoded "Eccellenza")
+        _category = body.get("category") or ""
+        if not _category:
+            _profiles = knowledge_manager.store.get_club_profile_by_owner(int(current_user.id))
+            for _p in _profiles:
+                if club_slug.replace("-", " ").lower() in (_p.get("club_name") or "").lower():
+                    _category = _p.get("categoria", "") or ""
+                    break
+        if not _category:
+            _category = "Eccellenza"
+
         club_data = {
             "club_name": club_name,
             "city": "",
             "region": "",
-            "category": body.get("category", "Eccellenza"),
+            "category": _category,
             "country": body.get("country", "Italy"),
             "board_members": member_names,
             "data_source": "digital_questionnaires",

@@ -357,6 +357,24 @@ class SQLiteKnowledgeStore:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_profiles_owner ON club_profiles(owner_id)")
 
+            # Piano d'Azione tasks (Step 5)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS plan_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id TEXT NOT NULL,
+                    area TEXT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    status TEXT DEFAULT 'in_corso',
+                    responsabile TEXT,
+                    scadenza TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    FOREIGN KEY(plan_id) REFERENCES plans(id)
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_plan ON plan_tasks(plan_id)")
+
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
@@ -872,6 +890,82 @@ class SQLiteKnowledgeStore:
             conn.execute("DELETE FROM plans WHERE id = ?", (plan_id,))
             conn.commit()
             return conn.total_changes > 0
+
+    # -------------------------------------------------------------------------
+    # PLAN TASKS (Step 5 — Piano d'Azione)
+    # -------------------------------------------------------------------------
+
+    def get_plan_tasks(self, plan_id: str) -> List[Dict]:
+        """Recupera tutti i task di un piano."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM plan_tasks WHERE plan_id = ? ORDER BY id ASC",
+                (plan_id,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def upsert_plan_task(self, task: Dict) -> int:
+        """Crea o aggiorna un task. Restituisce l'ID."""
+        now = datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            task_id = task.get("id")
+            if task_id:
+                conn.execute("""
+                    UPDATE plan_tasks
+                    SET area=?, title=?, description=?, status=?, responsabile=?, scadenza=?, updated_at=?
+                    WHERE id=?
+                """, (
+                    task.get("area", ""),
+                    task.get("title", ""),
+                    task.get("description", ""),
+                    task.get("status", "in_corso"),
+                    task.get("responsabile", ""),
+                    task.get("scadenza", ""),
+                    now,
+                    task_id,
+                ))
+                conn.commit()
+                return task_id
+            else:
+                cursor = conn.execute("""
+                    INSERT INTO plan_tasks (plan_id, area, title, description, status, responsabile, scadenza, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    task["plan_id"],
+                    task.get("area", ""),
+                    task.get("title", ""),
+                    task.get("description", ""),
+                    task.get("status", "in_corso"),
+                    task.get("responsabile", ""),
+                    task.get("scadenza", ""),
+                    now,
+                    now,
+                ))
+                conn.commit()
+                return cursor.lastrowid
+
+    def delete_plan_task(self, task_id: int) -> bool:
+        """Elimina un task."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM plan_tasks WHERE id = ?", (task_id,))
+            conn.commit()
+            return conn.total_changes > 0
+
+    def get_overdue_tasks_count(self, owner_id: int) -> int:
+        """Conta i task scaduti (scadenza < oggi, status != fatto) per i piani dell'utente."""
+        today = datetime.now().date().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute("""
+                SELECT COUNT(*) FROM plan_tasks pt
+                JOIN plans p ON pt.plan_id = p.id
+                WHERE p.owner_id = ?
+                  AND pt.status != 'fatto'
+                  AND pt.scadenza != ''
+                  AND pt.scadenza IS NOT NULL
+                  AND pt.scadenza < ?
+            """, (owner_id, today)).fetchone()
+            return row[0] if row else 0
 
     def find_similar_plans(
         self,
