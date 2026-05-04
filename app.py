@@ -682,7 +682,20 @@ def admin_panel():
     """Pannello amministrativo — solo super_admin."""
     if current_user.role != "super_admin":
         return redirect(url_for("index"))
-    return render_template("admin_panel.html", user=current_user)
+    try:
+        db_stats = knowledge_manager.store.get_statistics()
+        plans_stats = db_stats.get("plans", {})
+        recent_plans, _ = knowledge_manager.store.list_plans(owner_id=current_user.id, limit=5)
+        stats = {
+            "total_plans": plans_stats.get("total", 0),
+            "by_status": plans_stats.get("by_status", {"draft": 0}),
+            "sections_needing_review": plans_stats.get("by_status", {}).get("review", 0),
+            "average_credibility": round(plans_stats.get("avg_credibility", 0), 1),
+            "recent_plans": recent_plans,
+        }
+    except Exception:
+        stats = {"total_plans": 0, "by_status": {}, "sections_needing_review": 0, "average_credibility": 0, "recent_plans": []}
+    return render_template("admin_panel.html", user=current_user, stats=stats)
 
 
 @app.route("/api/admin/clear-cache", methods=["POST"])
