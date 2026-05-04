@@ -375,6 +375,30 @@ class SQLiteKnowledgeStore:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_plan ON plan_tasks(plan_id)")
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS guest_tokens (
+                    token TEXT PRIMARY KEY,
+                    plan_id TEXT NOT NULL,
+                    owner_id INTEGER NOT NULL,
+                    label TEXT,
+                    expires_at TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(plan_id) REFERENCES plans(id)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS guest_access_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token TEXT NOT NULL,
+                    plan_id TEXT NOT NULL,
+                    accessed_at TEXT NOT NULL,
+                    ip TEXT,
+                    user_agent TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_guest_log_token ON guest_access_log(token)")
+
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
@@ -966,6 +990,55 @@ class SQLiteKnowledgeStore:
                   AND pt.scadenza < ?
             """, (owner_id, today)).fetchone()
             return row[0] if row else 0
+
+    # -------------------------------------------------------------------------
+    # GUEST TOKENS
+    # -------------------------------------------------------------------------
+
+    def create_guest_token(self, token: str, plan_id: str, owner_id: int, label: str = "", expires_at: str = "") -> None:
+        now = datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO guest_tokens (token, plan_id, owner_id, label, expires_at, created_at) VALUES (?,?,?,?,?,?)",
+                (token, plan_id, owner_id, label, expires_at, now)
+            )
+            conn.commit()
+
+    def get_guest_token(self, token: str) -> Optional[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM guest_tokens WHERE token=?", (token,)).fetchone()
+            return dict(row) if row else None
+
+    def list_guest_tokens(self, plan_id: str) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM guest_tokens WHERE plan_id=? ORDER BY created_at DESC", (plan_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_guest_token(self, token: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM guest_tokens WHERE token=?", (token,))
+            conn.commit()
+
+    def log_guest_access(self, token: str, plan_id: str, ip: str = "", user_agent: str = "") -> None:
+        now = datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO guest_access_log (token, plan_id, accessed_at, ip, user_agent) VALUES (?,?,?,?,?)",
+                (token, plan_id, now, ip, user_agent)
+            )
+            conn.commit()
+
+    def get_guest_access_log(self, token: str) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM guest_access_log WHERE token=? ORDER BY accessed_at DESC", (token,)
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def find_similar_plans(
         self,

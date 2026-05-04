@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -615,6 +616,65 @@ def system_status():
             "connected_clients": connected,
         }
     )
+
+@app.route("/api/admin/guest-access-log")
+@login_required
+def admin_guest_access_log():
+    """Log completo accessi guest token — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"error": "Forbidden"}), 403
+    with sqlite3.connect(knowledge_manager.store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT l.*, t.label, t.owner_id, t.expires_at,
+                   p.club_name
+            FROM guest_access_log l
+            JOIN guest_tokens t ON l.token = t.token
+            JOIN plans p ON l.plan_id = p.id
+            ORDER BY l.accessed_at DESC
+            LIMIT 500
+        """).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/admin/guest-log")
+@login_required
+def admin_guest_log_page():
+    """Pagina HTML leggibile con il log accessi guest — solo super_admin."""
+    if current_user.role != "super_admin":
+        return "Forbidden", 403
+    with sqlite3.connect(knowledge_manager.store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT l.accessed_at, l.ip, l.user_agent,
+                   t.label, p.club_name, l.token
+            FROM guest_access_log l
+            JOIN guest_tokens t ON l.token = t.token
+            JOIN plans p ON l.plan_id = p.id
+            ORDER BY l.accessed_at DESC
+            LIMIT 500
+        """).fetchall()
+    rows = [dict(r) for r in rows]
+    html_rows = "".join(
+        f"<tr><td>{r['accessed_at'][:19]}</td><td>{r['label']}</td>"
+        f"<td>{r['club_name']}</td><td>{r['ip']}</td>"
+        f"<td style='max-width:200px;overflow:hidden;font-size:11px'>{r['user_agent'][:80]}</td>"
+        f"<td style='font-size:10px'>{r['token'][:12]}…</td></tr>"
+        for r in rows
+    )
+    return f"""<!DOCTYPE html><html><head><meta charset='UTF-8'>
+    <title>Guest Access Log</title>
+    <style>body{{font-family:sans-serif;padding:20px;background:#0f172a;color:#e2e8f0}}
+    table{{border-collapse:collapse;width:100%}}
+    th,td{{border:1px solid #334155;padding:8px 12px;text-align:left}}
+    th{{background:#1e293b;color:#94a3b8;font-size:12px}}
+    tr:hover{{background:#1e293b}}h1{{color:#10b981}}</style></head>
+    <body><h1>👁 Guest Access Log</h1>
+    <p style='color:#64748b'>{len(rows)} accessi totali</p>
+    <table><thead><tr><th>Data/Ora</th><th>Collaboratore</th><th>Club</th>
+    <th>IP</th><th>Browser</th><th>Token</th></tr></thead>
+    <tbody>{html_rows}</tbody></table></body></html>"""
+
 
 @app.route("/api/admin/clear-cache", methods=["POST"])
 @login_required
@@ -1319,6 +1379,98 @@ def api_delete_plan_task(plan_id, task_id):
 def api_overdue_tasks_count():
     count = knowledge_manager.store.get_overdue_tasks_count(int(current_user.id))
     return jsonify({"count": count})
+
+
+@app.route("/api/plans/<plan_id>/guest-tokens", methods=["GET"])
+@login_required
+def api_list_guest_tokens(plan_id: str):
+    tokens = knowledge_manager.store.list_guest_tokens(plan_id)
+    for t in tokens:
+        t["access_log"] = knowledge_manager.store.get_guest_access_log(t["token"])
+        t["access_count"] = len(t["access_log"])
+        t["last_access"] = t["access_log"][0]["accessed_at"] if t["access_log"] else None
+    return jsonify(tokens)
+
+
+@app.route("/api/plans/<plan_id>/guest-tokens", methods=["POST"])
+@login_required
+@route_error_handler
+def api_create_guest_token(plan_id: str):
+    import uuid
+    data = request.get_json(silent=True) or {}
+    label = data.get("label", "Collaboratore")
+    days = int(data.get("expires_days", 30))
+    if days > 0:
+        from datetime import timedelta
+        expires_at = (datetime.now() + timedelta(days=days)).isoformat()
+    else:
+        expires_at = ""
+    token = str(uuid.uuid4()).replace("-", "")
+    knowledge_manager.store.create_guest_token(
+        token=token,
+        plan_id=plan_id,
+        owner_id=int(current_user.id),
+        label=label,
+        expires_at=expires_at,
+    )
+    link = url_for("guest_preview", token=token, _external=True)
+    return jsonify({"token": token, "link": link, "label": label, "expires_at": expires_at})
+
+
+@app.route("/api/plans/<plan_id>/guest-tokens/<token>", methods=["DELETE"])
+@login_required
+def api_delete_guest_token(plan_id: str, token: str):
+    knowledge_manager.store.delete_guest_token(token)
+    return jsonify({"ok": True})
+
+
+@app.route("/preview/<token>")
+def guest_preview(token: str):
+    """Visualizza piano senza login tramite guest token."""
+    rec = knowledge_manager.store.get_guest_token(token)
+    if not rec:
+        return render_template("error.html", message="Link non valido o scaduto."), 404
+    if rec.get("expires_at") and rec["expires_at"] < datetime.now().isoformat():
+        return render_template("error.html", message="Link scaduto."), 403
+    # Log accesso
+    knowledge_manager.store.log_guest_access(
+        token=token,
+        plan_id=rec["plan_id"],
+        ip=request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+        user_agent=request.user_agent.string or "",
+    )
+    # Redirect al viewer reale (senza @login_required)
+    return redirect(url_for("view_plan_public", plan_id=rec["plan_id"], token=token))
+
+
+@app.route("/view-public/<plan_id>")
+def view_plan_public(plan_id: str):
+    """Viewer pubblico per guest token — nessun login."""
+    token = request.args.get("token", "")
+    rec = knowledge_manager.store.get_guest_token(token) if token else None
+    if not rec or rec["plan_id"] != plan_id:
+        return render_template("error.html", message="Accesso non autorizzato."), 403
+    if rec.get("expires_at") and rec["expires_at"] < datetime.now().isoformat():
+        return render_template("error.html", message="Link scaduto."), 403
+    try:
+        review = _get_or_load_review(plan_id)
+        plan_data = editor.export_plan_for_final(plan_id) or {}
+        club_identity = get_club_identity(review.club_name)
+        return render_template(
+            "strategic_plan_viewer.html",
+            plan_id=plan_id,
+            club_name=review.club_name,
+            category=review.category,
+            plan_data=plan_data,
+            sections=review.sections,
+            primary_color=club_identity.get("primary", "#1a365d"),
+            secondary_color=club_identity.get("secondary", "#ffffff"),
+            is_guest=True,
+            guest_label=rec.get("label", ""),
+        )
+    except Exception as e:
+        logger.error(f"Guest view error: {e}")
+        return render_template("error.html", message="Piano non disponibile."), 500
 
 
 @app.route("/api/generate", methods=["POST"])

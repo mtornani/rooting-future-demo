@@ -120,6 +120,8 @@ class OnePagerExporter(BaseExporter):
 
         # Estrai dall'executive summary (anche coordinator_summary come alias)
         exec_summary = plan_data.get('executive_summary') or plan_data.get('coordinator_summary') or ''
+        # Strip block Unicode chars (U+2580–U+259F) — artefatti streaming AI (▌ etc)
+        exec_summary = re.sub(r'[▀-▟]', '', exec_summary)
         if exec_summary:
             # Cerca visione — skip heading words (e.g. "VISIONE STRATEGICA TRIENNALE\n")
             # then capture the first full sentence

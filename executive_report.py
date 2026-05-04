@@ -36,6 +36,8 @@ def _clean_text(text: str) -> str:
     """Pulisce il testo da markdown e formattazione."""
     if not text:
         return ""
+    # Rimuovi caratteri block Unicode (U+2580–U+259F) — artefatti streaming AI
+    text = re.sub(r'[▀-▟]', '', text)
     # Prima rimuovi bold **testo** e *testo* (con contenuto)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
