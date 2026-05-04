@@ -676,6 +676,15 @@ def admin_guest_log_page():
     <tbody>{html_rows}</tbody></table></body></html>"""
 
 
+@app.route("/admin")
+@login_required
+def admin_panel():
+    """Pannello amministrativo — solo super_admin."""
+    if current_user.role != "super_admin":
+        return redirect(url_for("index"))
+    return render_template("admin_panel.html", user=current_user)
+
+
 @app.route("/api/admin/clear-cache", methods=["POST"])
 @login_required
 def admin_clear_cache():
