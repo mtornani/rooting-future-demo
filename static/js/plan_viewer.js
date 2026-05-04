@@ -338,41 +338,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(shareForm);
 
             const data = {
+                label: formData.get('label') || 'Collaboratore',
                 expires_days: parseInt(formData.get('expires_days')),
-                password: formData.get('password') || null,
-                allow_download: formData.get('allow_download') === 'on'
             };
 
-            console.log('[SHARE] Creating share link...', data);
-
-            fetch(`/share/${planId}`, {
+            fetch(`/api/plans/${planId}/guest-tokens`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(result => {
-                if (result.success) {
-                    console.log('[SHARE] Share link created:', result.share_url);
-
-                    // Show result
-                    document.getElementById('shareUrl').value = result.share_url;
+                if (result.link) {
+                    document.getElementById('shareUrl').value = result.link;
                     document.getElementById('shareResult').style.display = 'block';
-
-                    // Reload active shares
                     loadActiveShares();
-
-                    // Scroll to result
                     document.getElementById('shareResult').scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    alert('Errore durante la creazione del link: ' + (result.error || 'Errore sconosciuto'));
+                    alert('Errore: ' + (result.error || 'Sconosciuto'));
                 }
             })
-            .catch(error => {
-                console.error('[SHARE] Error creating share:', error);
-                alert('Errore durante la creazione del link di condivisione.');
+            .catch(err => {
+                console.error('[SHARE] Error:', err);
+                alert('Errore durante la creazione del link.');
             });
         });
     }
@@ -410,71 +398,40 @@ function loadActiveShares() {
 
     sharesList.innerHTML = '<p style="color: #6c757d; font-size: 14px;">Caricamento...</p>';
 
-    fetch(`/api/shares/${planId}`)
-        .then(response => response.json())
-        .then(data => {
-            const shares = data.shares || [];
-
-            if (shares.length === 0) {
-                sharesList.innerHTML = '<p style="color: #6c757d; font-size: 14px;">Nessun link attivo. Crea il primo!</p>';
+    fetch(`/api/plans/${planId}/guest-tokens`)
+        .then(r => r.json())
+        .then(tokens => {
+            if (!tokens.length) {
+                sharesList.innerHTML = '<p style="color:#6c757d;font-size:14px;">Nessun link attivo. Crea il primo!</p>';
                 return;
             }
-
             let html = '';
-            shares.forEach(share => {
-                const expiresAt = new Date(share.expires_at);
-                const createdAt = new Date(share.created_at);
-
-                html += `
-                    <div class="share-item">
-                        <div class="share-item-info">
-                            <strong>${share.share_url.substring(0, 60)}...</strong>
-                            <small>
-                                Creato: ${createdAt.toLocaleDateString('it-IT')} |
-                                Scade: ${expiresAt.toLocaleDateString('it-IT')} |
-                                Visualizzazioni: ${share.view_count}
-                                ${share.password_hash ? ' | 🔐 Protetto' : ''}
-                                ${share.allow_download ? ' | 📥 Download' : ''}
-                            </small>
-                        </div>
-                        <button class="btn-revoke" onclick="revokeShare('${share.share_token}')">
-                            🗑️ Revoca
-                        </button>
+            tokens.forEach(t => {
+                const created = new Date(t.created_at).toLocaleDateString('it-IT');
+                const expires = t.expires_at ? new Date(t.expires_at).toLocaleDateString('it-IT') : '∞';
+                html += `<div class="share-item">
+                    <div class="share-item-info">
+                        <strong>${t.label || 'Collaboratore'}</strong>
+                        <small>Creato: ${created} | Scade: ${expires} | Accessi: ${t.access_count || 0}
+                        ${t.last_access ? ' | Ultimo: ' + new Date(t.last_access).toLocaleString('it-IT') : ''}</small>
                     </div>
-                `;
+                    <button class="btn-revoke" onclick="revokeShare('${t.token}','${planId}')">🗑️ Revoca</button>
+                </div>`;
             });
-
             sharesList.innerHTML = html;
-            console.log('[SHARE] Loaded', shares.length, 'active shares');
         })
-        .catch(error => {
-            console.error('[SHARE] Error loading shares:', error);
-            sharesList.innerHTML = '<p style="color: #dc2626; font-size: 14px;">Errore nel caricamento dei link.</p>';
+        .catch(() => {
+            sharesList.innerHTML = '<p style="color:#dc2626;font-size:14px;">Errore caricamento link.</p>';
         });
 }
 
-function revokeShare(shareToken) {
-    if (!confirm('Sei sicuro di voler revocare questo link? Non sarà più accessibile.')) {
-        return;
-    }
-
-    console.log('[SHARE] Revoking share:', shareToken);
-
-    fetch(`/api/shares/${shareToken}/revoke`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
+function revokeShare(shareToken, planId) {
+    if (!confirm('Revocare questo link? Non sarà più accessibile.')) return;
+    fetch(`/api/plans/${planId}/guest-tokens/${shareToken}`, { method: 'DELETE' })
+    .then(r => r.json())
     .then(result => {
-        if (result.success) {
-            console.log('[SHARE] Share revoked successfully');
-            loadActiveShares();
-        } else {
-            alert('Errore durante la revoca: ' + (result.error || 'Errore sconosciuto'));
-        }
-    })
-    .catch(error => {
-        console.error('[SHARE] Error revoking share:', error);
-        alert('Errore durante la revoca del link.');
+        if (result.ok) loadActiveShares();
+        else alert('Errore revoca link');
     });
 }
 

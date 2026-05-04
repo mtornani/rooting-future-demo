@@ -1424,6 +1424,74 @@ def api_delete_guest_token(plan_id: str, token: str):
     return jsonify({"ok": True})
 
 
+# ─── TEAM INVITE (accesso sistema intero senza login) ────────────────────────
+
+@app.route("/api/admin/team-invite", methods=["POST"])
+@login_required
+def api_create_team_invite():
+    """Crea un token di invito team — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"error": "Forbidden"}), 403
+    import uuid
+    from datetime import timedelta
+    data = request.get_json(silent=True) or {}
+    label = data.get("label", "Team Rooting Future")
+    days = int(data.get("expires_days", 90))
+    token = "team_" + str(uuid.uuid4()).replace("-", "")
+    expires_at = (datetime.now() + timedelta(days=days)).isoformat() if days > 0 else ""
+    # Riusa la tabella guest_tokens con plan_id="__team__"
+    knowledge_manager.store.create_guest_token(
+        token=token, plan_id="__team__",
+        owner_id=int(current_user.id),
+        label=label, expires_at=expires_at,
+    )
+    link = url_for("team_access", token=token, _external=True)
+    return jsonify({"token": token, "link": link, "label": label, "expires_at": expires_at})
+
+
+@app.route("/join/<token>")
+def team_access(token: str):
+    """Accesso al sistema per collaboratori tramite invite link (no login)."""
+    rec = knowledge_manager.store.get_guest_token(token)
+    if not rec or rec["plan_id"] != "__team__":
+        return render_template("error.html", message="Link di invito non valido."), 404
+    if rec.get("expires_at") and rec["expires_at"] < datetime.now().isoformat():
+        return render_template("error.html", message="Link di invito scaduto."), 403
+    # Log accesso
+    knowledge_manager.store.log_guest_access(
+        token=token, plan_id="__team__",
+        ip=request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+        user_agent=request.user_agent.string or "",
+    )
+    # Salva token in sessione per navigazione successiva
+    session["guest_team_token"] = token
+    session["guest_label"] = rec.get("label", "")
+    return redirect(url_for("guest_dashboard"))
+
+
+@app.route("/guest-dashboard")
+def guest_dashboard():
+    """Dashboard read-only per collaboratori senza account."""
+    token = session.get("guest_team_token")
+    if not token:
+        return redirect(url_for("login"))
+    rec = knowledge_manager.store.get_guest_token(token)
+    if not rec or rec["plan_id"] != "__team__":
+        session.pop("guest_team_token", None)
+        return redirect(url_for("login"))
+    if rec.get("expires_at") and rec["expires_at"] < datetime.now().isoformat():
+        return render_template("error.html", message="Sessione scaduta."), 403
+    # Carica tutti i piani del super_admin (owner_id del token)
+    owner_id = rec["owner_id"]
+    plans, _ = knowledge_manager.store.list_plans(owner_id=owner_id, limit=100)
+    return render_template(
+        "guest_dashboard.html",
+        plans=plans,
+        guest_label=rec.get("label", ""),
+        token=token,
+    )
+
+
 @app.route("/preview/<token>")
 def guest_preview(token: str):
     """Visualizza piano senza login tramite guest token."""
@@ -1446,9 +1514,10 @@ def guest_preview(token: str):
 @app.route("/view-public/<plan_id>")
 def view_plan_public(plan_id: str):
     """Viewer pubblico per guest token — nessun login."""
-    token = request.args.get("token", "")
+    token = request.args.get("token", "") or session.get("guest_team_token", "")
     rec = knowledge_manager.store.get_guest_token(token) if token else None
-    if not rec or rec["plan_id"] != plan_id:
+    # Accetta sia token specifico per piano sia team token (__team__)
+    if not rec or (rec["plan_id"] != plan_id and rec["plan_id"] != "__team__"):
         return render_template("error.html", message="Accesso non autorizzato."), 403
     if rec.get("expires_at") and rec["expires_at"] < datetime.now().isoformat():
         return render_template("error.html", message="Link scaduto."), 403

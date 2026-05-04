@@ -311,6 +311,11 @@
 
             <form id="shareForm">
                 <div class="form-group">
+                    <label>Nome collaboratore</label>
+                    <input type="text" name="label" class="form-control" placeholder="es. Mario Rossi, Staff Tecnico…" required>
+                </div>
+
+                <div class="form-group">
                     <label>Scadenza Link</label>
                     <select name="expires_days" class="form-control">
                         <option value="7">7 giorni</option>
@@ -318,19 +323,6 @@
                         <option value="90">90 giorni</option>
                         <option value="365">1 anno</option>
                     </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Password (opzionale)</label>
-                    <input type="password" name="password" class="form-control" placeholder="Lascia vuoto per nessuna password">
-                    <small>Aggiungi una password per maggiore sicurezza</small>
-                </div>
-
-                <div class="form-group checkbox-group">
-                    <label>
-                        <input type="checkbox" name="allow_download">
-                        Permetti download PDF/DOCX
-                    </label>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block">
