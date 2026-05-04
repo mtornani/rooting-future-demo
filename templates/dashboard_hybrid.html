@@ -324,6 +324,9 @@
         <a href="{{ url_for('review_queue') }}">Review</a>
         <a href="{{ url_for('questionnaire_index') }}">📋 Questionari</a>
         <a href="{{ url_for('club_profile') }}">🏟️ Profilo Club</a>
+        {% if clubs_list %}
+        <a href="/club/{{ clubs_list[0].slug }}">⚡ Hub Club</a>
+        {% endif %}
         <a href="/admin" title="Admin Panel">⚙️</a>
     </nav>
     <div class="header-right">
@@ -384,7 +387,11 @@
                     <a href="{{ url_for('club_profile') }}" class="btn btn-ghost btn-sm">
                         🏟️ Profilo Club
                     </a>
-                    {% if stats.recent_plans %}
+                    {% if clubs_list %}
+                    <a href="/club/{{ clubs_list[0].slug }}" class="btn btn-ghost btn-sm">
+                        ⚡ Club Hub — {{ clubs_list[0].display[:20] }}
+                    </a>
+                    {% elif stats.recent_plans %}
                     {% set rp = stats.recent_plans[0] %}
                     {% set slug = rp.club_name.lower().replace(' ', '-') %}
                     <a href="/club/{{ slug }}" class="btn btn-ghost btn-sm">

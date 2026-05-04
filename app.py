@@ -541,15 +541,23 @@ def index():
             "recent_plans": [],
         }
 
-    # Questionari completati (conteggio globale)
+    # Questionari completati (conteggio globale) + clubs list
     q_filled_count = 0
+    clubs_list = []
     try:
         if QUESTIONNAIRE_DATA_DIR.exists():
-            for club_dir in QUESTIONNAIRE_DATA_DIR.iterdir():
+            for club_dir in sorted(QUESTIONNAIRE_DATA_DIR.iterdir()):
                 if club_dir.is_dir():
+                    q_count = 0
                     for member_dir in club_dir.iterdir():
                         if member_dir.is_dir():
-                            q_filled_count += len(list(member_dir.glob("*.json")))
+                            q_count += len(list(member_dir.glob("*.json")))
+                    q_filled_count += q_count
+                    clubs_list.append({
+                        "slug": club_dir.name,
+                        "display": club_dir.name.replace("-", " ").title(),
+                        "q_count": q_count,
+                    })
     except Exception:
         pass
 
@@ -568,6 +576,7 @@ def index():
         license_valid=IS_HF_SPACES,  # on HF always "valid" (cloud mode)
         hwid="HF-Cloud",
         q_filled_count=q_filled_count,
+        clubs_list=clubs_list,
     )
 
 # =============================================================================
