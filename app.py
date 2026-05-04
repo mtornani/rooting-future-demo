@@ -1648,6 +1648,7 @@ def view_plan_public(plan_id: str):
             club_name=review.club_name,
             category=review.category,
             plan_data=plan_data,
+            plan=plan_data,
             sections=review.sections,
             primary_color=club_identity.get("primary", "#1a365d"),
             secondary_color=club_identity.get("secondary", "#ffffff"),
@@ -1656,7 +1657,7 @@ def view_plan_public(plan_id: str):
         )
     except Exception as e:
         logger.error(f"Guest view error: {e}")
-        return render_template("error.html", message="Piano non disponibile."), 500
+        return f"<h2>Errore</h2><p>Piano non disponibile.</p><a href='/'>Torna alla Dashboard</a>", 500
 
 
 @app.route("/api/generate", methods=["POST"])

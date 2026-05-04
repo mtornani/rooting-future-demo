@@ -205,6 +205,9 @@ class BaseExporter(ABC):
         if not content:
             return ""
 
+        # Strip block Unicode artifacts (▌ streaming cursor + full block range)
+        content = re.sub(r'[▀-▟]', '', content)
+
         # Normalize existing newlines
         content = content.replace('\r\n', '\n')
 
