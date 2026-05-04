@@ -24,18 +24,13 @@
         .doc-card.ready .btn-dl { background: var(--primary); color: #000; }
         .doc-card.ready:hover .btn-dl { background: #fff; }
 
-        .spinner { width: 14px; height: 14px; border: 2px solid #ffffff; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; display: none; }
-        .loading .spinner { display: block; border-color: #94a3b8; border-top-color: transparent; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .badge { position: absolute; top: 15px; right: 15px; background: rgba(16, 185, 129, 0.2); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; }
+.badge { position: absolute; top: 15px; right: 15px; background: rgba(16, 185, 129, 0.2); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; }
         .actions { display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; }
         .btn-back { background: #334155; color: #fff; padding: 1rem 2.5rem; border-radius: 12px; text-decoration: none; font-weight: 600; transition: 0.2s; }
         .btn-back:hover { background: #475569; }
     </style>
 </head>
 <body>
-<script>var planId = "{{ plan_id|default('') }}";</script>
     <div class="container">
         <div class="header">
             <div style="font-size: 4rem; margin-bottom: 1rem;">🏆</div>
@@ -45,24 +40,24 @@
 
         <div class="trilogy-grid">
             <!-- ONE PAGER -->
-            <a href="javascript:void(0)" class="doc-card" id="card-onepager">
+            <a href="/api/export/{{ plan_id }}/onepager" class="doc-card ready" id="card-onepager">
                 <span class="badge">INFOGRAFICA</span>
                 <div class="icon">📊</div>
                 <div class="doc-title">One-Pager</div>
                 <div class="doc-desc">Sintesi visiva A4 per presentazioni rapide.</div>
-                <div class="btn-dl loading">
-                    <span class="spinner"></span> <span class="label">Attendere...</span>
+                <div class="btn-dl">
+                    <span class="label">SCARICA ORA</span>
                 </div>
             </a>
 
             <!-- EXECUTIVE -->
-            <a href="javascript:void(0)" class="doc-card" id="card-executive">
+            <a href="/api/export/{{ plan_id }}/executive" class="doc-card ready" id="card-executive">
                 <span class="badge">BOARD READY</span>
                 <div class="icon">📋</div>
                 <div class="doc-title">Executive Report</div>
                 <div class="doc-desc">Documento sintetico per la presidenza.</div>
-                <div class="btn-dl loading">
-                    <span class="spinner"></span> <span class="label">Attendere...</span>
+                <div class="btn-dl">
+                    <span class="label">SCARICA ORA</span>
                 </div>
             </a>
 
@@ -84,105 +79,5 @@
         </div>
     </div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const planId = "{{ plan_id }}";
-            let attempts = 0;
-            const MAX_ATTEMPTS = 10; // 30 secondi totali
-
-            function checkExports() {
-                fetch(`/api/plan-export-status/${planId}`)
-                    .then(response => response.json())
-                    .then(status => {
-                        updateCard('card-onepager', status.onepager, status.filenames ? status.filenames.onepager : null);
-                        updateCard('card-executive', status.executive, status.filenames ? status.filenames.executive : null);
-
-                        attempts++;
-                        const allReady = status.onepager && status.executive;
-                        if (!allReady && attempts < MAX_ATTEMPTS) {
-                            setTimeout(checkExports, 3000);
-                        } else if (!allReady) {
-                            // Timeout: i file non sono stati generati
-                            if (!status.onepager) markUnavailable('card-onepager');
-                            if (!status.executive) markUnavailable('card-executive');
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Status check failed", err);
-                        attempts++;
-                        if (attempts < MAX_ATTEMPTS) {
-                            setTimeout(checkExports, 5000);
-                        } else {
-                            markUnavailable('card-onepager');
-                            markUnavailable('card-executive');
-                        }
-                    });
-            }
-
-            function updateCard(cardId, isReady, filename) {
-                const card = document.getElementById(cardId);
-                if (!card || card.dataset.settled) return;
-                if (isReady) {
-                    if (filename) card.href = `/download/${filename}`;
-                    card.classList.add('ready');
-                    card.querySelector('.loading').classList.remove('loading');
-                    const spinner = card.querySelector('.spinner');
-                    if (spinner) spinner.style.display = 'none';
-                    card.querySelector('.label').textContent = 'SCARICA ORA';
-                    card.onclick = null;
-                    card.dataset.settled = '1';
-                }
-            }
-
-            function markUnavailable(cardId) {
-                const card = document.getElementById(cardId);
-                if (!card || card.dataset.settled) return;
-                const btn = card.querySelector('.btn-dl');
-                if (btn) {
-                    btn.classList.remove('loading');
-                    const spinner = btn.querySelector('.spinner');
-                    if (spinner) spinner.style.display = 'none';
-                    btn.querySelector('.label').textContent = 'Non disponibile';
-                    btn.style.background = '#1e293b';
-                    btn.style.color = '#64748b';
-                }
-                card.dataset.settled = '1';
-            }
-
-            // Avvia loop
-            setTimeout(checkExports, 1000);
-        });
-</script>
-<script>
-  (function(){
-    if (!planId) return;
-    fetch(`/api/plan-export-status/${planId}`)
-      .then(r => r.json())
-      .then(data => {
-        const container = document.getElementById('download-links');
-        if (!container || !data) return;
-        container.innerHTML = '<p>Scarica i documenti esportati:</p>';
-        const items = [];
-        if (data.pdf && data.filenames && data.filenames.pdf) {
-          items.push({name: 'Piano Strategico (PDF)', file: data.filenames.pdf});
-        }
-        if (data.docx && data.filenames && data.filenames.docx) {
-          items.push({name: 'Piano Strategico (DOCX)', file: data.filenames.docx});
-        }
-        if (data.onepager && data.filenames && data.filenames.onepager) {
-          items.push({name: 'OnePager', file: data.filenames.onepager});
-        }
-        items.forEach(it => {
-          const a = document.createElement('a');
-          a.href = '/download/' + it.file;
-          a.textContent = it.name;
-          a.style.display = 'block';
-          a.className = 'download-link';
-          container.appendChild(a);
-        });
-      })
-      .catch(err => console.error('Status fetch error', err));
-  })();
-  </script>
 </body>
 </html>
