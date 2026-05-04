@@ -726,6 +726,48 @@ def admin_clear_cache():
     return jsonify({"success": True, "deleted": deleted})
 
 
+@app.route("/api/admin/users")
+@login_required
+def api_admin_list_users():
+    """Lista tutti gli utenti — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    users = knowledge_manager.store.list_users()
+    return jsonify({"success": True, "users": users})
+
+
+@app.route("/api/admin/plans")
+@login_required
+def api_admin_list_plans():
+    """Lista tutti i piani (tutti gli owner) — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    limit = int(request.args.get("limit", 500))
+    # list_plans senza owner_id filtra per utente corrente; usiamo query diretta
+    with __import__("sqlite3").connect(knowledge_manager.store.db_path) as conn:
+        conn.row_factory = __import__("sqlite3").Row
+        rows = conn.execute(
+            "SELECT id, club_name, category, status, credibility_score, created_at, owner_id "
+            "FROM plans ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+    plans = [dict(r) for r in rows]
+    return jsonify({"success": True, "plans": plans})
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@login_required
+def api_admin_delete_user(user_id: int):
+    """Elimina utente — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    if user_id == int(current_user.id):
+        return jsonify({"success": False, "error": "Non puoi eliminare te stesso"}), 400
+    with __import__("sqlite3").connect(knowledge_manager.store.db_path) as conn:
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+        conn.commit()
+    return jsonify({"success": True})
+
+
 @app.route("/club/profile", methods=["GET"])
 @login_required
 def club_profile():
