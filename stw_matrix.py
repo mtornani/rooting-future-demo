@@ -419,16 +419,16 @@ def get_category_name(category: STWCategory) -> str:
 
 
 def get_category_icon(category: STWCategory) -> str:
-    """Restituisce un'icona Unicode per la categoria"""
+    """Restituisce un'abbreviazione testuale per la categoria (compatibile PDF/WeasyPrint)"""
     icons = {
-        STWCategory.SPORTIVI: "⚽",
-        STWCategory.STRUTTURALI: "🏗️",
-        STWCategory.MARKETING: "📢",
-        STWCategory.SOCIALI: "🤝",
-        STWCategory.STRUTTURA_ORG: "🏛️",
-        STWCategory.RELAZIONI_IST: "🤝🏛",
+        STWCategory.SPORTIVI: "SPO",
+        STWCategory.STRUTTURALI: "STR",
+        STWCategory.MARKETING: "MKT",
+        STWCategory.SOCIALI: "SOC",
+        STWCategory.STRUTTURA_ORG: "ORG",
+        STWCategory.RELAZIONI_IST: "REL",
     }
-    return icons.get(category, "📋")
+    return icons.get(category, "STW")
 
 
 def get_category_color(category: STWCategory) -> str:
@@ -674,7 +674,9 @@ def get_stw_matrix_css() -> str:
     }
 
     .stw-overview-icon {
-        font-size: 20pt;
+        font-size: 10pt;
+        font-weight: 700;
+        letter-spacing: 0.5px;
         margin-bottom: 2mm;
     }
 
@@ -709,7 +711,10 @@ def get_stw_matrix_css() -> str:
     }
 
     .stw-category-header-compact .stw-icon {
-        font-size: 14pt;
+        font-size: 8pt;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        opacity: 0.85;
     }
 
     .stw-category-header-compact .stw-category-name {

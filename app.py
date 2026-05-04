@@ -2818,6 +2818,37 @@ def api_export_plan_pdf(plan_id: str):
     )
 
 
+@app.route("/api/export/<plan_id>/docx", methods=["GET"])
+@login_required
+@route_error_handler
+def api_export_plan_docx(plan_id: str):
+    """Genera e scarica il DOCX del piano strategico."""
+    review = _get_or_load_review(plan_id)
+    plan_data = editor.export_plan_for_final(plan_id) or {}
+    club_identity = get_club_identity(review.club_name)
+    metadata = {
+        "category": review.category,
+        "primary_color": club_identity.get("primary", "#1a365d"),
+        "secondary_color": club_identity.get("secondary", "#ffffff"),
+        "credibility_score": (
+            sum(s.credibility_score for s in review.sections.values()) / len(review.sections)
+            if review.sections else 0
+        ),
+    }
+    docx_path = docx_exporter.export(
+        plan_data=plan_data,
+        club_name=review.club_name,
+        sources=[],
+        metadata=metadata,
+    )
+    return send_file(
+        docx_path,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=docx_path.name,
+    )
+
+
 @app.route("/api/export/<plan_id>/html", methods=["GET"])
 @route_error_handler
 def api_export_html_only(plan_id: str):

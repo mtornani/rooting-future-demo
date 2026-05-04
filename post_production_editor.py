@@ -288,6 +288,9 @@ class PostProductionEditor:
                 r'\1', content
             )
 
+            # Fix: rimuovi caratteri block Unicode (es. ▌ U+258C) — artefatti streaming AI
+            content = _re.sub(r'[▀-▟]', '', content)
+
             # Conta fonti per questa sezione
             section_sources = [s for s in (sources or []) if section_id in str(s)]
 
