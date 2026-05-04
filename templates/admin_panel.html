@@ -22,6 +22,12 @@
             <button onclick="openNewUserModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all transform hover:scale-105">
                 <span>+</span> Nuovo Manager
             </button>
+            <button onclick="generateTeamInvite()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all">
+                <span>🔗</span> Link Collaboratori
+            </button>
+            <a href="/admin/guest-log" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all">
+                <span>👁</span> Access Log
+            </a>
         </div>
     </div>
 
@@ -271,6 +277,23 @@
 
     function loadStats() {
         loadData();
+    }
+
+    async function generateTeamInvite() {
+        const label = prompt('Nome/etichetta per questo link (es. "Staff Tecnico"):') || 'Team Rooting Future';
+        if (label === null) return; // user cancelled
+        const resp = await fetch('/api/admin/team-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label, expires_days: 90 })
+        });
+        const data = await resp.json();
+        if (data.link) {
+            const copied = await navigator.clipboard.writeText(data.link).then(() => true).catch(() => false);
+            alert(`✅ Link generato per "${label}":\n\n${data.link}\n\n${copied ? '📋 Copiato negli appunti!' : 'Copia il link qui sopra.'}\n\nScade: ${data.expires_at ? new Date(data.expires_at).toLocaleDateString('it-IT') : '∞'}`);
+        } else {
+            alert('❌ Errore: ' + (data.error || 'sconosciuto'));
+        }
     }
 
     async function clearAICache() {
