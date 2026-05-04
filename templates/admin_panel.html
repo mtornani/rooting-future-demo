@@ -290,6 +290,39 @@
         loadData();
     }
 
+    function openNewUserModal() {
+        document.getElementById('new-user-modal').classList.remove('hidden');
+        document.getElementById('new-user-form').reset();
+    }
+
+    function closeNewUserModal() {
+        document.getElementById('new-user-modal').classList.add('hidden');
+    }
+
+    async function createUser(event) {
+        event.preventDefault();
+        const form = document.getElementById('new-user-form');
+        const fd = new FormData(form);
+        const body = {
+            full_name: fd.get('full_name'),
+            email: fd.get('email'),
+            role: 'manager'
+        };
+        const resp = await fetch('/api/admin/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.success) {
+            alert(`✅ Account creato!\n\nEmail: ${body.email}\nPassword temporanea: ${data.temp_password}\n\n⚠️ Comunicala all'utente — non verrà mostrata di nuovo.`);
+            closeNewUserModal();
+            loadUsers();
+        } else {
+            alert('❌ Errore: ' + (data.error || 'sconosciuto'));
+        }
+    }
+
     async function generateManagerInvite() {
         const label = prompt('Nome del manager (es. "Mario Rossi – Riccione"):');
         if (!label) return;

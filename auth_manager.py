@@ -70,6 +70,16 @@ def login():
                 login_user(user)
                 session.modified = True
                 print(f"[AUTH] login_user OK, session keys: {list(session.keys())}", flush=True)
+                # Log accesso nel guest_access_log per tracciabilità admin
+                try:
+                    _store.log_guest_access(
+                        token=f"login_{user_data['id']}",
+                        plan_id="__login__",
+                        ip=request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+                        user_agent=request.user_agent.string or "",
+                    )
+                except Exception:
+                    pass
                 return redirect(url_for('index'))
 
         flash('Email o password non validi', 'error')

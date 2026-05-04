@@ -636,10 +636,10 @@ def admin_guest_access_log():
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""
             SELECT l.*, t.label, t.owner_id, t.expires_at,
-                   p.club_name
+                   COALESCE(p.club_name, l.plan_id) as club_name
             FROM guest_access_log l
-            JOIN guest_tokens t ON l.token = t.token
-            JOIN plans p ON l.plan_id = p.id
+            LEFT JOIN guest_tokens t ON l.token = t.token
+            LEFT JOIN plans p ON l.plan_id = p.id
             ORDER BY l.accessed_at DESC
             LIMIT 500
         """).fetchall()
@@ -656,19 +656,25 @@ def admin_guest_log_page():
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""
             SELECT l.accessed_at, l.ip, l.user_agent,
-                   t.label, p.club_name, l.token
+                   COALESCE(t.label, '—') as label,
+                   COALESCE(p.club_name, l.plan_id) as club_name,
+                   l.token
             FROM guest_access_log l
-            JOIN guest_tokens t ON l.token = t.token
-            JOIN plans p ON l.plan_id = p.id
+            LEFT JOIN guest_tokens t ON l.token = t.token
+            LEFT JOIN plans p ON l.plan_id = p.id
             ORDER BY l.accessed_at DESC
             LIMIT 500
         """).fetchall()
     rows = [dict(r) for r in rows]
+    def _row_type(r):
+        if r['club_name'] == '__login__': return '🔐 Login'
+        if r['club_name'] == '__team__': return '👥 Team'
+        return f"📄 {r['club_name']}"
     html_rows = "".join(
         f"<tr><td>{r['accessed_at'][:19]}</td><td>{r['label']}</td>"
-        f"<td>{r['club_name']}</td><td>{r['ip']}</td>"
+        f"<td>{_row_type(r)}</td><td>{r['ip']}</td>"
         f"<td style='max-width:200px;overflow:hidden;font-size:11px'>{r['user_agent'][:80]}</td>"
-        f"<td style='font-size:10px'>{r['token'][:12]}…</td></tr>"
+        f"<td style='font-size:10px'>{r['token'][:16]}…</td></tr>"
         for r in rows
     )
     return f"""<!DOCTYPE html><html><head><meta charset='UTF-8'>
@@ -752,6 +758,33 @@ def api_admin_list_plans():
         ).fetchall()
     plans = [dict(r) for r in rows]
     return jsonify({"success": True, "plans": plans})
+
+
+@app.route("/api/admin/users", methods=["POST"])
+@login_required
+def api_admin_create_user():
+    """Crea nuovo account manager — solo super_admin."""
+    if current_user.role != "super_admin":
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+    from werkzeug.security import generate_password_hash
+    import secrets, string
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    full_name = data.get("full_name", "").strip()
+    role = data.get("role", "manager")
+    if not email or not full_name:
+        return jsonify({"success": False, "error": "Email e nome obbligatori"}), 400
+    if knowledge_manager.store.get_user_by_email(email):
+        return jsonify({"success": False, "error": "Email già registrata"}), 409
+    # Genera password temporanea
+    alphabet = string.ascii_letters + string.digits
+    temp_password = "".join(secrets.choice(alphabet) for _ in range(12))
+    password_hash = generate_password_hash(temp_password)
+    user_id = knowledge_manager.store.create_user(
+        email=email, password_hash=password_hash, full_name=full_name, role=role
+    )
+    logger.info(f"Admin {current_user.email}: created user {email} (id={user_id})")
+    return jsonify({"success": True, "user_id": user_id, "temp_password": temp_password})
 
 
 @app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
