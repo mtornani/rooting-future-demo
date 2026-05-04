@@ -402,10 +402,10 @@ def _extract_timeline_from_plan(plan_data: Dict) -> list:
                     # Splitta "Label: descrizione" → titolo breve + desc lunga
                     colon_idx = raw.find(':')
                     if colon_idx > 0 and colon_idx < 60:
-                        label = raw[:colon_idx].strip()
+                        label = raw[:colon_idx].strip().strip('()')
                         desc_part = raw[colon_idx+1:].strip()
                     else:
-                        label = raw[:60].strip()
+                        label = raw[:60].strip().strip('()')
                         desc_part = raw[60:].strip()
                     extra_desc = _clean_text((b[2] or '').strip())
                     full_desc = (desc_part + ' ' + extra_desc).strip() if extra_desc else desc_part
@@ -532,18 +532,19 @@ def generate_executive_report_html(
         gap_img = ''
 
     # === SEZIONI SINTETICHE CON POPUP ===
+    # Each entry: (primary_key, stw_fallback_key, title, icon, color)
     areas_config = [
-        ('technical_sporting', 'Area Sportiva', '⚽', '#2E7D32'),
-        ('infrastructure', 'Infrastrutture', '🏗️', '#1565C0'),
-        ('marketing_commercial', 'Marketing', '📈', '#F57C00'),
-        ('social_sustainability', 'Sociale', '🤝', '#7B1FA2'),
+        ('technical_sporting', 'stw_sportivi',      'Area Sportiva',   '⚽', '#2E7D32'),
+        ('infrastructure',     'stw_strutturali',   'Infrastrutture',  '🏗️', '#1565C0'),
+        ('marketing_commercial','stw_marketing',    'Marketing',       '📈', '#F57C00'),
+        ('social_sustainability','stw_sociali',     'Sociale',         '🤝', '#7B1FA2'),
     ]
 
     areas_html = ""
     modals_html = ""
 
-    for idx, (key, title, icon, color) in enumerate(areas_config):
-        content = plan_data.get(key, '')
+    for idx, (key, stw_key, title, icon, color) in enumerate(areas_config):
+        content = plan_data.get(key, '') or plan_data.get(stw_key, '')
         objectives = _extract_objectives_summary(content)
 
         # Preview compatta (max 3 items per colonna)
@@ -990,7 +991,7 @@ def generate_executive_report_html(
 
         .truncate-screen {{
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 4;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }}

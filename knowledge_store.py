@@ -399,6 +399,21 @@ class SQLiteKnowledgeStore:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_guest_log_token ON guest_access_log(token)")
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS manager_invites (
+                    token TEXT PRIMARY KEY,
+                    created_by INTEGER NOT NULL,
+                    club_slug TEXT,
+                    label TEXT,
+                    role TEXT DEFAULT 'manager',
+                    expires_at TEXT NOT NULL,
+                    used_at TEXT,
+                    used_by_email TEXT,
+                    used_by_user_id INTEGER,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
             conn.commit()
             logger.info("Database SQLite inizializzato con ottimizzazioni WAL e indici OPT-001.")
 
@@ -543,6 +558,40 @@ class SQLiteKnowledgeStore:
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute("SELECT credits FROM users WHERE id = ?", (user_id,)).fetchone()
             return row[0] if row else 0
+
+    # -------------------------------------------------------------------------
+    # MANAGER INVITES
+    # -------------------------------------------------------------------------
+
+    def create_manager_invite(self, token: str, created_by: int, club_slug: str = "",
+                              label: str = "", expires_at: str = "", role: str = "manager") -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                INSERT INTO manager_invites (token, created_by, club_slug, label, role, expires_at, created_at)
+                VALUES (?,?,?,?,?,?,?)
+            """, (token, created_by, club_slug, label, role, expires_at, datetime.now().isoformat()))
+            conn.commit()
+
+    def get_manager_invite(self, token: str) -> Optional[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM manager_invites WHERE token=?", (token,)).fetchone()
+            return dict(row) if row else None
+
+    def use_manager_invite(self, token: str, email: str, user_id: int) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                UPDATE manager_invites SET used_at=?, used_by_email=?, used_by_user_id=? WHERE token=?
+            """, (datetime.now().isoformat(), email, user_id, token))
+            conn.commit()
+
+    def list_manager_invites(self, created_by: int) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("""
+                SELECT * FROM manager_invites WHERE created_by=? ORDER BY created_at DESC
+            """, (created_by,)).fetchall()
+            return [dict(r) for r in rows]
 
     def list_users(self) -> List[Dict]:
         """Lista tutti gli utenti con statistiche"""

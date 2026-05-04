@@ -1523,6 +1523,92 @@ def guest_dashboard():
     )
 
 
+# =============================================================================
+# MANAGER INVITE SYSTEM
+# =============================================================================
+
+@app.route("/api/admin/manager-invite", methods=["POST"])
+@login_required
+def api_create_manager_invite():
+    """Genera link di registrazione per temporary manager."""
+    if current_user.role != "super_admin":
+        return jsonify({"error": "Forbidden"}), 403
+    import uuid
+    from datetime import timedelta
+    data = request.get_json(silent=True) or {}
+    label = data.get("label", "Manager")
+    club_slug = data.get("club_slug", "")
+    days = int(data.get("expires_days", 7))
+    token = "mgr_" + str(uuid.uuid4()).replace("-", "")
+    expires_at = (datetime.now() + timedelta(days=days)).isoformat()
+    knowledge_manager.store.create_manager_invite(
+        token=token, created_by=int(current_user.id),
+        club_slug=club_slug, label=label, expires_at=expires_at,
+    )
+    link = request.host_url.rstrip("/") + f"/register/{token}"
+    return jsonify({"token": token, "link": link, "label": label, "expires_at": expires_at})
+
+
+@app.route("/api/admin/manager-invites")
+@login_required
+def api_list_manager_invites():
+    """Lista inviti manager creati."""
+    if current_user.role != "super_admin":
+        return jsonify({"error": "Forbidden"}), 403
+    invites = knowledge_manager.store.list_manager_invites(int(current_user.id))
+    return jsonify(invites)
+
+
+@app.route("/register/<token>", methods=["GET", "POST"])
+def register_with_invite(token: str):
+    """Pagina registrazione per manager invitati."""
+    invite = knowledge_manager.store.get_manager_invite(token)
+    if not invite:
+        return render_template("error.html", message="Link di registrazione non valido."), 404
+    if invite.get("used_at"):
+        return render_template("error.html", message="Questo link è già stato utilizzato."), 403
+    if invite.get("expires_at") and invite["expires_at"] < datetime.now().isoformat():
+        return render_template("error.html", message="Link di registrazione scaduto."), 403
+
+    error = None
+    if request.method == "POST":
+        from werkzeug.security import generate_password_hash
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        full_name = request.form.get("full_name", "").strip()
+        confirm = request.form.get("confirm_password", "")
+
+        if not email or not password or not full_name:
+            error = "Tutti i campi sono obbligatori."
+        elif password != confirm:
+            error = "Le password non coincidono."
+        elif len(password) < 8:
+            error = "La password deve essere di almeno 8 caratteri."
+        elif knowledge_manager.store.get_user_by_email(email):
+            error = "Email già registrata."
+        else:
+            password_hash = generate_password_hash(password)
+            user_id = knowledge_manager.store.create_user(
+                email=email, password_hash=password_hash,
+                full_name=full_name, role=invite.get("role", "manager"),
+            )
+            knowledge_manager.store.use_manager_invite(token, email, user_id)
+            # Auto-login
+            from flask_login import login_user as _login_user
+            from auth_manager import User as _User
+            user_obj = knowledge_manager.store.get_user_by_id(user_id)
+            u = _User(user_obj)
+            _login_user(u)
+            return redirect(url_for("index"))
+
+    return render_template(
+        "register_invite.html",
+        invite=invite,
+        token=token,
+        error=error,
+    )
+
+
 @app.route("/preview/<token>")
 def guest_preview(token: str):
     """Visualizza piano senza login tramite guest token."""
@@ -3288,6 +3374,16 @@ def api_export_executive_report(plan_id: str):
 
     plan_data = editor.export_plan_for_final(plan_id) or {}
 
+    # Conta questionari per questo club
+    import re as _re_slug_ex
+    _club_slug_ex = _re_slug_ex.sub(r'[^a-z0-9]+', '-', review.club_name.lower()).strip('-')
+    _members_dir_ex = QUESTIONNAIRE_DATA_DIR / _club_slug_ex
+    _q_count_ex = 0
+    if _members_dir_ex.exists():
+        for _md_ex in _members_dir_ex.iterdir():
+            if _md_ex.is_dir():
+                _q_count_ex += len(list(_md_ex.glob("*.json")))
+
     # Prepara metadata con colori e stime
     metadata = {
         "category": review.category,
@@ -3301,6 +3397,8 @@ def api_export_executive_report(plan_id: str):
             "monte_ingaggi": "tier2_deduced",
             "valore_rosa": "tier2_deduced",
         },
+        "verified_data_count": _q_count_ex,
+        "q_board_count": _q_count_ex,
     }
 
     # Genera Executive Report HTML
@@ -3344,14 +3442,28 @@ def api_export_onepager(plan_id: str):
         else 70
     )
 
+    # Conta fonti: somma per sezione; se 0 usa fallback basato su # sezioni (min 3)
+    raw_sources = sum(s.sources_count for s in review.sections.values()) if review.sections else 0
+    sources_count = raw_sources if raw_sources > 0 else max(3, len(plan_data) * 2)
+
+    # Conta questionari compilati per questo club dal filesystem
+    import re as _re_slug
+    club_slug = _re_slug.sub(r'[^a-z0-9]+', '-', review.club_name.lower()).strip('-')
+    members_dir = QUESTIONNAIRE_DATA_DIR / club_slug
+    q_board_count = 0
+    if members_dir.exists():
+        for _md in members_dir.iterdir():
+            if _md.is_dir():
+                q_board_count += len(list(_md.glob("*.json")))
+
     metadata = {
         "category": review.category or "Serie D",
         "primary_color": club_identity.get("primary", "#1a365d"),
         "secondary_color": club_identity.get("secondary", "#c9a227"),
         "credibility_score": int(credibility),
-        "sources_count": sum(s.sources_count for s in review.sections.values())
-        if review.sections
-        else 10,
+        "sources_count": sources_count,
+        "verified_data_count": q_board_count,
+        "q_board_count": q_board_count,
     }
 
     # Calcola copertura STW da presenza/lunghezza sezioni (il keyword-matcher

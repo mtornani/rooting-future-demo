@@ -30,6 +30,9 @@
             <button onclick="openNewUserModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all transform hover:scale-105">
                 <span>+</span> Nuovo Manager
             </button>
+            <button onclick="generateManagerInvite()" class="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all">
+                <span>👤</span> Invita Manager
+            </button>
             <button onclick="generateTeamInvite()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 font-bold transition-all">
                 <span>🔗</span> Link Collaboratori
             </button>
@@ -285,6 +288,24 @@
 
     function loadStats() {
         loadData();
+    }
+
+    async function generateManagerInvite() {
+        const label = prompt('Nome del manager (es. "Mario Rossi – Riccione"):');
+        if (!label) return;
+        const clubSlug = prompt('Slug club assegnato (es. "riccione-calcio-1926") — lascia vuoto per nessuno:') || '';
+        const resp = await fetch('/api/admin/manager-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label, club_slug: clubSlug, expires_days: 7 })
+        });
+        const data = await resp.json();
+        if (data.link) {
+            const copied = await navigator.clipboard.writeText(data.link).then(() => true).catch(() => false);
+            alert(`✅ Link registrazione per "${label}":\n\n${data.link}\n\n${copied ? '📋 Copiato!' : 'Copia il link.'}\n\nScade tra 7 giorni. Uso singolo.`);
+        } else {
+            alert('❌ Errore: ' + (data.error || 'sconosciuto'));
+        }
     }
 
     async function generateTeamInvite() {
