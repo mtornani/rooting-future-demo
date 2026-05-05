@@ -461,6 +461,23 @@
             </div>
         </div>
 
+        <!-- Piano d'Azione Widget -->
+        {% if stats.recent_plans %}
+        <div class="card" id="tasksWidget" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.875rem;">
+                <div class="card-h" style="margin:0;">📋 Piano d'Azione</div>
+                <div style="display:flex;gap:0.5rem;align-items:center;">
+                    <span id="taskBadgeOverdue" style="display:none;background:#ef4444;color:#fff;border-radius:9999px;font-size:11px;padding:2px 9px;font-weight:700;"></span>
+                    <span id="taskBadgeTotal" style="background:var(--input);color:var(--muted);border-radius:9999px;font-size:11px;padding:2px 9px;"></span>
+                </div>
+            </div>
+            <!-- Counters row -->
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;" id="taskCounters"></div>
+            <!-- Overdue list -->
+            <div id="taskOverdueList"></div>
+        </div>
+        {% endif %}
+
         <!-- Health strip + License -->
         <div class="health-strip">
             <div class="health-item">
@@ -718,6 +735,49 @@ setInterval(async () => {
 }, 10000);
 
 document.addEventListener('DOMContentLoaded', connectConsole);
+
+// ── Tasks Widget ──
+{% if stats.recent_plans %}
+async function loadTasksWidget() {
+    try {
+        const r = await fetch('/api/tasks/summary');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!d.total) return;
+
+        document.getElementById('tasksWidget').style.display = '';
+        document.getElementById('taskBadgeTotal').textContent = d.total + ' task';
+
+        if (d.overdue_count > 0) {
+            const ob = document.getElementById('taskBadgeOverdue');
+            ob.textContent = d.overdue_count + ' scadut' + (d.overdue_count === 1 ? 'o' : 'i');
+            ob.style.display = '';
+        }
+
+        const STATUS = {in_corso:'🟢 In corso', a_rischio:'🟠 A rischio', bloccato:'🔴 Bloccato', fatto:'✅ Fatto'};
+        const counters = document.getElementById('taskCounters');
+        counters.innerHTML = Object.entries(d.counts).filter(([,v])=>v>0).map(([k,v])=>
+            `<span style="font-size:12px;background:var(--input);color:var(--text);padding:2px 10px;border-radius:20px;">${STATUS[k]||k} <strong>${v}</strong></span>`
+        ).join('');
+
+        if (d.overdue && d.overdue.length) {
+            const ol = document.getElementById('taskOverdueList');
+            ol.innerHTML = `<div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:6px;">⚠️ Scaduti</div>` +
+                d.overdue.map(t => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:13px;">
+                    <div>
+                        <span style="color:var(--muted);font-size:11px;">${t.area||'—'} · ${t.club_name}</span><br>
+                        <strong>${t.title}</strong>
+                        ${t.responsabile ? '<span style="color:var(--muted);font-size:11px;"> · '+t.responsabile+'</span>' : ''}
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+                        <span style="color:#ef4444;font-size:11px;font-weight:700;">${t.scadenza}</span>
+                    </div>
+                </div>`).join('');
+        }
+    } catch(e) { /* silently skip */ }
+}
+document.addEventListener('DOMContentLoaded', loadTasksWidget);
+{% endif %}
 </script>
 </body>
 </html>

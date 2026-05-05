@@ -1487,6 +1487,41 @@ def api_overdue_tasks_count():
     return jsonify({"count": count})
 
 
+@app.route("/api/tasks/summary")
+@login_required
+def api_tasks_summary():
+    """Aggregato task per il dashboard: conta per stato + lista scaduti recenti."""
+    import sqlite3 as _sq
+    today = __import__('datetime').date.today().isoformat()
+    db_path = knowledge_manager.store.db_path
+    owner_id = int(current_user.id)
+    with _sq.connect(db_path) as conn:
+        conn.row_factory = _sq.Row
+        rows = conn.execute("""
+            SELECT pt.id, pt.plan_id, pt.area, pt.title, pt.status, pt.scadenza, pt.responsabile,
+                   p.club_name
+            FROM plan_tasks pt
+            JOIN plans p ON pt.plan_id = p.id
+            WHERE p.owner_id = ?
+            ORDER BY pt.scadenza ASC NULLS LAST
+        """, (owner_id,)).fetchall()
+    tasks = [dict(r) for r in rows]
+    counts = {"in_corso": 0, "a_rischio": 0, "bloccato": 0, "fatto": 0}
+    overdue = []
+    for t in tasks:
+        s = t.get("status", "in_corso")
+        if s in counts:
+            counts[s] += 1
+        if t.get("scadenza") and t["scadenza"] < today and s != "fatto":
+            overdue.append(t)
+    return jsonify({
+        "total": len(tasks),
+        "counts": counts,
+        "overdue_count": len(overdue),
+        "overdue": overdue[:5],  # max 5 per dashboard
+    })
+
+
 @app.route("/api/plans/<plan_id>/guest-tokens", methods=["GET"])
 @login_required
 def api_list_guest_tokens(plan_id: str):
