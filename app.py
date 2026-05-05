@@ -1707,7 +1707,7 @@ def api_create_manager_invite():
 @app.route("/api/admin/rf-invite", methods=["POST"])
 @login_required
 def api_create_rf_invite():
-    """Genera link di registrazione multi-uso per soci/collaboratori Rooting Future (ruolo viewer)."""
+    """Genera link di registrazione multi-uso per soci/collaboratori Rooting Future (ruolo manager)."""
     if current_user.role != "super_admin":
         return jsonify({"error": "Forbidden"}), 403
     import uuid
@@ -1717,7 +1717,7 @@ def api_create_rf_invite():
     knowledge_manager.store.create_manager_invite(
         token=token, created_by=int(current_user.id),
         club_slug="", label=label, expires_at="",
-        role="viewer", multi_use=True,
+        role="manager", multi_use=True,
     )
     link = request.host_url.rstrip("/") + f"/register/{token}"
     return jsonify({"token": token, "link": link, "label": label, "multi_use": True})
@@ -1768,6 +1768,9 @@ def register_with_invite(token: str):
                 full_name=full_name, role=invite.get("role", "manager"),
             )
             knowledge_manager.store.use_manager_invite(token, email, user_id)
+            # Crediti starter per link multi-uso (soci RF)
+            if invite.get("multi_use"):
+                knowledge_manager.store.update_user_credits(user_id, 5)
             # Auto-login
             from flask_login import login_user as _login_user
             from auth_manager import User as _User
