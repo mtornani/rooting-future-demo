@@ -36,6 +36,9 @@
             <button onclick="generateTeamInvite()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-1 font-bold transition-all text-sm">
                 <span>🔗</span> <span class="hidden sm:inline">Collaboratori</span>
             </button>
+            <button onclick="generateRFInvite()" class="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-1 font-bold transition-all text-sm" title="Link unico multi-uso per soci RF">
+                <span>🌱</span> <span class="hidden sm:inline">Soci RF</span>
+            </button>
             <a href="/admin/guest-log" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-1 font-bold transition-all text-sm">
                 <span>👁</span> <span class="hidden sm:inline">Log</span>
             </a>
@@ -353,6 +356,28 @@
         if (data.link) {
             const copied = await navigator.clipboard.writeText(data.link).then(() => true).catch(() => false);
             alert(`✅ Link generato per "${label}":\n\n${data.link}\n\n${copied ? '📋 Copiato negli appunti!' : 'Copia il link qui sopra.'}\n\nScade: ${data.expires_at ? new Date(data.expires_at).toLocaleDateString('it-IT') : '∞'}`);
+        } else {
+            alert('❌ Errore: ' + (data.error || 'sconosciuto'));
+        }
+    }
+
+    async function generateRFInvite() {
+        const label = prompt('Etichetta per il link soci (es. "Soci 2025"):') || 'Soci Rooting Future';
+        if (label === null) return;
+        const resp = await fetch('/api/admin/rf-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label })
+        });
+        const data = await resp.json();
+        if (data.link) {
+            const copied = await navigator.clipboard.writeText(data.link).then(() => true).catch(() => false);
+            alert(
+                `🌱 Link soci RF generato per "${label}":\n\n${data.link}\n\n` +
+                `${copied ? '📋 Copiato negli appunti!' : 'Copia il link sopra.'}\n\n` +
+                `♾️ Nessuna scadenza — usa più volte.\n` +
+                `Ruolo assegnato: viewer (sola lettura)`
+            );
         } else {
             alert('❌ Errore: ' + (data.error || 'sconosciuto'));
         }

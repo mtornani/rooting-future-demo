@@ -563,26 +563,47 @@ class SQLiteKnowledgeStore:
     # MANAGER INVITES
     # -------------------------------------------------------------------------
 
+    def _migrate_manager_invites(self, conn) -> None:
+        """Aggiunge colonne multi_use / use_count se non esistono (migrazione safe)."""
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(manager_invites)").fetchall()}
+        if "multi_use" not in cols:
+            conn.execute("ALTER TABLE manager_invites ADD COLUMN multi_use INTEGER DEFAULT 0")
+        if "use_count" not in cols:
+            conn.execute("ALTER TABLE manager_invites ADD COLUMN use_count INTEGER DEFAULT 0")
+        conn.commit()
+
     def create_manager_invite(self, token: str, created_by: int, club_slug: str = "",
-                              label: str = "", expires_at: str = "", role: str = "manager") -> None:
+                              label: str = "", expires_at: str = "", role: str = "manager",
+                              multi_use: bool = False) -> None:
         with sqlite3.connect(self.db_path) as conn:
+            self._migrate_manager_invites(conn)
             conn.execute("""
-                INSERT INTO manager_invites (token, created_by, club_slug, label, role, expires_at, created_at)
-                VALUES (?,?,?,?,?,?,?)
-            """, (token, created_by, club_slug, label, role, expires_at, datetime.now().isoformat()))
+                INSERT INTO manager_invites (token, created_by, club_slug, label, role, expires_at, multi_use, use_count, created_at)
+                VALUES (?,?,?,?,?,?,?,0,?)
+            """, (token, created_by, club_slug, label, role, expires_at, int(multi_use), datetime.now().isoformat()))
             conn.commit()
 
     def get_manager_invite(self, token: str) -> Optional[Dict]:
         with sqlite3.connect(self.db_path) as conn:
+            self._migrate_manager_invites(conn)
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT * FROM manager_invites WHERE token=?", (token,)).fetchone()
             return dict(row) if row else None
 
     def use_manager_invite(self, token: str, email: str, user_id: int) -> None:
+        """Marca l'invite come usato. Per multi_use: incrementa solo use_count."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
-                UPDATE manager_invites SET used_at=?, used_by_email=?, used_by_user_id=? WHERE token=?
-            """, (datetime.now().isoformat(), email, user_id, token))
+            self._migrate_manager_invites(conn)
+            invite = conn.execute("SELECT multi_use FROM manager_invites WHERE token=?", (token,)).fetchone()
+            if invite and invite[0]:  # multi_use = True
+                conn.execute(
+                    "UPDATE manager_invites SET use_count = use_count + 1 WHERE token=?",
+                    (token,)
+                )
+            else:
+                conn.execute("""
+                    UPDATE manager_invites SET used_at=?, used_by_email=?, used_by_user_id=?, use_count=1 WHERE token=?
+                """, (datetime.now().isoformat(), email, user_id, token))
             conn.commit()
 
     def list_manager_invites(self, created_by: int) -> List[Dict]:

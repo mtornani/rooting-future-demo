@@ -1679,6 +1679,25 @@ def api_create_manager_invite():
     return jsonify({"token": token, "link": link, "label": label, "expires_at": expires_at})
 
 
+@app.route("/api/admin/rf-invite", methods=["POST"])
+@login_required
+def api_create_rf_invite():
+    """Genera link di registrazione multi-uso per soci/collaboratori Rooting Future (ruolo viewer)."""
+    if current_user.role != "super_admin":
+        return jsonify({"error": "Forbidden"}), 403
+    import uuid
+    data = request.get_json(silent=True) or {}
+    label = data.get("label", "Soci Rooting Future")
+    token = "rf_" + str(uuid.uuid4()).replace("-", "")[:16]
+    knowledge_manager.store.create_manager_invite(
+        token=token, created_by=int(current_user.id),
+        club_slug="", label=label, expires_at="",
+        role="viewer", multi_use=True,
+    )
+    link = request.host_url.rstrip("/") + f"/register/{token}"
+    return jsonify({"token": token, "link": link, "label": label, "multi_use": True})
+
+
 @app.route("/api/admin/manager-invites")
 @login_required
 def api_list_manager_invites():
@@ -1695,7 +1714,8 @@ def register_with_invite(token: str):
     invite = knowledge_manager.store.get_manager_invite(token)
     if not invite:
         return render_template("error.html", message="Link di registrazione non valido."), 404
-    if invite.get("used_at"):
+    # single-use: blocca se già usato
+    if not invite.get("multi_use") and invite.get("used_at"):
         return render_template("error.html", message="Questo link è già stato utilizzato."), 403
     if invite.get("expires_at") and invite["expires_at"] < datetime.now().isoformat():
         return render_template("error.html", message="Link di registrazione scaduto."), 403
