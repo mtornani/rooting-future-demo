@@ -1337,38 +1337,54 @@ def _run_generation_task(session_id: str, data: Dict, user_id: int):
 def api_progress_stream(session_id):
     """
     Server-Sent Events (SSE) per aggiornamenti progressivi sulla generazione.
+    Supporta sia session_manager (flusso standard) che project_progress (flusso questionari).
     """
     def generate():
         last_progress = -1
         last_status = ""
-        
+        ticks_without_data = 0
+
         while True:
+            # Prima tenta session_manager (flusso standard)
             session_data = session_manager.get_session(session_id)
-            if not session_data:
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Sessione non trovata'})}\n\n"
-                break
-            
-            # Invia aggiornamento se cambiato
-            current_progress = session_data.progress_percentage
-            current_status = session_data.status.value
-            
-            if current_progress != last_progress or current_status != last_status:
-                data = {
-                    "progress": round(current_progress, 1),
-                    "status": current_status,
+            if session_data:
+                current_progress = round(session_data.progress_percentage, 1)
+                current_status = session_data.status.value
+                extra = {
                     "message": session_data.metadata.get("last_message", ""),
                     "completed_sections": session_data.completed_sections,
-                    "plan_id": session_data.metadata.get("plan_id")
+                    "plan_id": session_data.metadata.get("plan_id"),
                 }
-                yield f"data: {json.dumps(data)}\n\n"
+            else:
+                # Fallback: project_progress (flusso generate-from-questionnaires)
+                state = project_progress.get(session_id)
+                if not state:
+                    ticks_without_data += 1
+                    if ticks_without_data >= 5:
+                        yield f"data: {json.dumps({'status': 'error', 'message': 'Sessione non trovata'})}\n\n"
+                        break
+                    time.sleep(1)
+                    continue
+                ticks_without_data = 0
+                current_progress = state.get("progress", 0)
+                current_status = state.get("status", "processing")
+                pd = state.get("data") or {}
+                extra = {
+                    "message": state.get("message", ""),
+                    "plan_id": pd.get("plan_id"),
+                }
+
+            if current_progress != last_progress or current_status != last_status:
+                payload = {"progress": current_progress, "status": current_status, **extra}
+                yield f"data: {json.dumps(payload)}\n\n"
                 last_progress = current_progress
                 last_status = current_status
-            
-            if current_status in ["completed", "failed"]:
+
+            if current_status in ("completed", "failed", "error"):
                 break
-                
+
             time.sleep(1)
-            
+
     return Response(generate(), mimetype="text/event-stream")
 
 @app.route("/api/project-status/<project_id>")
