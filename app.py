@@ -1412,6 +1412,20 @@ def api_project_status(project_id):
 # PIANO D'AZIONE TASKS (Step 5)
 # =============================================================================
 
+def _assert_plan_owner(plan_id: str):
+    """
+    Verifica che il piano appartenga all'utente loggato.
+    Ritorna (plan_record, None) se OK, (None, Response 403/404) se fallisce.
+    Super_admin bypassa il check.
+    """
+    plan = knowledge_manager.store.get_plan(plan_id)
+    if not plan:
+        return None, (jsonify({"error": "Piano non trovato"}), 404)
+    if current_user.role != "super_admin" and str(plan.owner_id) != str(current_user.id):
+        return None, (jsonify({"error": "Accesso negato"}), 403)
+    return plan, None
+
+
 def _extract_macros_from_plan(plan_data: dict, plan_id: str) -> list:
     """Estrae automaticamente macro-obiettivi dall'HTML del piano."""
     import re as _re
@@ -1462,21 +1476,22 @@ def _extract_macros_from_plan(plan_data: dict, plan_id: str) -> list:
 @app.route("/api/plans/<plan_id>/tasks", methods=["GET"])
 @login_required
 def api_get_plan_tasks(plan_id):
+    plan, err = _assert_plan_owner(plan_id)
+    if err: return err
     tasks = knowledge_manager.store.get_plan_tasks(plan_id)
-    # Auto-seed se primo accesso e piano esiste
-    if not tasks:
-        plan = knowledge_manager.store.get_plan(plan_id)
-        if plan and plan.plan_data:
-            macros = _extract_macros_from_plan(plan.plan_data, plan_id)
-            for t in macros:
-                knowledge_manager.store.upsert_plan_task(t)
-            tasks = knowledge_manager.store.get_plan_tasks(plan_id)
+    if not tasks and plan.plan_data:
+        macros = _extract_macros_from_plan(plan.plan_data, plan_id)
+        for t in macros:
+            knowledge_manager.store.upsert_plan_task(t)
+        tasks = knowledge_manager.store.get_plan_tasks(plan_id)
     return jsonify({"tasks": tasks})
 
 
 @app.route("/api/plans/<plan_id>/tasks", methods=["POST"])
 @login_required
 def api_create_plan_task(plan_id):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     body = request.get_json(silent=True) or {}
     body["plan_id"] = plan_id
     task_id = knowledge_manager.store.upsert_plan_task(body)
@@ -1486,6 +1501,8 @@ def api_create_plan_task(plan_id):
 @app.route("/api/plans/<plan_id>/tasks/<int:task_id>", methods=["PATCH"])
 @login_required
 def api_update_plan_task(plan_id, task_id):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     body = request.get_json(silent=True) or {}
     body["id"] = task_id
     body["plan_id"] = plan_id
@@ -1496,6 +1513,8 @@ def api_update_plan_task(plan_id, task_id):
 @app.route("/api/plans/<plan_id>/tasks/<int:task_id>", methods=["DELETE"])
 @login_required
 def api_delete_plan_task(plan_id, task_id):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     knowledge_manager.store.delete_plan_task(task_id)
     return jsonify({"ok": True})
 
@@ -1545,6 +1564,8 @@ def api_tasks_summary():
 @app.route("/api/plans/<plan_id>/guest-tokens", methods=["GET"])
 @login_required
 def api_list_guest_tokens(plan_id: str):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     tokens = knowledge_manager.store.list_guest_tokens(plan_id)
     for t in tokens:
         t["access_log"] = knowledge_manager.store.get_guest_access_log(t["token"])
@@ -1557,6 +1578,8 @@ def api_list_guest_tokens(plan_id: str):
 @login_required
 @route_error_handler
 def api_create_guest_token(plan_id: str):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     import uuid
     data = request.get_json(silent=True) or {}
     label = data.get("label", "Collaboratore")
@@ -1581,6 +1604,8 @@ def api_create_guest_token(plan_id: str):
 @app.route("/api/plans/<plan_id>/guest-tokens/<token>", methods=["DELETE"])
 @login_required
 def api_delete_guest_token(plan_id: str, token: str):
+    _, err = _assert_plan_owner(plan_id)
+    if err: return err
     knowledge_manager.store.delete_guest_token(token)
     return jsonify({"ok": True})
 
@@ -2284,6 +2309,18 @@ def create_plan_share(plan_id):
         "expires_days": expires_days
     })
 
+@app.route("/public/<share_token>/verify", methods=["POST"])
+def verify_share_password(share_token):
+    """Valida password per piano pubblico — salva in sessione, non in URL."""
+    body = request.get_json(silent=True) or {}
+    password = body.get("password", "")
+    share = share_manager.validate_share(share_token, password)
+    if not share:
+        return jsonify({"ok": False}), 401
+    session[f"share_pw_{share_token}"] = True
+    return jsonify({"ok": True})
+
+
 @app.route("/public/<share_token>")
 def view_public_plan(share_token):
     """
@@ -2293,18 +2330,19 @@ def view_public_plan(share_token):
     logger.info(f"[FEAT-008] Accessing public plan with token: {share_token[:8]}...")
 
     try:
-        # Check password se richiesta
-        password = request.args.get('password')
+        # Password: sessione (sicura) → query string (legacy) → None
+        session_verified = bool(session.get(f"share_pw_{share_token}"))
+        password = None if session_verified else request.args.get('password')
 
-        # Valida token
+        # Valida token (senza password se sessione già verificata)
         share = share_manager.validate_share(share_token, password)
 
         if not share:
             logger.warning(f"[FEAT-008] Invalid or expired token")
             return render_template("share_invalid.html"), 404
 
-        # Se richiede password e non è stata fornita
-        if share.get('requires_password') and not password:
+        # Se richiede password e non è né in sessione né in querystring
+        if share.get('requires_password') and not session_verified and not password:
             return render_template("share_password_required.html", share_token=share_token), 401
 
         # Recupera piano
@@ -2960,6 +2998,7 @@ def _get_or_load_review(plan_id: str):
     return review
 
 @app.route("/api/export/<plan_id>", methods=["POST"])
+@login_required
 def api_export_plan(plan_id: str):
     """
     Esporta piano nei formati richiesti.
