@@ -400,6 +400,18 @@
     }
 
     async function generatePlan() {
+        // Guard: categoria obbligatoria per generare un piano contestualizzato
+        if (!CLUB_CATEGORY) {
+            const cat = prompt(
+                '⚠️ Categoria sportiva non impostata nel profilo club.\n' +
+                'Inserisci la categoria (es. Eccellenza, Serie D, Serie C):',
+                'Eccellenza'
+            );
+            if (!cat || !cat.trim()) return;
+            // Aggiorna variabile JS per questa sessione e manda al backend
+            window._overrideCategory = cat.trim();
+        }
+
         const btn = document.getElementById('btnGenerate');
         btn.disabled = true;
         btn.innerHTML = '⏳ Generazione...';
@@ -413,7 +425,7 @@
             const res = await fetch('/api/generate-from-questionnaires', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({club_slug: CLUB_SLUG, category: CLUB_CATEGORY})
+                body: JSON.stringify({club_slug: CLUB_SLUG, category: window._overrideCategory || CLUB_CATEGORY})
             });
             const data = await res.json();
 

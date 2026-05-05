@@ -923,9 +923,13 @@ def club_hub(club_slug):
         if any(w in (p.club_name or "").lower() for w in slug_words if len(w) > 3)
     ][:5]
 
-    # Club profile
+    # Club profile — match by club_slug to avoid wrong categoria on multi-club setups
     profiles = knowledge_manager.store.get_club_profile_by_owner(current_user.id)
-    profile = profiles[0] if profiles else None
+    slug_normalized = club_slug.replace("-", " ").lower()
+    profile = next(
+        (p for p in profiles if slug_normalized in (p.get("club_name") or "").lower()),
+        profiles[0] if profiles else None,
+    )
 
     # Invite URL
     invite_url = request.host_url.rstrip("/") + f"/questionnaires?club={club_slug}"
