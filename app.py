@@ -5761,3 +5761,5 @@ if __name__ == "__main__":
 
     # Usa 127.0.0.1 per evitare problemi firewall Windows
     app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True, use_reloader=False)
+
+# "buildHash": "b1884a43"
